@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { SettingsIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
+import { SettingsIcon, Loader2Icon, PlusIcon, RefreshCwIcon, TvIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,19 +15,43 @@ import { EpgManifest } from "@/lib/epg-store";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "next-themes";
+import type { PortalRequest } from "@/lib/stalker-types";
 
 interface SettingsDialogProps {
   logoSource: "provider" | "epg";
   onLogoSourceChange: (source: "provider" | "epg") => void;
   epgManifest: EpgManifest | null;
   onRefetchComplete: () => Promise<void>;
+  savedPortals: SavedPortalRecord[];
+  isLoadingPortals: boolean;
+  loadingPortalId: number | null;
+  refetchingPortalId: number | null;
+  onAddPortal: () => void;
+  onLoadPortal: (portal: SavedPortalRecord) => void | Promise<void>;
+  onRefetchPortal: (portal: SavedPortalRecord) => void | Promise<void>;
 }
+
+type SavedPortalRecord = PortalRequest & {
+  id: number;
+  name: string;
+  endpoint?: string | null;
+  channelCount: number;
+  createdAt: string | number | Date;
+  updatedAt: string | number | Date;
+};
 
 export function SettingsDialog({
   logoSource,
   onLogoSourceChange,
   epgManifest,
   onRefetchComplete,
+  savedPortals,
+  isLoadingPortals,
+  loadingPortalId,
+  refetchingPortalId,
+  onAddPortal,
+  onLoadPortal,
+  onRefetchPortal,
 }: SettingsDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isRefetching, setIsRefetching] = React.useState(false);
@@ -77,7 +101,7 @@ export function SettingsDialog({
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>
@@ -110,6 +134,76 @@ export function SettingsDialog({
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+            </div>
+
+            <div className="h-px bg-border my-1" />
+
+            <div className="flex flex-col gap-2">
+              <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+                Portals
+              </span>
+              <div className="flex max-h-64 flex-col gap-2 overflow-y-auto rounded-lg border bg-muted/10 p-2">
+                {savedPortals.length ? (
+                  savedPortals.map((portal) => (
+                    <div
+                      key={portal.id}
+                      className="flex items-center gap-3 rounded-md border bg-background p-2"
+                    >
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/50">
+                        <TvIcon className="size-4" />
+                      </div>
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
+                        onClick={() => onLoadPortal(portal)}
+                      >
+                        <span className="w-full truncate text-sm font-medium">
+                          {portal.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {portal.channelCount.toLocaleString()} channels
+                        </span>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={
+                          loadingPortalId === portal.id ||
+                          refetchingPortalId === portal.id
+                        }
+                        onClick={() => onRefetchPortal(portal)}
+                        aria-label="Refetch portal"
+                      >
+                        {refetchingPortalId === portal.id ? (
+                          <Loader2Icon className="size-4 animate-spin" />
+                        ) : (
+                          <RefreshCwIcon className="size-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-1 py-3 text-sm text-muted-foreground">
+                    {isLoadingPortals
+                      ? "Loading saved portals."
+                      : "Successful connections can be saved here."}
+                  </p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-center"
+                onClick={() => {
+                  setIsOpen(false);
+                  onAddPortal();
+                }}
+              >
+                <PlusIcon className="size-4" />
+                Add Portal
+              </Button>
             </div>
 
             <div className="h-px bg-border my-1" />

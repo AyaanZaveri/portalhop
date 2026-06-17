@@ -2,6 +2,7 @@
 
 import {
   FormEvent,
+  ReactNode,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -15,23 +16,16 @@ import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckIcon,
-  ChevronDownIcon,
   CopyIcon,
   Loader2Icon,
-  PlayIcon,
-  PlusIcon,
-  RefreshCwIcon,
   RotateCcwIcon,
   RotateCwIcon,
-  Rabbit,
   SaveIcon,
   SearchIcon,
   TvIcon,
-  BrushCleaning,
 } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -48,7 +42,6 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
 import {
   Accordion,
@@ -56,12 +49,6 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu"
 import {
   Field,
   FieldDescription,
@@ -74,6 +61,11 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -99,6 +91,7 @@ import { SettingsDialog } from "@/components/settings-dialog"
 import type { EpgManifest } from "@/lib/epg-store"
 import { ThemeSelector } from "@/components/theme-selector"
 import MuxVideo from "@mux/mux-video-react"
+import { cn } from "@/lib/utils"
 
 type FormState = PortalRequest & {
   query: string
@@ -124,6 +117,8 @@ const initialForm: FormState = {
   stbType: "MAG254",
   query: "",
 }
+
+const lastOpenedPortalStorageKey = "portalhop-last-opened-portal-id"
 
 export default function Home() {
   const [form, setForm] = useState<FormState>(initialForm)
@@ -281,11 +276,63 @@ export default function Home() {
       setIsLoadingPortals(true)
       const response = await fetch("/api/portals", { cache: "no-store" })
       const data = await response.json().catch(() => ({ portals: [] }))
+      const portals = Array.isArray(data.portals)
+        ? (data.portals as SavedPortalRecord[])
+        : []
 
       if (isMounted) {
-        setSavedPortals(Array.isArray(data.portals) ? data.portals : [])
+        setSavedPortals(portals)
         setIsLoadingPortals(false)
       }
+
+      const lastOpenedPortalId = localStorage.getItem(lastOpenedPortalStorageKey)
+      const lastOpenedPortal = portals.find(
+        (portal) => String(portal.id) === lastOpenedPortalId
+      )
+
+      if (!isMounted || !lastOpenedPortal) {
+        return
+      }
+
+      setLoadingPortalId(lastOpenedPortal.id)
+      setForm((current) => ({
+        ...current,
+        portalUrl: lastOpenedPortal.portalUrl,
+        mac: lastOpenedPortal.mac,
+        serial: lastOpenedPortal.serial ?? "",
+        deviceId: lastOpenedPortal.deviceId ?? "",
+        deviceId2: lastOpenedPortal.deviceId2 ?? "",
+        signature: lastOpenedPortal.signature ?? "",
+        timezone: lastOpenedPortal.timezone,
+        stbType: lastOpenedPortal.stbType,
+        query: "",
+      }))
+      setError("")
+      setDetails([])
+
+      const portalResponse = await fetch(`/api/portals/${lastOpenedPortal.id}`, {
+        cache: "no-store",
+      })
+      const portalData = await portalResponse.json().catch(() => ({}))
+
+      if (!isMounted) {
+        return
+      }
+
+      setLoadingPortalId(null)
+
+      if (!portalResponse.ok) {
+        localStorage.removeItem(lastOpenedPortalStorageKey)
+        setError(portalData.error || "Could not load the last opened portal.")
+        return
+      }
+
+      setResult({
+        endpoint: lastOpenedPortal.endpoint || "",
+        profile: {},
+        genres: uniqueGenres(portalData.channels ?? []),
+        channels: Array.isArray(portalData.channels) ? portalData.channels : [],
+      })
     }
 
     loadSavedPortals()
@@ -379,6 +426,7 @@ export default function Home() {
       genres: uniqueGenres(data.channels ?? []),
       channels: Array.isArray(data.channels) ? data.channels : [],
     })
+    localStorage.setItem(lastOpenedPortalStorageKey, String(portal.id))
   }
 
   async function refetchSavedPortal(portal: SavedPortalRecord) {
@@ -425,6 +473,7 @@ export default function Home() {
           query: "",
         }))
         setResult(data.result)
+        localStorage.setItem(lastOpenedPortalStorageKey, String(refreshedPortal.id))
       }
       toast.success(`${portal.name} refetched successfully`, { id: toastId })
     } catch {
@@ -470,6 +519,7 @@ export default function Home() {
 
     if (data.portal) {
       setSavedPortals((current) => [data.portal, ...current])
+      localStorage.setItem(lastOpenedPortalStorageKey, String(data.portal.id))
     }
 
     setPortalName("")
@@ -477,10 +527,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-7 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-1">
-          <Sheet
+    <main className="h-screen overflow-hidden bg-background text-foreground">
+      <div className="relative h-full w-full">
+        <Sheet
             open={sheetOpen}
             onOpenChange={(open) => {
               setSheetOpen(open)
@@ -489,12 +538,6 @@ export default function Home() {
               }
             }}
           >
-            <SheetTrigger render={
-              <Button variant="default" className="mr-1 cursor-pointer">
-                <PlusIcon data-icon="inline-start" />
-                Add Portal
-              </Button>
-            } />
             <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
               <SheetHeader>
                 <SheetTitle>Connection</SheetTitle>
@@ -728,155 +771,66 @@ export default function Home() {
             </DialogContent>
           </Dialog>
 
-          <SettingsDialog
-            logoSource={logoSource}
-            onLogoSourceChange={handleLogoSourceChange}
-            epgManifest={epgManifest}
-            onRefetchComplete={handleEpgRefetchComplete}
-          />
-          <ThemeSelector />
-        </div>
-
-        <header className="flex flex-col gap-2">
-          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-            Portal Hop
-            <Rabbit className="size-7 shrink-0 translate-y-px text-primary brightness-75 dark:brightness-100" />
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Hop through and view TV portals
-          </p>
-        </header>
-
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Portals</h2>
+        {!result ? (
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-background/85 p-1 backdrop-blur">
+            <SettingsDialog
+              logoSource={logoSource}
+              onLogoSourceChange={handleLogoSourceChange}
+              epgManifest={epgManifest}
+              onRefetchComplete={handleEpgRefetchComplete}
+              savedPortals={savedPortals}
+              isLoadingPortals={isLoadingPortals}
+              loadingPortalId={loadingPortalId}
+              refetchingPortalId={refetchingPortalId}
+              onAddPortal={() => setSheetOpen(true)}
+              onLoadPortal={loadSavedPortal}
+              onRefetchPortal={refetchSavedPortal}
+            />
+            <ThemeSelector />
           </div>
+        ) : null}
 
-          {savedPortals.length ? (
-            <div className="-ml-2">
-            <div className="flex gap-4 overflow-x-auto py-1.5 px-2">
-              {savedPortals.map((portal) => (
-                <div
-                  key={portal.id}
-                  className="group relative flex shrink-0"
-                >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="peer h-auto w-60 flex flex-row items-center gap-4 rounded-xl px-3 py-3 pr-11 text-left cursor-pointer"
-                    onClick={() => loadSavedPortal(portal)}
-                  >
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/50 border border-muted/20 text-foreground">
-                      <TvIcon className="size-5" />
-                    </div>
-                    <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
-                      <span className="font-semibold text-sm w-full truncate">{portal.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {portal.channelCount.toLocaleString()} channels
-                      </span>
-                    </div>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2.5 right-2.5 size-7 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer z-10 transition-transform duration-75 group-active:translate-y-px"
-                    disabled={
-                      loadingPortalId === portal.id ||
-                      refetchingPortalId === portal.id
-                    }
-                    onClick={() => refetchSavedPortal(portal)}
-                    aria-label="Refetch portal"
-                  >
-                    {refetchingPortalId === portal.id ? (
-                      <Loader2Icon className="size-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCwIcon className="size-3.5" />
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {isLoadingPortals
-                ? "Loading saved portals."
-                : "Successful connections can be saved here."}
-            </p>
-          )}
-        </section>
-
-
-
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        {loadingPortalId !== null || isLoadingPortals ? (
+          <LoadingShell />
+        ) : result ? (
+          <ChannelBrowser
+            channels={filteredChannels}
+            endpoint={result.endpoint}
+            portalRequest={portalRequest}
+            logoSource={logoSource}
+            epgChannels={epgChannels}
+            query={form.query}
+            onQueryChange={(value) => updateField("query", value)}
+            utilityControls={
+              <>
+                <SettingsDialog
+                  logoSource={logoSource}
+                  onLogoSourceChange={handleLogoSourceChange}
+                  epgManifest={epgManifest}
+                  onRefetchComplete={handleEpgRefetchComplete}
+                  savedPortals={savedPortals}
+                  isLoadingPortals={isLoadingPortals}
+                  loadingPortalId={loadingPortalId}
+                  refetchingPortalId={refetchingPortalId}
+                  onAddPortal={() => setSheetOpen(true)}
+                  onLoadPortal={loadSavedPortal}
+                  onRefetchPortal={refetchSavedPortal}
+                />
+                <ThemeSelector />
+              </>
+            }
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <TvIcon className="text-muted-foreground" />
             <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-semibold">Channels</h2>
-              <p className="text-sm text-muted-foreground">
-                {result
-                  ? `Connected through ${result.endpoint}`
-                  : "Run a portal request to load the channel list."}
+              <p className="font-medium">No channels loaded</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Add a portal to start browsing channels.
               </p>
             </div>
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!result || isLoading}
-                onClick={() => {
-                  setForm((current) => ({ ...current, query: "" }))
-                  setResult(null)
-                }}
-              >
-                <BrushCleaning data-icon="inline-start" />
-                Clear
-              </Button>
-            </div>
           </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <InputGroup className="max-w-md">
-              <InputGroupAddon align="inline-start">
-                <SearchIcon />
-              </InputGroupAddon>
-              <InputGroupInput
-                placeholder="Filter by name, number, genre, or cmd"
-                value={form.query}
-                onChange={(event) => updateField("query", event.target.value)}
-                disabled={!result}
-              />
-            </InputGroup>
-            {result ? (
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{result.genres.length} genres</Badge>
-                <Badge variant="outline">{filteredChannels.length} visible</Badge>
-              </div>
-            ) : null}
-          </div>
-
-          {loadingPortalId !== null ? (
-            <LoadingRows />
-          ) : result ? (
-            <ChannelTable
-              channels={filteredChannels}
-              endpoint={result.endpoint}
-              portalRequest={portalRequest}
-              logoSource={logoSource}
-              epgChannels={epgChannels}
-            />
-          ) : (
-            <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
-              <TvIcon className="text-muted-foreground" />
-              <div className="flex flex-col gap-1">
-                <p className="font-medium">No channels loaded</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Add the portal details above and press Go.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
+        )}
       </div>
     </main>
   )
@@ -910,24 +864,32 @@ function SimpleInput({
   )
 }
 
-function ChannelTable({
+function ChannelBrowser({
   channels,
   endpoint,
   portalRequest,
   logoSource,
   epgChannels,
+  query,
+  onQueryChange,
+  utilityControls,
 }: {
   channels: PortalChannel[]
   endpoint: string
   portalRequest: PortalRequest
   logoSource: "provider" | "epg"
   epgChannels: Record<string, { name: string; logoUrl?: string }>
+  query: string
+  onQueryChange: (value: string) => void
+  utilityControls: ReactNode
 }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [copiedChannel, setCopiedChannel] = useState("")
   const [resolvingChannel, setResolvingChannel] = useState("")
   const [failedChannel, setFailedChannel] = useState("")
-  const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
+  const [selectedChannel, setSelectedChannel] = useState<PortalChannel | null>(
+    null
+  )
   const [playerStream, setPlayerStream] = useState<{
     channelKey: string
     channelName: string
@@ -953,7 +915,7 @@ function ChannelTable({
 
   async function pullChannelStream(
     channel: PortalChannel,
-    action: "copy" | "open" | "play"
+    action: "copy" | "open" | "play" = "play"
   ) {
     const channelKey = getChannelKey(channel)
 
@@ -1006,6 +968,7 @@ function ChannelTable({
           icon: <CheckIcon className="size-4 text-foreground" />,
         })
       } else {
+        setSelectedChannel(channel)
         setPlayerStream({
           channelKey,
           channelName: channel.name || "Live stream",
@@ -1014,7 +977,6 @@ function ChannelTable({
           number: channel.number,
           url: data.link,
         })
-        setPlayerDialogOpen(true)
         toast.dismiss(toastId)
       }
     } catch (error) {
@@ -1029,310 +991,264 @@ function ChannelTable({
     }
   }
 
-  if (!channels.length) {
-    return (
-      <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-        No channels matched the current filter.
-      </div>
-    )
-  }
-
   return (
     <>
-    <Dialog
-      open={playerDialogOpen}
-      onOpenChange={(open) => {
-        setPlayerDialogOpen(open)
-        if (!open) {
-          setPlayerStream(null)
-        }
-      }}
-    >
-      <DialogContent className="sm:max-w-4xl">
-        <DialogHeader>
-          <div className="flex min-w-0 items-center gap-3 pr-8">
-            {playerStream?.logoUrl ? (
-              <div className="flex size-11 items-center justify-center rounded-sm border bg-zinc-950 p-1.5">
-                {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
-                <img
-                  src={playerStream.logoUrl}
-                  alt=""
-                  className="size-full rounded object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            ) : null}
-            <div className="flex min-w-0 flex-col gap-1">
-              <DialogTitle className="truncate">
-                {playerStream?.channelName ?? "Live stream"}
-              </DialogTitle>
-              {playerStream ? (
-                <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-                  {playerStream.number && playerStream.genre ? (
-                    <>
-                      <span className="truncate font-medium">
-                        {playerStream.genre}
-                      </span>
-                      <span aria-hidden="true">•</span>
-                      <span className="font-mono">#{playerStream.number}</span>
-                    </>
-                  ) : playerStream.genre ? (
-                    <span className="truncate font-medium">
-                      {playerStream.genre}
-                    </span>
-                  ) : playerStream.number ? (
-                    <span className="font-mono">#{playerStream.number}</span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </DialogHeader>
-        <div className="overflow-hidden rounded-lg bg-black">
-          {playerStream ? (
-            <MediaPlayer
-              key={`${playerStream.channelKey}-${playerStream.url}`}
-              className="aspect-video w-full overflow-hidden bg-black"
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-background/85 p-1 backdrop-blur">
+        {playerStream && selectedChannel ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(resolvingChannel)}
+              onClick={() => pullChannelStream(selectedChannel, "open")}
             >
-              <MediaPlayerVideo
-                render={
-                  <MuxVideo
-                    src={playerStream.url}
-                    type="hls"
-                    streamType="live"
-                    preferPlayback="mse"
-                    preload="auto"
-                    targetLiveWindow={30}
-                    autoPlay
-                    playsInline
-                    envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
-                    metadata={{
-                      video_id: playerStream.channelKey,
-                      video_title: playerStream.channelName,
-                      video_stream_type: "live",
-                    }}
-                    className="h-full w-full bg-black object-contain"
-                  />
-                }
-              />
-              <MediaPlayerLoading />
-              <MediaPlayerError />
-              <MediaPlayerVolumeIndicator />
-              <MediaPlayerControls className="flex-col items-start gap-2.5 px-5 pb-4">
-                <MediaPlayerControlsOverlay />
-                <div className="flex w-full items-center gap-3 pb-1">
-                  {playerStream.logoUrl ? (
-                    <div className="flex size-10 items-center justify-center rounded-sm border border-white/20 bg-black/50 p-1.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
-                      <img
-                        src={playerStream.logoUrl}
-                        alt=""
-                        className="size-full rounded object-contain"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <h2 className="truncate text-2xl font-semibold text-white">
-                      {playerStream.channelName}
-                    </h2>
-                    <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
-                      {playerStream.genre ? (
-                        <span className="truncate font-medium">
-                          {playerStream.genre}
-                        </span>
-                      ) : null}
-                      {playerStream.genre && playerStream.number ? (
-                        <span aria-hidden="true">•</span>
-                      ) : null}
-                      {playerStream.number ? (
-                        <span className="font-mono">#{playerStream.number}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                <MediaPlayerSeek />
-                <div className="flex w-full items-center gap-2">
-                  <div className="flex flex-1 items-center gap-2">
-                    <MediaPlayerPlay />
-                    <MediaPlayerSeekBackward>
-                      <RotateCcwIcon />
-                    </MediaPlayerSeekBackward>
-                    <MediaPlayerSeekForward>
-                      <RotateCwIcon />
-                    </MediaPlayerSeekForward>
-                    <MediaPlayerTime />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MediaPlayerVolume expandable />
-                    <MediaPlayerSettings />
-                    <MediaPlayerPiP />
-                    <MediaPlayerFullscreen />
-                  </div>
-                </div>
-              </MediaPlayerControls>
-            </MediaPlayer>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
-
-    <div className="rounded-lg border">
-      <div
-        className="grid h-10 grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b bg-background px-4 text-sm font-medium text-foreground"
-        role="row"
-      >
-        <div role="columnheader">No.</div>
-        <div role="columnheader">Name</div>
-        <div role="columnheader">Genre</div>
-        <div role="columnheader">ID</div>
-        <div className="text-right" role="columnheader">
-          Link
-        </div>
+              {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
+              <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
+              Open in IINA
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(resolvingChannel)}
+              onClick={() => pullChannelStream(selectedChannel, "copy")}
+            >
+              {copiedChannel === getChannelKey(selectedChannel) ? (
+                <CheckIcon data-icon="inline-start" />
+              ) : failedChannel === getChannelKey(selectedChannel) ? (
+                <AlertCircleIcon data-icon="inline-start" />
+              ) : (
+                <CopyIcon data-icon="inline-start" />
+              )}
+              Copy stream
+            </Button>
+          </>
+        ) : null}
+        <div className="flex items-center gap-1">{utilityControls}</div>
       </div>
-
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="h-full overflow-hidden rounded-none border-0"
+        resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
+      >
+      <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
+        <div className="flex h-full min-w-80 flex-col border-r bg-muted/20">
+          <div className="flex flex-col gap-3 border-b p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">Live Streams</p>
+                <p className="text-xs text-muted-foreground">
+                  {channels.length.toLocaleString()} visible
+                </p>
+              </div>
+            </div>
+            <InputGroup>
+              <InputGroupAddon align="inline-start">
+                <SearchIcon />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder="Search channels"
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+              />
+            </InputGroup>
+          </div>
       <ScrollArea
         ref={scrollAreaRef}
-        className="h-[calc(70vh-40px)]"
-        role="table"
+        className="min-h-0 flex-1"
         aria-rowcount={channels.length}
       >
-        <div className="min-w-[800px]">
+        {channels.length ? (
           <div
             className="relative"
             style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-            role="rowgroup"
           >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const channel = channels[virtualRow.index]
             const channelKey = getChannelKey(channel)
             const canResolve = canResolveChannel(channel)
-            const isCopied = copiedChannel === channelKey
             const isResolving = resolvingChannel === channelKey
-            const didFail = failedChannel === channelKey
+            const isSelected =
+              selectedChannel && getChannelKey(selectedChannel) === channelKey
+            const logoUrl = getChannelLogoUrl(channel, logoSource, epgChannels)
 
             return (
-              <div
+              <button
                 key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                className="absolute left-0 grid w-full grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b px-4 text-sm"
-                role="row"
+                type="button"
+                disabled={!canResolve || Boolean(resolvingChannel)}
+                className={cn(
+                  "absolute left-0 flex w-full items-center gap-3 border-b px-3 text-left text-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50",
+                  isSelected && "bg-accent"
+                )}
+                onClick={() => pullChannelStream(channel)}
                 style={{
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <div className="font-mono font-medium" role="cell">
-                  {channel.number || virtualRow.index + 1}
-                </div>
-                <div role="cell">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {(() => {
-                      const logoUrl = getChannelLogoUrl(
-                        channel,
-                        logoSource,
-                        epgChannels
-                      );
-                      if (!logoUrl) return null;
-                      return (
-                        // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                        <img
-                          src={logoUrl}
-                          alt=""
-                          className="h-9 w-9 rounded-sm border bg-zinc-950 p-1 object-contain"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none"
-                          }}
-                        />
-                      );
-                    })()}
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="truncate font-medium">{channel.name}</span>
-                      {channel.logo ? (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {channel.logo}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                <div role="cell">
-                  {channel.genre ? (
-                    <Badge variant="outline">{channel.genre}</Badge>
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-sm border bg-zinc-950 p-1">
+                  {logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                    <img
+                      src={logoUrl}
+                      alt=""
+                      className="size-full rounded object-contain"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <TvIcon className="text-muted-foreground" />
                   )}
                 </div>
-                <div className="truncate font-mono text-muted-foreground" role="cell">
-                  {channel.xmltvId || channel.id || "-"}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="truncate font-medium">
+                    {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {channel.genre || "Uncategorized"}
+                  </span>
                 </div>
-
-                <div className="text-right" role="cell">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={!canResolve}
-                        />
-                      }
-                    >
-                      Actions
-                      <ChevronDownIcon className="size-4 opacity-50" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="min-w-44">
-                      <DropdownMenuItem
-                        disabled={Boolean(resolvingChannel)}
-                        onClick={() => pullChannelStream(channel, "open")}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
-                        <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
-                        Open in IINA
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={Boolean(resolvingChannel)}
-                        onClick={() => pullChannelStream(channel, "play")}
-                      >
-                        {isResolving ? (
-                          <Spinner />
-                        ) : (
-                          <PlayIcon className="size-4" />
-                        )}
-                        {isResolving ? "Resolving..." : "Play in browser"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={Boolean(resolvingChannel)}
-                        onClick={() => pullChannelStream(channel, "copy")}
-                      >
-                        {isResolving ? (
-                          <Spinner />
-                        ) : isCopied ? (
-                          <CheckIcon className="size-4" />
-                        ) : didFail ? (
-                          <AlertCircleIcon className="size-4 text-destructive" />
-                        ) : (
-                          <CopyIcon className="size-4" />
-                        )}
-                        {isResolving
-                          ? "Resolving..."
-                          : isCopied
-                            ? "Copied"
-                            : didFail
-                              ? "Failed"
-                              : "Copy stream"}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
+                {isResolving ? <Spinner /> : null}
+              </button>
             )
           })}
           </div>
-        </div>
+        ) : (
+          <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+            No channels matched the current search.
+          </div>
+        )}
       </ScrollArea>
-    </div>
+        </div>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel minSize="560px">
+        <div className="flex h-full flex-col bg-background">
+          <div className="flex min-h-16 items-center justify-between gap-3 border-b px-4 py-3 pr-[28rem]">
+            {playerStream ? (
+              <div className="flex min-w-0 items-center gap-3">
+                {playerStream.logoUrl ? (
+                  <div className="flex size-10 items-center justify-center rounded-sm border bg-zinc-950 p-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
+                    <img
+                      src={playerStream.logoUrl}
+                      alt=""
+                      className="size-full rounded object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : null}
+                <div className="flex min-w-0 flex-col">
+                  <p className="truncate font-semibold">{playerStream.channelName}</p>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {playerStream.genre || "Uncategorized"}
+                    {playerStream.number ? ` • #${playerStream.number}` : ""}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                <p className="font-semibold">Select a channel</p>
+                <p className="text-sm text-muted-foreground">
+                  Pick a channel from the sidebar to start playback.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-1 items-center justify-center p-4">
+            {playerStream ? (
+              <MediaPlayer
+                key={`${playerStream.channelKey}-${playerStream.url}`}
+                className="aspect-video w-full overflow-hidden rounded-lg bg-black"
+              >
+                <MediaPlayerVideo
+                  render={
+                    <MuxVideo
+                      src={playerStream.url}
+                      type="hls"
+                      streamType="live"
+                      preferPlayback="mse"
+                      preload="auto"
+                      targetLiveWindow={30}
+                      autoPlay
+                      playsInline
+                      envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
+                      metadata={{
+                        video_id: playerStream.channelKey,
+                        video_title: playerStream.channelName,
+                        video_stream_type: "live",
+                      }}
+                      className="h-full w-full bg-black object-contain"
+                    />
+                  }
+                />
+                <MediaPlayerLoading />
+                <MediaPlayerError />
+                <MediaPlayerVolumeIndicator />
+                <MediaPlayerControls className="flex-col items-start gap-2.5 px-5 pb-4">
+                  <MediaPlayerControlsOverlay />
+                  <div className="flex w-full items-center gap-3 pb-1">
+                    {playerStream.logoUrl ? (
+                      <div className="flex size-10 items-center justify-center rounded-sm border border-white/20 bg-black/50 p-1.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
+                        <img
+                          src={playerStream.logoUrl}
+                          alt=""
+                          className="size-full rounded object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ) : null}
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <h2 className="truncate text-2xl font-semibold text-white">
+                        {playerStream.channelName}
+                      </h2>
+                      <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
+                        {playerStream.genre ? (
+                          <span className="truncate font-medium">
+                            {playerStream.genre}
+                          </span>
+                        ) : null}
+                        {playerStream.genre && playerStream.number ? (
+                          <span aria-hidden="true">•</span>
+                        ) : null}
+                        {playerStream.number ? (
+                          <span className="font-mono">#{playerStream.number}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <MediaPlayerSeek />
+                  <div className="flex w-full items-center gap-2">
+                    <div className="flex flex-1 items-center gap-2">
+                      <MediaPlayerPlay />
+                      <MediaPlayerSeekBackward>
+                        <RotateCcwIcon />
+                      </MediaPlayerSeekBackward>
+                      <MediaPlayerSeekForward>
+                        <RotateCwIcon />
+                      </MediaPlayerSeekForward>
+                      <MediaPlayerTime />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MediaPlayerVolume expandable />
+                      <MediaPlayerSettings />
+                      <MediaPlayerPiP />
+                      <MediaPlayerFullscreen />
+                    </div>
+                  </div>
+                </MediaPlayerControls>
+              </MediaPlayer>
+            ) : (
+              <div className="flex min-h-96 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+                <TvIcon />
+                <p className="text-sm">No channel selected.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </ResizablePanel>
+      </ResizablePanelGroup>
     </>
   )
 }
@@ -1376,16 +1292,61 @@ function uniqueGenres(channels: PortalChannel[]) {
   return [...genres.values()]
 }
 
-function LoadingRows() {
+function LoadingShell() {
   return (
-    <div className="flex flex-col gap-3">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <div className="grid grid-cols-[64px_1fr_120px] gap-3" key={index}>
-          <Skeleton className="h-8" />
-          <Skeleton className="h-8" />
-          <Skeleton className="h-8" />
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="h-full overflow-hidden rounded-none border-0"
+      resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
+    >
+      <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
+        <div className="flex h-full min-w-80 flex-col border-r bg-muted/20">
+          <div className="flex flex-col gap-3 border-b p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+            <Skeleton className="h-10 w-full rounded-md" />
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {Array.from({ length: 14 }).map((_, index) => (
+              <div
+                key={index}
+                className="flex h-16 items-center gap-3 border-b px-3"
+              >
+                <Skeleton className="size-10 shrink-0 rounded-sm" />
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-3 w-2/5" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
-    </div>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel minSize="560px">
+        <div className="flex h-full flex-col bg-background">
+          <div className="flex min-h-16 items-center justify-between gap-3 border-b px-4 py-3 pr-[28rem]">
+            <div className="flex min-w-0 items-center gap-3">
+              <Skeleton className="size-10 rounded-sm" />
+              <div className="flex min-w-0 flex-col gap-1">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-4 w-28" />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-1 items-center justify-center p-4">
+            <div className="flex min-h-96 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+              <TvIcon />
+              <p className="text-sm">No channel selected.</p>
+            </div>
+          </div>
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   )
 }
