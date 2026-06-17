@@ -736,7 +736,7 @@ export default function Home() {
           </div>
 
           {savedPortals.length ? (
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex gap-4 overflow-x-auto pb-1">
               {savedPortals.map((portal) => (
                 <div
                   key={portal.id}
@@ -999,31 +999,32 @@ function ChannelTable({
   }
 
   return (
-    <ScrollArea
-      ref={scrollAreaRef}
-      className="h-[70vh] rounded-lg border"
-      role="table"
-      aria-rowcount={channels.length}
-    >
-      <div className="min-w-[800px]">
-        <div
-          className="sticky top-0 z-10 grid h-10 grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b bg-background px-4 text-sm font-medium text-foreground"
-          role="row"
-        >
-          <div role="columnheader">No.</div>
-          <div role="columnheader">Name</div>
-          <div role="columnheader">Genre</div>
-          <div role="columnheader">ID</div>
-          <div className="text-right" role="columnheader">
-            Link
-          </div>
+    <div className="rounded-lg border">
+      <div
+        className="grid h-10 grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b bg-background px-4 text-sm font-medium text-foreground"
+        role="row"
+      >
+        <div role="columnheader">No.</div>
+        <div role="columnheader">Name</div>
+        <div role="columnheader">Genre</div>
+        <div role="columnheader">ID</div>
+        <div className="text-right" role="columnheader">
+          Link
         </div>
+      </div>
 
-        <div
-          className="relative"
-          style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-          role="rowgroup"
-        >
+      <ScrollArea
+        ref={scrollAreaRef}
+        className="h-[calc(70vh-40px)]"
+        role="table"
+        aria-rowcount={channels.length}
+      >
+        <div className="min-w-[800px]">
+          <div
+            className="relative"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+            role="rowgroup"
+          >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const channel = channels[virtualRow.index]
             const channelKey = getChannelKey(channel)
@@ -1136,9 +1137,10 @@ function ChannelTable({
               </div>
             )
           })}
+          </div>
         </div>
-      </div>
-    </ScrollArea>
+      </ScrollArea>
+    </div>
   )
 }
 
