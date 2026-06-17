@@ -931,6 +931,9 @@ function ChannelTable({
   const [playerStream, setPlayerStream] = useState<{
     channelKey: string
     channelName: string
+    genre: string
+    logoUrl: string
+    number: string
     url: string
   } | null>(null)
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
@@ -1006,6 +1009,9 @@ function ChannelTable({
         setPlayerStream({
           channelKey,
           channelName: channel.name || "Live stream",
+          genre: channel.genre,
+          logoUrl: getChannelLogoUrl(channel, logoSource, epgChannels),
+          number: channel.number,
           url: data.link,
         })
         setPlayerDialogOpen(true)
@@ -1044,10 +1050,43 @@ function ChannelTable({
     >
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{playerStream?.channelName ?? "Live stream"}</DialogTitle>
-          <DialogDescription>
-            Playing the resolved HLS stream in browser.
-          </DialogDescription>
+          <div className="flex min-w-0 items-center gap-3 pr-8">
+            {playerStream?.logoUrl ? (
+              <div className="flex size-11 items-center justify-center rounded-sm border bg-zinc-950 p-1.5">
+                {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
+                <img
+                  src={playerStream.logoUrl}
+                  alt=""
+                  className="size-full rounded object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            ) : null}
+            <div className="flex min-w-0 flex-col gap-1">
+              <DialogTitle className="truncate">
+                {playerStream?.channelName ?? "Live stream"}
+              </DialogTitle>
+              {playerStream ? (
+                <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                  {playerStream.number && playerStream.genre ? (
+                    <>
+                      <span className="truncate font-medium">
+                        {playerStream.genre}
+                      </span>
+                      <span aria-hidden="true">•</span>
+                      <span className="font-mono">#{playerStream.number}</span>
+                    </>
+                  ) : playerStream.genre ? (
+                    <span className="truncate font-medium">
+                      {playerStream.genre}
+                    </span>
+                  ) : playerStream.number ? (
+                    <span className="font-mono">#{playerStream.number}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </DialogHeader>
         <div className="overflow-hidden rounded-lg bg-black">
           {playerStream ? (
@@ -1081,6 +1120,37 @@ function ChannelTable({
               <MediaPlayerVolumeIndicator />
               <MediaPlayerControls className="flex-col items-start gap-2.5 px-5 pb-4">
                 <MediaPlayerControlsOverlay />
+                <div className="flex w-full items-center gap-3 pb-1">
+                  {playerStream.logoUrl ? (
+                    <div className="flex size-10 items-center justify-center rounded-sm border border-white/20 bg-black/50 p-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
+                      <img
+                        src={playerStream.logoUrl}
+                        alt=""
+                        className="size-full rounded object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <h2 className="truncate text-2xl font-semibold text-white">
+                      {playerStream.channelName}
+                    </h2>
+                    <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
+                      {playerStream.genre ? (
+                        <span className="truncate font-medium">
+                          {playerStream.genre}
+                        </span>
+                      ) : null}
+                      {playerStream.genre && playerStream.number ? (
+                        <span aria-hidden="true">•</span>
+                      ) : null}
+                      {playerStream.number ? (
+                        <span className="font-mono">#{playerStream.number}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
                 <MediaPlayerSeek />
                 <div className="flex w-full items-center gap-2">
                   <div className="flex flex-1 items-center gap-2">
@@ -1157,8 +1227,11 @@ function ChannelTable({
                 <div role="cell">
                   <div className="flex min-w-0 items-center gap-3">
                     {(() => {
-                      const lookupId = channel.xmltvId || channel.id;
-                      const logoUrl = (logoSource === "epg" && lookupId ? epgChannels[lookupId.toLowerCase()]?.logoUrl : null) || channel.logoUrl;
+                      const logoUrl = getChannelLogoUrl(
+                        channel,
+                        logoSource,
+                        epgChannels
+                      );
                       if (!logoUrl) return null;
                       return (
                         // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
@@ -1270,6 +1343,22 @@ function canResolveChannel(channel: PortalChannel) {
 
 function getChannelKey(channel: PortalChannel) {
   return channel.id || channel.number || channel.name
+}
+
+function getChannelLogoUrl(
+  channel: PortalChannel,
+  logoSource: "provider" | "epg",
+  epgChannels: Record<string, { name: string; logoUrl?: string }>
+) {
+  const lookupId = channel.xmltvId || channel.id
+
+  return (
+    (logoSource === "epg" && lookupId
+      ? epgChannels[lookupId.toLowerCase()]?.logoUrl
+      : null) ||
+    channel.logoUrl ||
+    ""
+  )
 }
 
 function uniqueGenres(channels: PortalChannel[]) {
