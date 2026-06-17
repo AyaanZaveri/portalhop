@@ -132,6 +132,7 @@ export default function Home() {
     null
   )
   const [savedPortals, setSavedPortals] = useState<SavedPortalRecord[]>([])
+  const [activePortalId, setActivePortalId] = useState<number | null>(null)
   const [isLoadingPortals, setIsLoadingPortals] = useState(true)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [portalName, setPortalName] = useState("")
@@ -323,6 +324,7 @@ export default function Home() {
 
       if (!portalResponse.ok) {
         localStorage.removeItem(lastOpenedPortalStorageKey)
+        setActivePortalId(null)
         setError(portalData.error || "Could not load the last opened portal.")
         return
       }
@@ -333,6 +335,7 @@ export default function Home() {
         genres: uniqueGenres(portalData.channels ?? []),
         channels: Array.isArray(portalData.channels) ? portalData.channels : [],
       })
+      setActivePortalId(lastOpenedPortal.id)
     }
 
     loadSavedPortals()
@@ -426,6 +429,7 @@ export default function Home() {
       genres: uniqueGenres(data.channels ?? []),
       channels: Array.isArray(data.channels) ? data.channels : [],
     })
+    setActivePortalId(portal.id)
     localStorage.setItem(lastOpenedPortalStorageKey, String(portal.id))
   }
 
@@ -473,6 +477,7 @@ export default function Home() {
           query: "",
         }))
         setResult(data.result)
+        setActivePortalId(refreshedPortal.id)
         localStorage.setItem(lastOpenedPortalStorageKey, String(refreshedPortal.id))
       }
       toast.success(`${portal.name} refetched successfully`, { id: toastId })
@@ -519,6 +524,7 @@ export default function Home() {
 
     if (data.portal) {
       setSavedPortals((current) => [data.portal, ...current])
+      setActivePortalId(data.portal.id)
       localStorage.setItem(lastOpenedPortalStorageKey, String(data.portal.id))
     }
 
@@ -689,6 +695,7 @@ export default function Home() {
                         type="button"
                         onClick={() => {
                           setResult(testResult)
+                          setActivePortalId(null)
                           setSheetOpen(false)
                         }}
                         className="cursor-pointer"
@@ -779,6 +786,7 @@ export default function Home() {
               epgManifest={epgManifest}
               onRefetchComplete={handleEpgRefetchComplete}
               savedPortals={savedPortals}
+              activePortalId={activePortalId}
               isLoadingPortals={isLoadingPortals}
               loadingPortalId={loadingPortalId}
               refetchingPortalId={refetchingPortalId}
@@ -809,6 +817,7 @@ export default function Home() {
                   epgManifest={epgManifest}
                   onRefetchComplete={handleEpgRefetchComplete}
                   savedPortals={savedPortals}
+                  activePortalId={activePortalId}
                   isLoadingPortals={isLoadingPortals}
                   loadingPortalId={loadingPortalId}
                   refetchingPortalId={refetchingPortalId}

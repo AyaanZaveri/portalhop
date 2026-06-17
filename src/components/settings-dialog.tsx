@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { SettingsIcon, Loader2Icon, PlusIcon, RefreshCwIcon, TvIcon } from "lucide-react";
+import { CircleCheck, SettingsIcon, Loader2Icon, PlusIcon, RefreshCwIcon, TvIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ interface SettingsDialogProps {
   epgManifest: EpgManifest | null;
   onRefetchComplete: () => Promise<void>;
   savedPortals: SavedPortalRecord[];
+  activePortalId: number | null;
   isLoadingPortals: boolean;
   loadingPortalId: number | null;
   refetchingPortalId: number | null;
@@ -46,6 +47,7 @@ export function SettingsDialog({
   epgManifest,
   onRefetchComplete,
   savedPortals,
+  activePortalId,
   isLoadingPortals,
   loadingPortalId,
   refetchingPortalId,
@@ -142,15 +144,26 @@ export function SettingsDialog({
               <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
                 Portals
               </span>
-              <div className="flex max-h-64 flex-col gap-2 overflow-y-auto rounded-lg border bg-muted/10 p-2">
+              <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
                 {savedPortals.length ? (
-                  savedPortals.map((portal) => (
-                    <div
-                      key={portal.id}
-                      className="flex items-center gap-3 rounded-md border bg-background p-2"
-                    >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/50">
-                        <TvIcon className="size-4" />
+                  savedPortals.map((portal) => {
+                    const isActive = activePortalId === portal.id;
+
+                    return (
+                      <div
+                        key={portal.id}
+                        className="flex items-center gap-3 rounded-md p-2 hover:bg-muted/50"
+                      >
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md">
+                        {isActive ? (
+                          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10">
+                            <CircleCheck className="size-4 text-primary brightness-75 dark:brightness-100" />
+                          </span>
+                        ) : (
+                          <span className="flex size-8 items-center justify-center rounded-md bg-muted/50">
+                            <TvIcon className="size-4 text-muted-foreground" />
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -182,7 +195,8 @@ export function SettingsDialog({
                         )}
                       </Button>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="px-1 py-3 text-sm text-muted-foreground">
                     {isLoadingPortals
@@ -195,7 +209,7 @@ export function SettingsDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full justify-center"
+                className="mt-1 w-full flex items-center justify-center gap-1.5 cursor-pointer rounded-md"
                 onClick={() => {
                   setIsOpen(false);
                   onAddPortal();
