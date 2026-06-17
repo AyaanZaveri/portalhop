@@ -605,7 +605,7 @@ export default function Home() {
                   </div>
                 </ScrollArea>
 
-                <SheetFooter className="border-t pt-4">
+                <SheetFooter className="border-t pt-4 flex-row! justify-end gap-2">
                   {testResult ? (
                     <>
                       <Button
