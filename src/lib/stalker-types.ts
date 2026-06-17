@@ -21,6 +21,17 @@ export type PortalChannel = {
   xmltvId?: string
 }
 
+export type EpgProgramme = {
+  id: string
+  channelId: string
+  title: string
+  description: string
+  category?: string
+  startAt: string
+  stopAt: string
+  source: "provider" | "epg"
+}
+
 export type PortalResponse = {
   endpoint: string
   profile: {

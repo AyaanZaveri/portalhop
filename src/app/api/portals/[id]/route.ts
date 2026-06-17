@@ -37,6 +37,7 @@ export async function GET(
     portal,
     channels: channels.map((channel) => ({
       id: channel.channelId,
+      xmltvId: channel.xmltvId,
       number: channel.number,
       name: channel.name,
       genreId: channel.genreId,

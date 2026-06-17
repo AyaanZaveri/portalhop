@@ -25,6 +25,7 @@ export async function insertSavedChannels(
       batch.map((channel) => ({
         portalId,
         channelId: channel.id,
+        xmltvId: channel.xmltvId ?? "",
         number: channel.number,
         name: channel.name,
         genreId: channel.genreId,

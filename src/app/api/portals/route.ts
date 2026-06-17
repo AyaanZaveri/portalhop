@@ -95,6 +95,7 @@ function readChannel(value: unknown): PortalChannel | null {
 
   return {
     id: stringValue(channel.id),
+    xmltvId: stringValue(channel.xmltvId),
     number: stringValue(channel.number),
     name: stringValue(channel.name),
     genreId: stringValue(channel.genreId),

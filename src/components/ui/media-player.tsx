@@ -2007,6 +2007,54 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       const time = getSeekTimeFromPointer(event.clientX);
       if (time === null) return;
 
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+
+      if (!store.getState().dragging) {
+        store.setState("dragging", true);
+      }
+
+      const endDrag = () => {
+        window.removeEventListener("pointermove", onDrag);
+        window.removeEventListener("pointerup", endDrag);
+        window.removeEventListener("pointercancel", endDrag);
+
+        if (store.getState().dragging) {
+          store.setState("dragging", false);
+        }
+
+        setSeekState((prev) => ({
+          ...prev,
+          isHovering: false,
+          hasInitialPosition: false,
+        }));
+
+        dispatch({
+          type: MediaActionTypes.MEDIA_PREVIEW_REQUEST,
+          detail: undefined,
+        });
+      };
+
+      const applySeekFromClientX = (clientX: number) => {
+        const time = getSeekTimeFromPointer(clientX);
+        if (time === null) return;
+
+        setSeekState((prev) => ({
+          ...prev,
+          pendingSeekTime: time,
+          isHovering: false,
+          hasInitialPosition: false,
+        }));
+
+        dispatch({
+          type: MediaActionTypes.MEDIA_SEEK_REQUEST,
+          detail: time,
+        });
+      };
+
+      const onDrag = (pointerEvent: PointerEvent) => {
+        applySeekFromClientX(pointerEvent.clientX);
+      };
+
       setSeekState((prev) => ({
         ...prev,
         pendingSeekTime: time,
@@ -2018,8 +2066,19 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         type: MediaActionTypes.MEDIA_SEEK_REQUEST,
         detail: time,
       });
+
+      window.addEventListener("pointermove", onDrag);
+      window.addEventListener("pointerup", endDrag, { once: true });
+      window.addEventListener("pointercancel", endDrag, { once: true });
     },
-    [dispatch, getSeekTimeFromPointer, isDisabled, seekableRange],
+    [
+      dispatch,
+      getSeekTimeFromPointer,
+      isDisabled,
+      seekableRange,
+      store.getState,
+      store.setState,
+    ],
   );
 
   React.useEffect(() => {
@@ -2236,11 +2295,20 @@ interface MediaPlayerVolumeProps extends SliderPrimitive.Root.Props {
 }
 
 function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
-  const { expandable = false, className, disabled, ...volumeProps } = props;
+  const {
+    expandable = false,
+    className,
+    disabled,
+    ref,
+    onPointerDown: onPointerDownProp,
+    ...volumeProps
+  } = props;
 
   const context = useMediaPlayerContext(VOLUME_NAME);
   const store = useStoreContext(VOLUME_NAME);
   const dispatch = useMediaDispatch();
+  const volumeRef = React.useRef<HTMLDivElement>(null);
+  const composedRef = useComposedRefs(ref, volumeRef);
   const mediaVolume = useMediaSelector((state) => state.mediaVolume ?? 1);
   const mediaMuted = useMediaSelector((state) => state.mediaMuted ?? false);
   const mediaVolumeLevel = useMediaSelector(
@@ -2292,6 +2360,75 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
     [dispatch, store],
   );
 
+  const getVolumeFromPointer = React.useCallback((clientX: number) => {
+    const volumeElement = volumeRef.current;
+    if (!volumeElement) return null;
+
+    const rect = volumeElement.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  }, []);
+
+  const onPointerDown = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      onPointerDownProp?.(
+        event as Parameters<NonNullable<typeof onPointerDownProp>>[0],
+      );
+      if (event.defaultPrevented || event.button !== 0 || isDisabled) return;
+
+      const volume = getVolumeFromPointer(event.clientX);
+      if (volume === null) return;
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+
+      if (!store.getState().dragging) {
+        store.setState("dragging", true);
+      }
+
+      const applyVolumeFromClientX = (clientX: number) => {
+        const nextVolume = getVolumeFromPointer(clientX);
+        if (nextVolume === null) return;
+
+        dispatch({
+          type: MediaActionTypes.MEDIA_VOLUME_REQUEST,
+          detail: nextVolume,
+        });
+      };
+
+      const onDrag = (pointerEvent: PointerEvent) => {
+        applyVolumeFromClientX(pointerEvent.clientX);
+      };
+
+      const endDrag = () => {
+        window.removeEventListener("pointermove", onDrag);
+        window.removeEventListener("pointerup", endDrag);
+        window.removeEventListener("pointercancel", endDrag);
+
+        if (store.getState().dragging) {
+          store.setState("dragging", false);
+        }
+      };
+
+      dispatch({
+        type: MediaActionTypes.MEDIA_VOLUME_REQUEST,
+        detail: volume,
+      });
+
+      window.addEventListener("pointermove", onDrag);
+      window.addEventListener("pointerup", endDrag, { once: true });
+      window.addEventListener("pointercancel", endDrag, { once: true });
+    },
+    [
+      dispatch,
+      getVolumeFromPointer,
+      isDisabled,
+      onPointerDownProp,
+      store.getState,
+      store.setState,
+    ],
+  );
+
   const effectiveVolume = mediaMuted ? 0 : mediaVolume;
 
   return (
@@ -2337,6 +2474,7 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
         data-slider=""
         data-slot="media-player-volume"
         {...volumeProps}
+        ref={composedRef}
         min={0}
         max={1}
         step={0.1}
@@ -2349,6 +2487,7 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
         )}
         disabled={isDisabled}
         value={[effectiveVolume]}
+        onPointerDown={onPointerDown}
         onValueChange={onVolumeChange}
         onValueCommitted={onVolumeCommit}
       >

@@ -24,6 +24,7 @@ export const savedChannels = sqliteTable("saved_channels", {
     .notNull()
     .references(() => savedPortals.id, { onDelete: "cascade" }),
   channelId: text("channel_id").notNull(),
+  xmltvId: text("xmltv_id").notNull().default(""),
   number: text("number").notNull(),
   name: text("name").notNull(),
   genreId: text("genre_id").notNull(),

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CircleCheck, SettingsIcon, Loader2Icon, PlusIcon, RefreshCwIcon, TvIcon } from "lucide-react";
+import { SettingsIcon, Loader2Icon, PlusIcon, RefreshCwIcon, TvIcon, GlobeIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -18,17 +19,22 @@ import { useTheme } from "next-themes";
 import type { PortalRequest } from "@/lib/stalker-types";
 
 interface SettingsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   logoSource: "provider" | "epg";
   onLogoSourceChange: (source: "provider" | "epg") => void;
   epgManifest: EpgManifest | null;
   onRefetchComplete: () => Promise<void>;
   savedPortals: SavedPortalRecord[];
-  activePortalId: number | null;
+  activePortalIds: number[];
   isLoadingPortals: boolean;
   loadingPortalId: number | null;
   refetchingPortalId: number | null;
   onAddPortal: () => void;
-  onLoadPortal: (portal: SavedPortalRecord) => void | Promise<void>;
+  onPortalCheckedChange: (
+    portal: SavedPortalRecord,
+    checked: boolean
+  ) => void | Promise<void>;
   onRefetchPortal: (portal: SavedPortalRecord) => void | Promise<void>;
 }
 
@@ -42,20 +48,21 @@ type SavedPortalRecord = PortalRequest & {
 };
 
 export function SettingsDialog({
+  open,
+  onOpenChange,
   logoSource,
   onLogoSourceChange,
   epgManifest,
   onRefetchComplete,
   savedPortals,
-  activePortalId,
+  activePortalIds,
   isLoadingPortals,
   loadingPortalId,
   refetchingPortalId,
   onAddPortal,
-  onLoadPortal,
+  onPortalCheckedChange,
   onRefetchPortal,
 }: SettingsDialogProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
   const [isRefetching, setIsRefetching] = React.useState(false);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -96,13 +103,13 @@ export function SettingsDialog({
         variant="ghost"
         size="icon"
         className="size-8 cursor-pointer rounded-md text-muted-foreground hover:text-foreground"
-        onClick={() => setIsOpen(true)}
+        onClick={() => onOpenChange(true)}
         aria-label="Settings"
       >
         <SettingsIcon className="size-4" />
       </Button>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
@@ -112,10 +119,10 @@ export function SettingsDialog({
           </DialogHeader>
 
           <div className="flex flex-col gap-4 py-2">
-            {/* Logo Source Preference */}
+            {/* EPG Source Preference */}
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-foreground">
-                Logo Source
+                EPG Source
               </span>
               <Tabs
                 value={logoSource}
@@ -123,7 +130,8 @@ export function SettingsDialog({
               >
                 <TabsList className="grid grid-cols-2 w-full">
                   <TabsTrigger value="provider">
-                    Provider Logos
+                    <GlobeIcon className="size-3.5 shrink-0" />
+                    Portal
                   </TabsTrigger>
                   <TabsTrigger value="epg">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -132,7 +140,7 @@ export function SettingsDialog({
                       alt=""
                       className="size-3.5 shrink-0 rounded-xs"
                     />
-                    EPG Logos
+                    iptv-epg.org
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -145,7 +153,7 @@ export function SettingsDialog({
               <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
                 {savedPortals.length ? (
                   savedPortals.map((portal) => {
-                    const isActive = activePortalId === portal.id;
+                    const isActive = activePortalIds.includes(portal.id);
 
                     return (
                       <div
@@ -153,20 +161,14 @@ export function SettingsDialog({
                         className="flex items-center gap-3 rounded-md p-2 hover:bg-muted/50"
                       >
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-md">
-                        {isActive ? (
-                          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10">
-                            <CircleCheck className="size-4 text-primary brightness-75 dark:brightness-100" />
-                          </span>
-                        ) : (
-                          <span className="flex size-8 items-center justify-center rounded-md bg-muted/50">
-                            <TvIcon className="size-4 text-muted-foreground" />
-                          </span>
-                        )}
+                        <span className="flex size-8 items-center justify-center rounded-md bg-muted/50">
+                          <TvIcon className="size-4 text-muted-foreground" />
+                        </span>
                       </div>
                       <button
                         type="button"
                         className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
-                        onClick={() => onLoadPortal(portal)}
+                        onClick={() => onPortalCheckedChange(portal, !isActive)}
                       >
                         <span className="w-full truncate text-sm font-medium">
                           {portal.name}
@@ -175,6 +177,14 @@ export function SettingsDialog({
                           {portal.channelCount.toLocaleString()} channels
                         </span>
                       </button>
+                      <Switch
+                        checked={isActive}
+                        onCheckedChange={(checked) =>
+                          onPortalCheckedChange(portal, checked)
+                        }
+                        disabled={loadingPortalId === portal.id}
+                        aria-label={`Toggle ${portal.name}`}
+                      />
                       <Button
                         type="button"
                         variant="ghost"
@@ -209,7 +219,7 @@ export function SettingsDialog({
                 size="sm"
                 className="mt-1 w-full flex items-center justify-center gap-1.5 cursor-pointer rounded-md"
                 onClick={() => {
-                  setIsOpen(false);
+                  onOpenChange(false);
                   onAddPortal();
                 }}
               >

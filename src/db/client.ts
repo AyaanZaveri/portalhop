@@ -42,6 +42,7 @@ function getSqlite() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       portal_id INTEGER NOT NULL REFERENCES saved_portals(id) ON DELETE CASCADE,
       channel_id TEXT NOT NULL,
+      xmltv_id TEXT NOT NULL DEFAULT '',
       number TEXT NOT NULL,
       name TEXT NOT NULL,
       genre_id TEXT NOT NULL,
@@ -56,6 +57,13 @@ function getSqlite() {
     CREATE INDEX IF NOT EXISTS saved_channels_portal_id_idx
       ON saved_channels(portal_id);
   `)
+  const savedChannelColumns = sqlite
+    .prepare("PRAGMA table_info(saved_channels)")
+    .all() as Array<{ name: string }>
+
+  if (!savedChannelColumns.some((column) => column.name === "xmltv_id")) {
+    sqlite.exec("ALTER TABLE saved_channels ADD COLUMN xmltv_id TEXT NOT NULL DEFAULT ''")
+  }
 
   return sqlite
 }

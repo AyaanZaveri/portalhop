@@ -1,12 +1,15 @@
 import { Readable } from "stream";
 import zlib from "zlib";
 import readline from "readline";
+import type { EpgProgramme } from "@/lib/stalker-types";
 
 export interface EpgChannel {
   id: string;
   name: string;
   logoUrl?: string;
 }
+
+type XmltvProgramme = Omit<EpgProgramme, "source">;
 
 /**
  * Fetches a gzipped XMLTV file from the given URL and parses it on the fly.
@@ -119,4 +122,186 @@ export async function fetchAndParseEpg(url: string): Promise<EpgChannel[]> {
       reject(err);
     });
   });
+}
+
+export async function fetchAndParseEpgProgrammes(
+  url: string,
+  channelIds: string[],
+  options: { from?: Date; to?: Date; limit?: number } = {}
+): Promise<XmltvProgramme[]> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch EPG from ${url}: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error(`Empty response body from ${url}`);
+  }
+
+  const wantedIds = new Set(channelIds.map((id) => id.trim()).filter(Boolean));
+
+  if (!wantedIds.size) {
+    return [];
+  }
+
+  const from = options.from ?? new Date(Date.now() - 30 * 60 * 1000);
+  const to = options.to ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const limit = options.limit ?? 12;
+  const nodeReadable = Readable.fromWeb(
+    response.body as unknown as import("stream/web").ReadableStream
+  );
+  const gunzip = zlib.createGunzip();
+  const unzippedStream = nodeReadable.pipe(gunzip);
+
+  return new Promise<XmltvProgramme[]>((resolve, reject) => {
+    const programmes: XmltvProgramme[] = [];
+    const rl = readline.createInterface({
+      input: unzippedStream,
+      crlfDelay: Infinity,
+    });
+    let current: XmltvProgramme | null = null;
+
+    const cleanup = () => {
+      rl.close();
+      gunzip.destroy();
+      nodeReadable.destroy();
+    };
+
+    rl.on("line", (line) => {
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith("<programme")) {
+        const attrs = readXmlAttributes(trimmed);
+        const channelId = attrs.channel ?? "";
+        const startAt = parseXmltvDate(attrs.start ?? "");
+        const stopAt = parseXmltvDate(attrs.stop ?? "");
+
+        if (
+          wantedIds.has(channelId) &&
+          startAt &&
+          stopAt &&
+          stopAt > from &&
+          startAt < to
+        ) {
+          current = {
+            id: `${channelId}:${startAt.toISOString()}`,
+            channelId,
+            title: "",
+            description: "",
+            category: "",
+            startAt: startAt.toISOString(),
+            stopAt: stopAt.toISOString(),
+          };
+        } else {
+          current = null;
+        }
+      }
+
+      if (current) {
+        const title = readXmlText(trimmed, "title");
+        const description = readXmlText(trimmed, "desc");
+        const category = readXmlText(trimmed, "category");
+
+        if (title) {
+          current.title = title;
+        }
+
+        if (description) {
+          current.description = description;
+        }
+
+        if (category) {
+          current.category = category;
+        }
+      }
+
+      if (trimmed.includes("</programme>") && current) {
+        if (current.title) {
+          programmes.push(current);
+        }
+        current = null;
+
+        if (programmes.length >= limit) {
+          cleanup();
+        }
+      }
+    });
+
+    rl.on("close", () => {
+      resolve(
+        programmes.sort(
+          (a, b) =>
+            new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+        )
+      );
+    });
+
+    rl.on("error", (err) => {
+      cleanup();
+      reject(err);
+    });
+
+    gunzip.on("error", (err) => {
+      cleanup();
+      reject(err);
+    });
+
+    nodeReadable.on("error", (err) => {
+      cleanup();
+      reject(err);
+    });
+  });
+}
+
+function readXmlAttributes(value: string) {
+  const attrs: Record<string, string> = {};
+  const attrPattern = /([:\w-]+)="([^"]*)"/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = attrPattern.exec(value))) {
+    attrs[match[1]] = decodeXmlText(match[2]);
+  }
+
+  return attrs;
+}
+
+function readXmlText(value: string, tagName: string) {
+  const match = value.match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`));
+  return match ? decodeXmlText(match[1]).trim() : "";
+}
+
+function parseXmltvDate(value: string) {
+  const match = value.match(
+    /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-])(\d{2})(\d{2}))?/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute, second, sign, offsetHour, offsetMinute] =
+    match;
+  const timestamp = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  );
+  const offsetMs =
+    sign && offsetHour && offsetMinute
+      ? (Number(offsetHour) * 60 + Number(offsetMinute)) * 60 * 1000
+      : 0;
+
+  return new Date(sign === "-" ? timestamp + offsetMs : timestamp - offsetMs);
+}
+
+function decodeXmlText(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }

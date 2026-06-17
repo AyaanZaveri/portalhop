@@ -1,4 +1,9 @@
-import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
+import type {
+  EpgProgramme,
+  PortalChannel,
+  PortalRequest,
+  PortalResponse,
+} from "@/lib/stalker-types"
 
 type StalkerEnvelope = {
   js?: unknown
@@ -22,6 +27,20 @@ type StalkerGenre = {
   title?: string
   name?: string
   alias?: string
+}
+
+type StalkerEpgRow = {
+  id?: string | number
+  name?: string
+  title?: string
+  descr?: string
+  description?: string
+  category?: string
+  start_timestamp?: string | number
+  stop_timestamp?: string | number
+  start?: string | number
+  stop?: string | number
+  on_date?: string
 }
 
 const DEFAULT_TIMEZONE = "America/Toronto"
@@ -152,6 +171,62 @@ export async function fetchPortalChannels(
     genres,
     channels,
   }
+}
+
+export async function fetchPortalEpg(
+  endpoint: string,
+  options: ReturnType<typeof normalizePortalRequest>,
+  channelId: string,
+  period = 6
+): Promise<EpgProgramme[]> {
+  const handshake = await stalkerRequest(endpoint, options, {
+    type: "stb",
+    action: "handshake",
+    JsHttpRequest: "1-xml",
+  })
+  const token = getToken(handshake)
+
+  if (!token) {
+    throw new Error("Handshake response did not include a bearer token.")
+  }
+
+  await stalkerRequest(endpoint, options, buildProfileParams(options), token)
+
+  const shortEpgEnvelope = await stalkerRequest(
+    endpoint,
+    options,
+    {
+      type: "itv",
+      action: "get_short_epg",
+      ch_id: channelId,
+      size: 12,
+      JsHttpRequest: "1-xml",
+    },
+    token
+  ).catch(() => null)
+
+  if (shortEpgEnvelope) {
+    const programmes = readProviderEpg(shortEpgEnvelope.js, channelId)
+
+    if (programmes.length) {
+      return programmes
+    }
+  }
+
+  const epgEnvelope = await stalkerRequest(
+    endpoint,
+    options,
+    {
+      type: "itv",
+      action: "get_epg_info",
+      ch_id: channelId,
+      period,
+      JsHttpRequest: "1-xml",
+    },
+    token
+  )
+
+  return readProviderEpg(epgEnvelope.js, channelId)
 }
 
 function normalizeMac(value: string | undefined) {
@@ -326,6 +401,65 @@ function readChannels(
       logoUrl: resolveLogoUrl(logo, endpoint),
     }
   })
+}
+
+function readProviderEpg(value: unknown, channelId: string): EpgProgramme[] {
+  const payload = readObject(value)
+  const data = readObject(payload.data ?? payload.epg ?? value)
+  let rows: StalkerEpgRow[] = []
+
+  if (Array.isArray(data[channelId])) {
+    rows = data[channelId] as StalkerEpgRow[]
+  } else if (Array.isArray(payload.data)) {
+    rows = payload.data as StalkerEpgRow[]
+  } else if (Array.isArray(payload.epg)) {
+    rows = payload.epg as StalkerEpgRow[]
+  } else if (Array.isArray(value)) {
+    rows = value as StalkerEpgRow[]
+  }
+
+  const programmes: Array<EpgProgramme | null> = rows.map((row, index) => {
+    const startAt = readStalkerTimestamp(row.start_timestamp ?? row.start)
+    const stopAt = readStalkerTimestamp(row.stop_timestamp ?? row.stop)
+    const title = stringValue(row.name ?? row.title)
+
+    if (!startAt || !stopAt || !title) {
+      return null
+    }
+
+    return {
+      id: `${channelId}:${startAt.toISOString()}:${index}`,
+      channelId,
+      title,
+      description: stringValue(row.descr ?? row.description),
+      category: stringValue(row.category),
+      startAt: startAt.toISOString(),
+      stopAt: stopAt.toISOString(),
+      source: "provider",
+    }
+  })
+
+  return programmes
+    .filter((programme): programme is EpgProgramme => Boolean(programme))
+    .sort(
+      (a, b) =>
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+    )
+}
+
+function readStalkerTimestamp(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null
+  }
+
+  const numeric = Number(value)
+
+  if (Number.isFinite(numeric)) {
+    return new Date(numeric * 1000)
+  }
+
+  const parsed = new Date(String(value))
+  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function resolveLogoUrl(logo: string, endpoint: string) {
