@@ -18,6 +18,7 @@ export type PortalChannel = {
   cmd: string
   logo: string
   logoUrl: string
+  xmltvId?: string
 }
 
 export type PortalResponse = {

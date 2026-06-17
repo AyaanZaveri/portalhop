@@ -14,6 +14,7 @@ type StalkerChannel = {
   genre_id?: string | number
   cmd?: string
   logo?: string
+  xmltv_id?: string
 }
 
 type StalkerGenre = {
@@ -315,6 +316,7 @@ function readChannels(
 
     return {
       id: stringValue(channel.id),
+      xmltvId: stringValue(channel.xmltv_id),
       number: stringValue(channel.number),
       name: stringValue(channel.name ?? channel.title) || "Untitled channel",
       genreId,

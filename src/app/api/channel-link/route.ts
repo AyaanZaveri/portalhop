@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server"
 
+import {
+  fetchPortalChannels,
+  getEndpointCandidates,
+  normalizePortalRequest,
+} from "@/lib/stalker-client"
+import type { PortalChannel } from "@/lib/stalker-types"
 import type { PortalRequest } from "@/lib/stalker-types"
 
 type LinkRequest = PortalRequest & {
   endpoint?: string
   cmd?: string
+  channelId?: string
+  channelNumber?: string
+  channelName?: string
 }
 
 type StalkerEnvelope = {
@@ -12,8 +21,6 @@ type StalkerEnvelope = {
   error?: string
 }
 
-const DEFAULT_TIMEZONE = "America/Toronto"
-const DEFAULT_STB_TYPE = "MAG254"
 const USER_AGENT =
   "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG254 stbapp ver: 4 rev: 1812 Mobile Safari/533.3"
 const PROFILE_VERSION =
@@ -29,12 +36,17 @@ export async function POST(request: Request) {
   }
 
   const portalUrl = body.portalUrl?.trim()
-  const mac = normalizeMac(body.mac)
-  const cmd = body.cmd?.trim()
+  const options = normalizePortalRequest(body)
+  const requestedChannel = {
+    id: body.channelId?.trim() || "",
+    number: body.channelNumber?.trim() || "",
+    name: body.channelName?.trim() || "",
+    cmd: body.cmd?.trim() || "",
+  }
 
-  if (!portalUrl || !mac || !cmd) {
+  if (!portalUrl || !options.mac || !hasChannelIdentity(requestedChannel)) {
     return NextResponse.json(
-      { error: "Portal URL, MAC address, and channel command are required." },
+      { error: "Portal URL, MAC address, and channel identity are required." },
       { status: 400 }
     )
   }
@@ -51,21 +63,27 @@ export async function POST(request: Request) {
     )
   }
 
-  const options = {
-    mac,
-    timezone: body.timezone?.trim() || DEFAULT_TIMEZONE,
-    stbType: body.stbType?.trim() || DEFAULT_STB_TYPE,
-    serial: body.serial?.trim(),
-    deviceId: body.deviceId?.trim(),
-    deviceId2: body.deviceId2?.trim(),
-    signature: body.signature?.trim(),
-  }
   const errors: string[] = []
 
   for (const endpoint of endpoints) {
     try {
-      const link = await createChannelLink(endpoint, options, cmd)
-      return NextResponse.json({ link, endpoint })
+      const result = await fetchPortalChannels(endpoint, options)
+      const freshChannel = findFreshChannel(result.channels, requestedChannel)
+
+      if (!freshChannel?.cmd) {
+        throw new Error("Live channel list did not include this channel.")
+      }
+
+      const link = await createChannelLink(endpoint, options, freshChannel.cmd)
+      return NextResponse.json({
+        link,
+        endpoint,
+        channel: {
+          id: freshChannel.id,
+          number: freshChannel.number,
+          name: freshChannel.name,
+        },
+      })
     } catch (error) {
       errors.push(
         `${endpoint}: ${error instanceof Error ? error.message : String(error)}`
@@ -76,10 +94,41 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       error: "Could not resolve the channel through create_link.",
-      fallback: cleanStreamCommand(cmd),
       details: errors,
     },
     { status: 502 }
+  )
+}
+
+function hasChannelIdentity(channel: {
+  id: string
+  number: string
+  name: string
+  cmd: string
+}) {
+  return Boolean(channel.id || channel.number || channel.name || channel.cmd)
+}
+
+function findFreshChannel(
+  channels: PortalChannel[],
+  requested: { id: string; number: string; name: string; cmd: string }
+) {
+  return (
+    (requested.id
+      ? channels.find((channel) => channel.id === requested.id)
+      : undefined) ??
+    (requested.number && requested.name
+      ? channels.find(
+          (channel) =>
+            channel.number === requested.number && channel.name === requested.name
+        )
+      : undefined) ??
+    (requested.name
+      ? channels.find((channel) => channel.name === requested.name)
+      : undefined) ??
+    (requested.cmd
+      ? channels.find((channel) => channel.cmd === requested.cmd)
+      : undefined)
   )
 }
 
@@ -133,70 +182,6 @@ async function createChannelLink(
   }
 
   return link
-}
-
-function normalizeMac(value: string | undefined) {
-  const raw = value?.trim().toUpperCase()
-
-  if (!raw) {
-    return ""
-  }
-
-  const compact = raw.replace(/[^0-9A-F]/g, "")
-
-  if (compact.length === 12) {
-    return compact.match(/.{1,2}/g)?.join(":") ?? raw
-  }
-
-  return raw
-}
-
-function getEndpointCandidates(portalUrl: string) {
-  try {
-    const parsed = new URL(portalUrl)
-
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return []
-    }
-
-    parsed.hash = ""
-    parsed.search = ""
-
-    const pathname = parsed.pathname.replace(/\/+$/, "")
-    const origin = parsed.origin
-    const candidates = new Set<string>()
-
-    if (pathname.endsWith("/portal.php") || pathname.endsWith("/load.php")) {
-      candidates.add(`${origin}${pathname}`)
-    }
-
-    if (pathname.includes("/stalker_portal")) {
-      const root = pathname.slice(
-        0,
-        pathname.indexOf("/stalker_portal") + "/stalker_portal".length
-      )
-      candidates.add(`${origin}${root}/server/load.php`)
-      candidates.add(`${origin}${root}/portal.php`)
-    }
-
-    const base =
-      pathname.endsWith("/c") || pathname.endsWith("/client")
-        ? pathname.replace(/\/(c|client)$/, "")
-        : pathname
-
-    if (base) {
-      candidates.add(`${origin}${base}/portal.php`)
-      candidates.add(`${origin}${base}/server/load.php`)
-      candidates.add(`${origin}${base}/stalker_portal/server/load.php`)
-    }
-
-    candidates.add(`${origin}/portal.php`)
-    candidates.add(`${origin}/stalker_portal/server/load.php`)
-
-    return [...candidates]
-  } catch {
-    return []
-  }
 }
 
 function buildProfileParams(options: {

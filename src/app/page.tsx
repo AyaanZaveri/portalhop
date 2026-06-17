@@ -2,6 +2,7 @@
 
 import {
   FormEvent,
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -9,13 +10,17 @@ import {
   useState,
 } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { toast } from "sonner"
 import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckIcon,
+  ChevronDownIcon,
   CopyIcon,
   Loader2Icon,
+  PlusIcon,
   RefreshCwIcon,
+  Rabbit,
   SaveIcon,
   SearchIcon,
   TvIcon,
@@ -33,6 +38,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
+import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -46,7 +72,11 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
+import { SettingsDialog } from "@/components/settings-dialog"
+import type { EpgManifest } from "@/lib/epg-store"
+import { ThemeSelector } from "@/components/theme-selector"
 
 type FormState = PortalRequest & {
   query: string
@@ -76,6 +106,7 @@ const initialForm: FormState = {
 export default function Home() {
   const [form, setForm] = useState<FormState>(initialForm)
   const [result, setResult] = useState<PortalResponse | null>(null)
+  const [testResult, setTestResult] = useState<PortalResponse | null>(null)
   const [error, setError] = useState("")
   const [details, setDetails] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -89,6 +120,91 @@ export default function Home() {
   const [portalName, setPortalName] = useState("")
   const [saveError, setSaveError] = useState("")
   const [isSavingPortal, setIsSavingPortal] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [logoSource, setLogoSource] = useState<"provider" | "epg">(() => {
+    if (typeof window !== "undefined") {
+      const savedSettings = localStorage.getItem("portalhop-settings")
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings)
+          if (parsed.logoSource === "epg" || parsed.logoSource === "provider") {
+            return parsed.logoSource
+          }
+        } catch (e) {
+          console.error("Failed to parse settings from localStorage:", e)
+        }
+      }
+    }
+    return "provider"
+  })
+  const [epgManifest, setEpgManifest] = useState<EpgManifest | null>(null)
+  const [epgChannels, setEpgChannels] = useState<Record<string, { name: string; logoUrl?: string }>>({})
+
+  const fetchEpgChannels = useCallback(async () => {
+    try {
+      const res = await fetch("/api/epg/channels")
+      if (!res.ok) throw new Error("Failed to fetch EPG channels")
+      const channels = await res.json()
+      setEpgChannels(channels)
+    } catch (err) {
+      console.error("Failed to load EPG channels:", err)
+    }
+  }, [])
+
+
+
+  useEffect(() => {
+
+    async function initEpg() {
+      try {
+        const res = await fetch("/api/epg")
+        if (!res.ok) throw new Error("Failed to fetch manifest")
+        const manifest: EpgManifest = await res.json()
+        setEpgManifest(manifest)
+
+        const isStale = !manifest.lastFetchedAt || (Date.now() - manifest.lastFetchedAt > 6 * 60 * 60 * 1000)
+        const isEmpty = manifest.countries.length === 0
+
+        if (isStale || isEmpty) {
+          console.log("EPG data is stale or empty. Triggering background refetch...")
+          fetch("/api/epg", { method: "POST" })
+            .then(async (postRes) => {
+              if (postRes.ok) {
+                const newManifest = await postRes.json()
+                setEpgManifest(newManifest)
+                fetchEpgChannels()
+              }
+            })
+            .catch((err) => console.error("Background EPG refetch failed:", err))
+        }
+      } catch (err) {
+        console.error("Failed to initialize EPG:", err)
+      }
+    }
+
+    initEpg()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEpgChannels()
+  }, [fetchEpgChannels])
+
+  const handleLogoSourceChange = (source: "provider" | "epg") => {
+    setLogoSource(source)
+    localStorage.setItem("portalhop-settings", JSON.stringify({ logoSource: source }))
+  }
+
+  const handleEpgRefetchComplete = async () => {
+    try {
+      const res = await fetch("/api/epg")
+      if (res.ok) {
+        const manifest = await res.json()
+        setEpgManifest(manifest)
+      }
+      await fetchEpgChannels()
+    } catch (err) {
+      console.error("Failed to update manifest/channels after refetch:", err)
+    }
+  }
+
   const deferredQuery = useDeferredValue(form.query)
   const portalRequest = useMemo<PortalRequest>(
     () => ({
@@ -162,37 +278,48 @@ export default function Home() {
     setIsLoading(true)
     setError("")
     setDetails([])
-    setResult(null)
+    setTestResult(null)
 
-    const response = await fetch("/api/channels", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        portalUrl: form.portalUrl,
-        mac: form.mac,
-        serial: form.serial,
-        deviceId: form.deviceId,
-        deviceId2: form.deviceId2,
-        signature: form.signature,
-        timezone: form.timezone,
-        stbType: form.stbType,
-      }),
-    })
+    try {
+      const response = await fetch("/api/channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          portalUrl: form.portalUrl,
+          mac: form.mac,
+          serial: form.serial,
+          deviceId: form.deviceId,
+          deviceId2: form.deviceId2,
+          signature: form.signature,
+          timezone: form.timezone,
+          stbType: form.stbType,
+        }),
+      })
 
-    const data = await response.json()
-    setIsLoading(false)
+      const data = await response.json()
+      setIsLoading(false)
 
-    if (!response.ok) {
-      setError(data.error || "The portal request failed.")
-      setDetails(Array.isArray(data.details) ? data.details : [])
-      return
+      if (!response.ok) {
+        const errMsg = data.error || "The portal request failed."
+        setError(errMsg)
+        setDetails(Array.isArray(data.details) ? data.details : [])
+        toast.error(`Connection failed: ${errMsg}`)
+        return
+      }
+
+      setTestResult(data)
+      toast.success("Connection test successful!")
+    } catch (err) {
+      setIsLoading(false)
+      const errMsg = err instanceof Error ? err.message : "An unexpected error occurred."
+      setError(errMsg)
+      toast.error(`Connection failed: ${errMsg}`)
     }
-
-    setResult(data)
   }
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+    setTestResult(null)
   }
 
   async function loadSavedPortal(portal: SavedPortalRecord) {
@@ -236,48 +363,57 @@ export default function Home() {
     setRefetchingPortalId(portal.id)
     setError("")
     setDetails([])
+    const toastId = toast.loading(`Refetching ${portal.name}...`)
 
-    const response = await fetch(`/api/portals/${portal.id}/refetch`, {
-      method: "POST",
-    })
-    const data = await response.json().catch(() => ({}))
-    setRefetchingPortalId(null)
+    try {
+      const response = await fetch(`/api/portals/${portal.id}/refetch`, {
+        method: "POST",
+      })
+      const data = await response.json().catch(() => ({}))
+      setRefetchingPortalId(null)
 
-    if (!response.ok) {
-      setError(data.error || "Could not refetch this saved portal.")
-      setDetails(Array.isArray(data.details) ? data.details : [])
-      return
-    }
-
-    if (data.portal) {
-      setSavedPortals((current) =>
-        current.map((item) => (item.id === portal.id ? data.portal : item))
-      )
-    }
-
-    if (data.result) {
-      const refreshedPortal = {
-        ...portal,
-        ...(data.portal ?? {}),
+      if (!response.ok) {
+        setError(data.error || "Could not refetch this saved portal.")
+        setDetails(Array.isArray(data.details) ? data.details : [])
+        toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
+        return
       }
-      setForm((current) => ({
-        ...current,
-        portalUrl: refreshedPortal.portalUrl,
-        mac: refreshedPortal.mac,
-        serial: refreshedPortal.serial ?? "",
-        deviceId: refreshedPortal.deviceId ?? "",
-        deviceId2: refreshedPortal.deviceId2 ?? "",
-        signature: refreshedPortal.signature ?? "",
-        timezone: refreshedPortal.timezone,
-        stbType: refreshedPortal.stbType,
-        query: "",
-      }))
-      setResult(data.result)
+
+      if (data.portal) {
+        setSavedPortals((current) =>
+          current.map((item) => (item.id === portal.id ? data.portal : item))
+        )
+      }
+
+      if (data.result) {
+        const refreshedPortal = {
+          ...portal,
+          ...(data.portal ?? {}),
+        }
+        setForm((current) => ({
+          ...current,
+          portalUrl: refreshedPortal.portalUrl,
+          mac: refreshedPortal.mac,
+          serial: refreshedPortal.serial ?? "",
+          deviceId: refreshedPortal.deviceId ?? "",
+          deviceId2: refreshedPortal.deviceId2 ?? "",
+          signature: refreshedPortal.signature ?? "",
+          timezone: refreshedPortal.timezone,
+          stbType: refreshedPortal.stbType,
+          query: "",
+        }))
+        setResult(data.result)
+      }
+      toast.success(`${portal.name} refetched successfully`, { id: toastId })
+    } catch {
+      setRefetchingPortalId(null)
+      toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
     }
   }
 
   async function saveCurrentPortal() {
-    if (!result) {
+    const activeResult = result || testResult
+    if (!activeResult) {
       return
     }
 
@@ -297,9 +433,9 @@ export default function Home() {
       body: JSON.stringify({
         ...portalRequest,
         name,
-        endpoint: result.endpoint,
-        channelCount: result.channels.length,
-        channels: result.channels,
+        endpoint: activeResult.endpoint,
+        channelCount: activeResult.channels.length,
+        channels: activeResult.channels,
       }),
     })
     const data = await response.json().catch(() => ({}))
@@ -320,20 +456,274 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 py-8 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-semibold tracking-normal sm:text-4xl">
-              Portal Hop
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Enter an authorized portal and device identity to read the channel
-              catalog through the MAG/Stalker handshake flow.
-            </p>
-          </div>
-          <Badge variant={result ? "secondary" : "outline"}>
-            {result ? `${result.channels.length} channels` : "Idle"}
-          </Badge>
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-7 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          <Sheet
+            open={sheetOpen}
+            onOpenChange={(open) => {
+              setSheetOpen(open)
+              if (!open) {
+                setTestResult(null)
+              }
+            }}
+          >
+            <SheetTrigger render={
+              <Button variant="default" className="cursor-pointer">
+                <PlusIcon data-icon="inline-start" />
+                Add Portal
+              </Button>
+            } />
+            <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
+              <SheetHeader>
+                <SheetTitle>Connection</SheetTitle>
+                <SheetDescription>
+                  Enter the Stalker portal URL and your device identity details below.
+                </SheetDescription>
+              </SheetHeader>
+
+              <form onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
+                <ScrollArea className="min-h-0 flex-1">
+                  <div className="px-4 pt-0 pb-4">
+                    <FieldGroup>
+                      <div className="grid gap-4">
+                        <Field>
+                          <FieldLabel htmlFor="portalUrl">Portal URL</FieldLabel>
+                          <InputGroup>
+                            <InputGroupAddon align="inline-start">URL</InputGroupAddon>
+                            <InputGroupInput
+                              id="portalUrl"
+                              required
+                              inputMode="url"
+                              placeholder="http://example.com:8080/c/"
+                              value={form.portalUrl}
+                              onChange={(event) =>
+                                updateField("portalUrl", event.target.value)
+                              }
+                            />
+                          </InputGroup>
+
+                        </Field>
+
+                        <Field>
+                          <FieldLabel htmlFor="mac">MAC address</FieldLabel>
+                          <InputGroup>
+                            <InputGroupAddon align="inline-start">MAC</InputGroupAddon>
+                            <InputGroupInput
+                              id="mac"
+                              required
+                              placeholder="00:1A:79:00:00:00"
+                              value={form.mac}
+                              onChange={(event) => updateField("mac", event.target.value)}
+                            />
+                          </InputGroup>
+
+                        </Field>
+
+                        <Accordion className="w-full">
+                          <AccordionItem value="advanced" className="border-none">
+                            <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-2">
+                              Show advanced
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-2">
+                              <div className="grid gap-4 pt-1 pb-1">
+                                <SimpleInput
+                                  id="serial"
+                                  label="Serial number"
+                                  placeholder="Optional"
+                                  value={form.serial}
+                                  onChange={(value) => updateField("serial", value)}
+                                />
+                                <SimpleInput
+                                  id="deviceId"
+                                  label="Device ID"
+                                  placeholder="Optional"
+                                  value={form.deviceId}
+                                  onChange={(value) => updateField("deviceId", value)}
+                                />
+                                <SimpleInput
+                                  id="deviceId2"
+                                  label="Device ID 2"
+                                  placeholder="Optional"
+                                  value={form.deviceId2}
+                                  onChange={(value) => updateField("deviceId2", value)}
+                                />
+                                <SimpleInput
+                                  id="signature"
+                                  label="Signature"
+                                  placeholder="Optional"
+                                  value={form.signature}
+                                  onChange={(value) => updateField("signature", value)}
+                                />
+                                <SimpleInput
+                                  id="timezone"
+                                  label="Timezone"
+                                  placeholder="America/Toronto"
+                                  value={form.timezone}
+                                  onChange={(value) => updateField("timezone", value)}
+                                />
+                                <SimpleInput
+                                  id="stbType"
+                                  label="STB model"
+                                  placeholder="MAG254"
+                                  value={form.stbType}
+                                  onChange={(value) => updateField("stbType", value)}
+                                />
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </div>
+                    </FieldGroup>
+
+                    {error ? (
+                      <Alert variant="destructive" className="mt-6">
+                        <AlertCircleIcon />
+                        <AlertTitle>Connection failed</AlertTitle>
+                        <AlertDescription>
+                          <div className="flex flex-col gap-2">
+                            <span>{error}</span>
+                            {details.length ? (
+                              <Accordion className="w-full">
+                                <AccordionItem value="attempts" className="border-none">
+                                  <AccordionTrigger className="hover:no-underline text-xs text-destructive-foreground/80 hover:text-destructive-foreground p-0 py-1 font-medium">
+                                    Endpoint attempts
+                                  </AccordionTrigger>
+                                  <AccordionContent className="pt-2 pb-0">
+                                    <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-destructive-foreground/70">
+                                      {details.map((detail) => (
+                                        <li key={detail}>{detail}</li>
+                                      ))}
+                                    </ul>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              </Accordion>
+                            ) : null}
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+
+                <SheetFooter className="border-t pt-4">
+                  {testResult ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setPortalName(testResult.profile.login || "")
+                          setSaveError("")
+                          setSaveDialogOpen(true)
+                        }}
+                      >
+                        <SaveIcon data-icon="inline-start" />
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setResult(testResult)
+                          setSheetOpen(false)
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <ArrowRightIcon data-icon="inline-start" />
+                        View
+                      </Button>
+                    </>
+                  ) : (
+                    <Button type="submit" disabled={isLoading} className="cursor-pointer">
+                      {isLoading ? (
+                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                      ) : (
+                        <ArrowRightIcon data-icon="inline-start" />
+                      )}
+                      Test
+                    </Button>
+                  )}
+                </SheetFooter>
+              </form>
+            </SheetContent>
+          </Sheet>
+
+          <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+            <DialogContent>
+              <div className="flex flex-col gap-4">
+                <DialogHeader>
+                  <DialogTitle>Save portal</DialogTitle>
+                  <DialogDescription>
+                    Add a nickname for this portal so you can load it later.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <Field data-invalid={Boolean(saveError)}>
+                  <FieldLabel htmlFor="portalName">Nickname</FieldLabel>
+                  <InputGroup>
+                    <InputGroupAddon align="inline-start">
+                      <TvIcon />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="portalName"
+                      placeholder="Living room IPTV"
+                      value={portalName}
+                      aria-invalid={Boolean(saveError)}
+                      onChange={(event) =>
+                        setPortalName(event.target.value)
+                      }
+                    />
+                  </InputGroup>
+                  {saveError ? (
+                    <FieldDescription>{saveError}</FieldDescription>
+                  ) : null}
+                </Field>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSaveDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={isSavingPortal}
+                    onClick={saveCurrentPortal}
+                  >
+                    {isSavingPortal ? (
+                      <Loader2Icon
+                        data-icon="inline-start"
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <SaveIcon data-icon="inline-start" />
+                    )}
+                    Save
+                  </Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <SettingsDialog
+            logoSource={logoSource}
+            onLogoSourceChange={handleLogoSourceChange}
+            epgManifest={epgManifest}
+            onRefetchComplete={handleEpgRefetchComplete}
+          />
+          <ThemeSelector />
+        </div>
+
+        <header className="flex flex-col gap-2">
+          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+            Portal Hop
+            <Rabbit className="size-7 shrink-0 translate-y-px text-primary" />
+          </h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Enter an authorized portal and device identity to read the channel
+            catalog through the MAG/Stalker handshake flow.
+          </p>
         </header>
 
         <section className="flex flex-col gap-3">
@@ -351,38 +741,41 @@ export default function Home() {
               {savedPortals.map((portal) => (
                 <div
                   key={portal.id}
-                  className="flex shrink-0 items-stretch overflow-hidden rounded-lg border"
+                  className="group relative flex shrink-0"
                 >
                   <Button
                     type="button"
-                    variant="ghost"
-                    className="h-auto flex-col items-start gap-1 rounded-none px-3 py-2"
+                    variant="outline"
+                    className="peer h-auto w-60 flex flex-row items-center gap-4 rounded-xl px-3 py-3 pr-11 text-left cursor-pointer"
                     onClick={() => loadSavedPortal(portal)}
                   >
-                    <span className="font-medium">{portal.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {portal.channelCount} channels
-                    </span>
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted/50 border border-muted/20 text-foreground">
+                      <TvIcon className="size-5" />
+                    </div>
+                    <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
+                      <span className="font-semibold text-base w-full truncate">{portal.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {portal.channelCount} channels
+                      </span>
+                    </div>
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
-                    className="rounded-none border-l px-2"
+                    size="icon"
+                    className="absolute top-2.5 right-2.5 size-7 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer z-10 transition-transform duration-75 group-active:translate-y-px"
                     disabled={
                       loadingPortalId === portal.id ||
                       refetchingPortalId === portal.id
                     }
                     onClick={() => refetchSavedPortal(portal)}
+                    aria-label="Refetch portal"
                   >
                     {refetchingPortalId === portal.id ? (
-                      <Loader2Icon
-                        data-icon="inline-start"
-                        className="animate-spin"
-                      />
+                      <Loader2Icon className="size-3.5 animate-spin" />
                     ) : (
-                      <RefreshCwIcon data-icon="inline-start" />
+                      <RefreshCwIcon className="size-3.5" />
                     )}
-                    Refetch
                   </Button>
                 </div>
               ))}
@@ -396,214 +789,7 @@ export default function Home() {
           )}
         </section>
 
-        <form onSubmit={onSubmit} className="flex flex-col gap-6">
-          <section className="flex flex-col gap-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-base font-medium">Connection</h2>
-                <p className="text-sm text-muted-foreground">
-                The app tests common `portal.php` and
-                `stalker_portal/server/load.php` endpoints automatically.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {result ? (
-                  <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isLoading}
-                      onClick={() => {
-                        setPortalName(result.profile.login || "")
-                        setSaveError("")
-                        setSaveDialogOpen(true)
-                      }}
-                    >
-                      <SaveIcon data-icon="inline-start" />
-                      Save
-                    </Button>
-                    <DialogContent>
-                      <div className="flex flex-col gap-4">
-                        <DialogHeader>
-                          <DialogTitle>Save portal</DialogTitle>
-                          <DialogDescription>
-                            Add a nickname for this portal so you can load it later.
-                          </DialogDescription>
-                        </DialogHeader>
 
-                        <Field data-invalid={Boolean(saveError)}>
-                          <FieldLabel htmlFor="portalName">Nickname</FieldLabel>
-                          <InputGroup>
-                            <InputGroupAddon align="inline-start">
-                              <TvIcon />
-                            </InputGroupAddon>
-                            <InputGroupInput
-                              id="portalName"
-                              placeholder="Living room IPTV"
-                              value={portalName}
-                              aria-invalid={Boolean(saveError)}
-                              onChange={(event) =>
-                                setPortalName(event.target.value)
-                              }
-                            />
-                          </InputGroup>
-                          {saveError ? (
-                            <FieldDescription>{saveError}</FieldDescription>
-                          ) : null}
-                        </Field>
-
-                        <DialogFooter>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setSaveDialogOpen(false)}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="button"
-                            disabled={isSavingPortal}
-                            onClick={saveCurrentPortal}
-                          >
-                            {isSavingPortal ? (
-                              <Loader2Icon
-                                data-icon="inline-start"
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <SaveIcon data-icon="inline-start" />
-                            )}
-                            Save
-                          </Button>
-                        </DialogFooter>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                ) : null}
-
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? (
-                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
-                  ) : (
-                    <ArrowRightIcon data-icon="inline-start" />
-                  )}
-                  Go
-                </Button>
-              </div>
-            </div>
-
-            <FieldGroup>
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
-                <Field>
-                  <FieldLabel htmlFor="portalUrl">Portal URL</FieldLabel>
-                  <InputGroup>
-                    <InputGroupAddon align="inline-start">URL</InputGroupAddon>
-                    <InputGroupInput
-                      id="portalUrl"
-                      required
-                      inputMode="url"
-                      placeholder="http://example.com:8080/c/"
-                      value={form.portalUrl}
-                      onChange={(event) =>
-                        updateField("portalUrl", event.target.value)
-                      }
-                    />
-                  </InputGroup>
-                  <FieldDescription>
-                    Paste the URL you would normally enter in a MAG/STB app.
-                  </FieldDescription>
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="mac">MAC address</FieldLabel>
-                  <InputGroup>
-                    <InputGroupAddon align="inline-start">MAC</InputGroupAddon>
-                    <InputGroupInput
-                      id="mac"
-                      required
-                      placeholder="00:1A:79:00:00:00"
-                      value={form.mac}
-                      onChange={(event) => updateField("mac", event.target.value)}
-                    />
-                  </InputGroup>
-                  <FieldDescription>
-                    `001A79...` is accepted and normalized.
-                  </FieldDescription>
-                </Field>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <SimpleInput
-                  id="serial"
-                  label="Serial number"
-                  placeholder="Optional"
-                  value={form.serial}
-                  onChange={(value) => updateField("serial", value)}
-                />
-                <SimpleInput
-                  id="deviceId"
-                  label="Device ID"
-                  placeholder="Optional"
-                  value={form.deviceId}
-                  onChange={(value) => updateField("deviceId", value)}
-                />
-                <SimpleInput
-                  id="deviceId2"
-                  label="Device ID 2"
-                  placeholder="Optional"
-                  value={form.deviceId2}
-                  onChange={(value) => updateField("deviceId2", value)}
-                />
-                <SimpleInput
-                  id="signature"
-                  label="Signature"
-                  placeholder="Optional"
-                  value={form.signature}
-                  onChange={(value) => updateField("signature", value)}
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <SimpleInput
-                  id="timezone"
-                  label="Timezone"
-                  placeholder="America/Toronto"
-                  value={form.timezone}
-                  onChange={(value) => updateField("timezone", value)}
-                />
-                <SimpleInput
-                  id="stbType"
-                  label="STB model"
-                  placeholder="MAG254"
-                  value={form.stbType}
-                  onChange={(value) => updateField("stbType", value)}
-                />
-              </div>
-            </FieldGroup>
-          </section>
-        </form>
-
-        {error ? (
-          <Alert variant="destructive">
-            <AlertCircleIcon />
-            <AlertTitle>Connection failed</AlertTitle>
-            <AlertDescription>
-              <div className="flex flex-col gap-2">
-                <p>{error}</p>
-                {details.length ? (
-                  <details className="text-xs">
-                    <summary>Endpoint attempts</summary>
-                    <ul className="mt-2 flex list-disc flex-col gap-1 pl-4">
-                      {details.map((detail) => (
-                        <li key={detail}>{detail}</li>
-                      ))}
-                    </ul>
-                  </details>
-                ) : null}
-              </div>
-            </AlertDescription>
-          </Alert>
-        ) : null}
 
         <Separator />
 
@@ -653,13 +839,15 @@ export default function Home() {
             ) : null}
           </div>
 
-          {isLoading ? (
+          {loadingPortalId !== null ? (
             <LoadingRows />
           ) : result ? (
             <ChannelTable
               channels={filteredChannels}
               endpoint={result.endpoint}
               portalRequest={portalRequest}
+              logoSource={logoSource}
+              epgChannels={epgChannels}
             />
           ) : (
             <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
@@ -710,10 +898,14 @@ function ChannelTable({
   channels,
   endpoint,
   portalRequest,
+  logoSource,
+  epgChannels,
 }: {
   channels: PortalChannel[]
   endpoint: string
   portalRequest: PortalRequest
+  logoSource: "provider" | "epg"
+  epgChannels: Record<string, { name: string; logoUrl?: string }>
 }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [copiedChannel, setCopiedChannel] = useState("")
@@ -734,40 +926,71 @@ function ChannelTable({
     rowVirtualizer.scrollToIndex(0)
   }, [channels, rowVirtualizer])
 
-  async function copyChannelLink(channel: PortalChannel) {
+  async function pullChannelStream(
+    channel: PortalChannel,
+    action: "copy" | "open"
+  ) {
     const channelKey = getChannelKey(channel)
-    const fallback = getChannelLink(channel)
 
-    if (!fallback) {
+    if (!canResolveChannel(channel)) {
       return
     }
 
     setResolvingChannel(channelKey)
     setFailedChannel("")
-
-    const response = await fetch("/api/channel-link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...portalRequest,
-        endpoint,
-        cmd: channel.cmd,
-      }),
+    const toastId = toast.loading(`Pulling ${channel.name || "stream"}`, {
+      description: "Resolving the latest stream from the portal.",
     })
-    const data = await response.json().catch(() => ({}))
-    const link = response.ok && typeof data.link === "string" ? data.link : fallback
 
-    if (!response.ok && isInternalPortalCommand(link)) {
-      setResolvingChannel("")
+    try {
+      const response = await fetch("/api/channel-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          ...portalRequest,
+          endpoint,
+          cmd: channel.cmd,
+          channelId: channel.id,
+          channelNumber: channel.number,
+          channelName: channel.name,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || typeof data.link !== "string" || !data.link) {
+        throw new Error(data.error || "Could not pull the latest stream.")
+      }
+
+      if (action === "copy") {
+        await navigator.clipboard.writeText(data.link)
+        setCopiedChannel(channelKey)
+        window.setTimeout(() => setCopiedChannel(""), 1400)
+        toast.dismiss(toastId)
+        toast.success("Copied stream", {
+          description: channel.name,
+          icon: <CheckIcon className="size-4 text-foreground" />,
+        })
+      } else {
+        window.location.href = `iina://weblink?url=${encodeURIComponent(
+          data.link
+        )}`
+        toast.dismiss(toastId)
+        toast.success("Opening in IINA", {
+          description: channel.name,
+          icon: <CheckIcon className="size-4 text-foreground" />,
+        })
+      }
+    } catch (error) {
       setFailedChannel(channelKey)
       window.setTimeout(() => setFailedChannel(""), 1800)
-      return
+      toast.dismiss(toastId)
+      toast.error("Could not pull stream", {
+        description: error instanceof Error ? error.message : channel.name,
+      })
+    } finally {
+      setResolvingChannel("")
     }
-
-    await navigator.clipboard.writeText(link)
-    setResolvingChannel("")
-    setCopiedChannel(channelKey)
-    window.setTimeout(() => setCopiedChannel(""), 1400)
   }
 
   if (!channels.length) {
@@ -785,16 +1008,15 @@ function ChannelTable({
       role="table"
       aria-rowcount={channels.length}
     >
-      <div className="min-w-[980px]">
+      <div className="min-w-[800px]">
         <div
-          className="sticky top-0 z-10 grid h-10 grid-cols-[72px_minmax(280px,2fr)_160px_80px_minmax(240px,1fr)_112px] items-center border-b bg-background px-2 text-sm font-medium text-foreground"
+          className="sticky top-0 z-10 grid h-10 grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b bg-background px-4 text-sm font-medium text-foreground"
           role="row"
         >
           <div role="columnheader">No.</div>
           <div role="columnheader">Name</div>
           <div role="columnheader">Genre</div>
           <div role="columnheader">ID</div>
-          <div role="columnheader">Command</div>
           <div className="text-right" role="columnheader">
             Link
           </div>
@@ -808,7 +1030,7 @@ function ChannelTable({
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const channel = channels[virtualRow.index]
             const channelKey = getChannelKey(channel)
-            const link = getChannelLink(channel)
+            const canResolve = canResolveChannel(channel)
             const isCopied = copiedChannel === channelKey
             const isResolving = resolvingChannel === channelKey
             const didFail = failedChannel === channelKey
@@ -816,31 +1038,36 @@ function ChannelTable({
             return (
               <div
                 key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                className="absolute left-0 grid w-full grid-cols-[72px_minmax(280px,2fr)_160px_80px_minmax(240px,1fr)_112px] items-center border-b px-2 text-sm"
+                className="absolute left-0 grid w-full grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b px-4 text-sm"
                 role="row"
                 style={{
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <div className="font-medium" role="cell">
+                <div className="font-mono font-medium" role="cell">
                   {channel.number || virtualRow.index + 1}
                 </div>
                 <div role="cell">
                   <div className="flex min-w-0 items-center gap-3">
-                    {channel.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Portal logos can come from arbitrary hosts.
-                      <img
-                        src={channel.logoUrl}
-                        alt=""
-                        className="size-10 rounded-md border bg-muted object-contain p-1"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        onError={(event) => {
-                          event.currentTarget.style.display = "none"
-                        }}
-                      />
-                    ) : null}
+                    {(() => {
+                      const lookupId = channel.xmltvId || channel.id;
+                      const logoUrl = (logoSource === "epg" && lookupId ? epgChannels[lookupId.toLowerCase()]?.logoUrl : null) || channel.logoUrl;
+                      if (!logoUrl) return null;
+                      return (
+                        // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                        <img
+                          src={logoUrl}
+                          alt=""
+                          className="h-9 w-9 rounded-sm border bg-zinc-950 p-1 object-contain"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none"
+                          }}
+                        />
+                      );
+                    })()}
                     <div className="flex min-w-0 flex-col gap-1">
                       <span className="truncate font-medium">{channel.name}</span>
                       {channel.logo ? (
@@ -858,38 +1085,56 @@ function ChannelTable({
                     <span className="text-muted-foreground">-</span>
                   )}
                 </div>
-                <div className="truncate text-muted-foreground" role="cell">
-                  {channel.id || "-"}
+                <div className="truncate font-mono text-muted-foreground" role="cell">
+                  {channel.xmltvId || channel.id || "-"}
                 </div>
-                <div className="truncate text-muted-foreground" role="cell">
-                  {channel.cmd || "-"}
-                </div>
+
                 <div className="text-right" role="cell">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!link || Boolean(resolvingChannel)}
-                    onClick={() => copyChannelLink(channel)}
-                  >
-                    {isResolving ? (
-                      <Loader2Icon
-                        data-icon="inline-start"
-                        className="animate-spin"
-                      />
-                    ) : isCopied ? (
-                      <CheckIcon data-icon="inline-start" />
-                    ) : (
-                      <CopyIcon data-icon="inline-start" />
-                    )}
-                    {isResolving
-                      ? "Resolving"
-                      : isCopied
-                        ? "Copied"
-                        : didFail
-                          ? "Failed"
-                          : "Copy"}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!canResolve}
+                        />
+                      }
+                    >
+                      Actions
+                      <ChevronDownIcon className="size-4 opacity-50" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem
+                        disabled={Boolean(resolvingChannel)}
+                        onClick={() => pullChannelStream(channel, "open")}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
+                        <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
+                        Open in IINA
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={Boolean(resolvingChannel)}
+                        onClick={() => pullChannelStream(channel, "copy")}
+                      >
+                        {isResolving ? (
+                          <Spinner />
+                        ) : isCopied ? (
+                          <CheckIcon className="size-4" />
+                        ) : didFail ? (
+                          <AlertCircleIcon className="size-4 text-destructive" />
+                        ) : (
+                          <CopyIcon className="size-4" />
+                        )}
+                        {isResolving
+                          ? "Resolving..."
+                          : isCopied
+                            ? "Copied"
+                            : didFail
+                              ? "Failed"
+                              : "Copy stream"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             )
@@ -900,17 +1145,8 @@ function ChannelTable({
   )
 }
 
-function getChannelLink(channel: PortalChannel) {
-  return channel.cmd.replace(/^(ffmpeg|ffrt)\s+/i, "").trim()
-}
-
-function isInternalPortalCommand(link: string) {
-  try {
-    const url = new URL(link)
-    return url.hostname === "localhost" && url.pathname.startsWith("/ch/")
-  } catch {
-    return false
-  }
+function canResolveChannel(channel: PortalChannel) {
+  return Boolean(channel.id || channel.number || channel.name || channel.cmd)
 }
 
 function getChannelKey(channel: PortalChannel) {
