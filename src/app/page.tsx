@@ -721,8 +721,7 @@ export default function Home() {
             <Rabbit className="size-7 shrink-0 translate-y-px text-primary" />
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Enter an authorized portal and device identity to read the channel
-            catalog through the MAG/Stalker handshake flow.
+            Hop through and view TV portals
           </p>
         </header>
 
