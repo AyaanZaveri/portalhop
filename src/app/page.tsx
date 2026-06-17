@@ -324,74 +324,91 @@ export default function Home() {
 
     async function loadSavedPortals() {
       setIsLoadingPortals(true)
-      const response = await fetch("/api/portals", { cache: "no-store" })
-      const data = await response.json().catch(() => ({ portals: [] }))
-      const portals = Array.isArray(data.portals)
-        ? (data.portals as SavedPortalRecord[])
-        : []
-
-      if (isMounted) {
-        setSavedPortals(portals)
-        setIsLoadingPortals(false)
-      }
-
-      const openedPortalIds = readOpenedPortalIds()
-      const lastOpenedPortalId = localStorage.getItem(lastOpenedPortalStorageKey)
-      const portalIdsToOpen = openedPortalIds.length
-        ? openedPortalIds
-        : lastOpenedPortalId
-          ? [Number(lastOpenedPortalId)]
+      try {
+        const response = await fetch("/api/portals", { cache: "no-store" })
+        const data = await response.json().catch(() => ({ portals: [] }))
+        const portals = Array.isArray(data.portals)
+          ? (data.portals as SavedPortalRecord[])
           : []
-      const portalsToOpen = portals.filter((portal) =>
-        portalIdsToOpen.includes(portal.id)
-      )
 
-      if (!isMounted || !portalsToOpen.length) {
-        return
-      }
-
-      setError("")
-      setDetails([])
-
-      for (const portal of portalsToOpen) {
         if (!isMounted) {
           return
         }
 
-        setLoadingPortalId(portal.id)
+        setSavedPortals(portals)
 
-        try {
-          const portalResult = await fetchSavedPortalResult(portal)
+        const openedPortalIds = readOpenedPortalIds()
+        const lastOpenedPortalId = localStorage.getItem(lastOpenedPortalStorageKey)
+        const portalIdsToOpen = openedPortalIds.length
+          ? openedPortalIds
+          : lastOpenedPortalId
+            ? [Number(lastOpenedPortalId)]
+            : []
+        const portalsToOpen = portals.filter((portal) =>
+          portalIdsToOpen.includes(portal.id)
+        )
 
+        if (!portalsToOpen.length) {
+          return
+        }
+
+        setError("")
+        setDetails([])
+
+        for (const portal of portalsToOpen) {
           if (!isMounted) {
             return
           }
 
-          setLoadedPortals((current) => ({
-            ...current,
-            [portal.id]: {
-              portal,
-              response: portalResult,
-            },
-          }))
-        } catch (error) {
-          if (!isMounted) {
-            return
-          }
+          setLoadingPortalId(portal.id)
 
-          setError(
-            error instanceof Error
-              ? error.message
-              : "Could not load a saved portal."
-          )
-        } finally {
-          if (isMounted) {
-            setLoadingPortalId(null)
+          try {
+            const portalResult = await fetchSavedPortalResult(portal)
+
+            if (!isMounted) {
+              return
+            }
+
+            setLoadedPortals((current) => ({
+              ...current,
+              [portal.id]: {
+                portal,
+                response: portalResult,
+              },
+            }))
+          } catch (error) {
+            if (!isMounted) {
+              return
+            }
+
+            setError(
+              error instanceof Error
+                ? error.message
+                : "Could not load a saved portal."
+            )
+          } finally {
+            if (isMounted) {
+              setLoadingPortalId(null)
+            }
           }
         }
-      }
 
-      persistOpenedPortalIds(portalsToOpen.map((portal) => portal.id))
+        persistOpenedPortalIds(portalsToOpen.map((portal) => portal.id))
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Could not load saved portals."
+        )
+      } finally {
+        if (isMounted) {
+          setIsLoadingPortals(false)
+        }
+      }
     }
 
     loadSavedPortals()
@@ -867,7 +884,7 @@ export default function Home() {
         </Dialog>
 
         {!browserChannels.length ? (
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-1 rounded-xl bg-background/85 p-1 shadow-sm backdrop-blur">
+          <div className="absolute top-5 right-5 z-20 flex items-center gap-1 rounded-xl bg-background/85 p-1 shadow-sm backdrop-blur">
             <SettingsDialog
               open={settingsDialogOpen}
               onOpenChange={setSettingsDialogOpen}
