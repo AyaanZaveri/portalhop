@@ -2,14 +2,7 @@
 
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import {
-  CheckIcon,
-  InfoIcon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
-
-import { Spinner } from "@/components/ui/spinner"
+import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
@@ -20,19 +13,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       icons={{
         success: (
-          <CheckIcon className="size-4 text-foreground" />
+          <CircleCheckIcon className="size-4" />
         ),
         info: (
-          <InfoIcon className="size-4 text-foreground" />
+          <InfoIcon className="size-4" />
         ),
         warning: (
-          <TriangleAlertIcon className="size-4 text-foreground" />
+          <TriangleAlertIcon className="size-4" />
         ),
         error: (
-          <OctagonXIcon className="size-4 text-foreground" />
+          <OctagonXIcon className="size-4" />
         ),
         loading: (
-          <Spinner className="text-foreground" />
+          <Loader2Icon className="size-4 animate-spin" />
         ),
       }}
       style={
@@ -46,8 +39,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
-          description: "!text-foreground/70",
-          loader: "text-foreground",
         },
       }}
       {...props}

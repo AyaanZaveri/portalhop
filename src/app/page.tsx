@@ -18,8 +18,11 @@ import {
   ChevronDownIcon,
   CopyIcon,
   Loader2Icon,
+  PlayIcon,
   PlusIcon,
   RefreshCwIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
   Rabbit,
   SaveIcon,
   SearchIcon,
@@ -73,10 +76,29 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  MediaPlayer,
+  MediaPlayerControls,
+  MediaPlayerControlsOverlay,
+  MediaPlayerError,
+  MediaPlayerFullscreen,
+  MediaPlayerLoading,
+  MediaPlayerPiP,
+  MediaPlayerPlay,
+  MediaPlayerSettings,
+  MediaPlayerSeek,
+  MediaPlayerSeekBackward,
+  MediaPlayerSeekForward,
+  MediaPlayerTime,
+  MediaPlayerVideo,
+  MediaPlayerVolume,
+  MediaPlayerVolumeIndicator,
+} from "@/components/ui/media-player"
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import { SettingsDialog } from "@/components/settings-dialog"
 import type { EpgManifest } from "@/lib/epg-store"
 import { ThemeSelector } from "@/components/theme-selector"
+import MuxVideo from "@mux/mux-video-react"
 
 type FormState = PortalRequest & {
   query: string
@@ -457,7 +479,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-7 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-1">
           <Sheet
             open={sheetOpen}
             onOpenChange={(open) => {
@@ -468,7 +490,7 @@ export default function Home() {
             }}
           >
             <SheetTrigger render={
-              <Button variant="default" className="cursor-pointer">
+              <Button variant="default" className="mr-1 cursor-pointer">
                 <PlusIcon data-icon="inline-start" />
                 Add Portal
               </Button>
@@ -718,7 +740,7 @@ export default function Home() {
         <header className="flex flex-col gap-2">
           <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
             Portal Hop
-            <Rabbit className="size-7 shrink-0 translate-y-px text-primary" />
+            <Rabbit className="size-7 shrink-0 translate-y-px text-primary brightness-75 dark:brightness-100" />
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Hop through and view TV portals
@@ -728,15 +750,11 @@ export default function Home() {
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Portals</h2>
-            {isLoadingPortals ? (
-              <Badge variant="outline">Loading</Badge>
-            ) : (
-              <Badge variant="outline">{savedPortals.length} saved</Badge>
-            )}
           </div>
 
           {savedPortals.length ? (
-            <div className="flex gap-4 overflow-x-auto pb-1">
+            <div className="-ml-2">
+            <div className="flex gap-4 overflow-x-auto py-1.5 px-2">
               {savedPortals.map((portal) => (
                 <div
                   key={portal.id}
@@ -752,7 +770,7 @@ export default function Home() {
                       <TvIcon className="size-5" />
                     </div>
                     <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
-                      <span className="font-semibold text-base w-full truncate">{portal.name}</span>
+                      <span className="font-semibold text-sm w-full truncate">{portal.name}</span>
                       <span className="text-xs text-muted-foreground">
                         {portal.channelCount.toLocaleString()} channels
                       </span>
@@ -778,6 +796,7 @@ export default function Home() {
                   </Button>
                 </div>
               ))}
+            </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -908,6 +927,12 @@ function ChannelTable({
   const [copiedChannel, setCopiedChannel] = useState("")
   const [resolvingChannel, setResolvingChannel] = useState("")
   const [failedChannel, setFailedChannel] = useState("")
+  const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
+  const [playerStream, setPlayerStream] = useState<{
+    channelKey: string
+    channelName: string
+    url: string
+  } | null>(null)
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
     count: channels.length,
@@ -925,7 +950,7 @@ function ChannelTable({
 
   async function pullChannelStream(
     channel: PortalChannel,
-    action: "copy" | "open"
+    action: "copy" | "open" | "play"
   ) {
     const channelKey = getChannelKey(channel)
 
@@ -968,7 +993,7 @@ function ChannelTable({
           description: channel.name,
           icon: <CheckIcon className="size-4 text-foreground" />,
         })
-      } else {
+      } else if (action === "open") {
         window.location.href = `iina://weblink?url=${encodeURIComponent(
           data.link
         )}`
@@ -977,6 +1002,14 @@ function ChannelTable({
           description: channel.name,
           icon: <CheckIcon className="size-4 text-foreground" />,
         })
+      } else {
+        setPlayerStream({
+          channelKey,
+          channelName: channel.name || "Live stream",
+          url: data.link,
+        })
+        setPlayerDialogOpen(true)
+        toast.dismiss(toastId)
       }
     } catch (error) {
       setFailedChannel(channelKey)
@@ -999,6 +1032,81 @@ function ChannelTable({
   }
 
   return (
+    <>
+    <Dialog
+      open={playerDialogOpen}
+      onOpenChange={(open) => {
+        setPlayerDialogOpen(open)
+        if (!open) {
+          setPlayerStream(null)
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>{playerStream?.channelName ?? "Live stream"}</DialogTitle>
+          <DialogDescription>
+            Playing the resolved HLS stream in browser.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="overflow-hidden rounded-lg bg-black">
+          {playerStream ? (
+            <MediaPlayer
+              key={`${playerStream.channelKey}-${playerStream.url}`}
+              className="aspect-video w-full overflow-hidden bg-black"
+            >
+              <MediaPlayerVideo
+                render={
+                  <MuxVideo
+                    src={playerStream.url}
+                    type="hls"
+                    streamType="live"
+                    preferPlayback="mse"
+                    preload="auto"
+                    targetLiveWindow={30}
+                    autoPlay
+                    playsInline
+                    envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
+                    metadata={{
+                      video_id: playerStream.channelKey,
+                      video_title: playerStream.channelName,
+                      video_stream_type: "live",
+                    }}
+                    className="h-full w-full bg-black object-contain"
+                  />
+                }
+              />
+              <MediaPlayerLoading />
+              <MediaPlayerError />
+              <MediaPlayerVolumeIndicator />
+              <MediaPlayerControls className="flex-col items-start gap-2.5 px-5 pb-4">
+                <MediaPlayerControlsOverlay />
+                <MediaPlayerSeek />
+                <div className="flex w-full items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2">
+                    <MediaPlayerPlay />
+                    <MediaPlayerSeekBackward>
+                      <RotateCcwIcon />
+                    </MediaPlayerSeekBackward>
+                    <MediaPlayerSeekForward>
+                      <RotateCwIcon />
+                    </MediaPlayerSeekForward>
+                    <MediaPlayerTime />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MediaPlayerVolume expandable />
+                    <MediaPlayerSettings />
+                    <MediaPlayerPiP />
+                    <MediaPlayerFullscreen />
+                  </div>
+                </div>
+              </MediaPlayerControls>
+            </MediaPlayer>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <div className="rounded-lg border">
       <div
         className="grid h-10 grid-cols-[72px_minmax(200px,1fr)_180px_180px_112px] items-center border-b bg-background px-4 text-sm font-medium text-foreground"
@@ -1101,7 +1209,7 @@ function ChannelTable({
                       Actions
                       <ChevronDownIcon className="size-4 opacity-50" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent className="min-w-44">
                       <DropdownMenuItem
                         disabled={Boolean(resolvingChannel)}
                         onClick={() => pullChannelStream(channel, "open")}
@@ -1109,6 +1217,17 @@ function ChannelTable({
                         {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
                         <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
                         Open in IINA
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={Boolean(resolvingChannel)}
+                        onClick={() => pullChannelStream(channel, "play")}
+                      >
+                        {isResolving ? (
+                          <Spinner />
+                        ) : (
+                          <PlayIcon className="size-4" />
+                        )}
+                        {isResolving ? "Resolving..." : "Play in browser"}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={Boolean(resolvingChannel)}
@@ -1141,6 +1260,7 @@ function ChannelTable({
         </div>
       </ScrollArea>
     </div>
+    </>
   )
 }
 
