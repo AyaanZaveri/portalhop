@@ -1239,7 +1239,7 @@ function ChannelBrowser({
             </div>
             <ScrollArea
               ref={scrollAreaRef}
-              className="min-h-0 flex-1 px-2 pb-2"
+              className="min-h-0 flex-1 px-3 pb-2"
               aria-rowcount={channels.length}
             >
               {channels.length ? (
@@ -1263,7 +1263,7 @@ function ChannelBrowser({
                         type="button"
                         disabled={!canResolve || Boolean(resolvingChannel)}
                         className={cn(
-                          "absolute inset-x-0 flex items-center gap-3 rounded-xl px-3 text-left text-sm transition-colors hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-50",
+                          "absolute inset-x-0 flex items-center gap-3 rounded-xl px-2 text-left text-sm transition-colors hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-50",
                           isSelected && "bg-accent shadow-xs"
                         )}
                         onClick={() => pullChannelStream(channel)}
@@ -1344,12 +1344,18 @@ function ChannelBrowser({
                       />
                     </div>
                   ) : null}
-                  <div className="flex min-w-0 flex-col">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <p className="truncate font-semibold">{playerStream.channelName}</p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {playerStream.genre || "Uncategorized"}
-                      {playerStream.portalName ? ` • ${playerStream.portalName}` : ""}
-                    </p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="truncate">
+                        {playerStream.genre || "Uncategorized"}
+                      </span>
+                      {playerStream.portalName ? (
+                        <Badge variant="outline" className="h-5">
+                          {playerStream.portalName}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1420,7 +1426,7 @@ function ChannelBrowser({
                             {playerStream.portalName ? (
                               <Badge
                                 variant="outline"
-                                className="h-5 border-white/20 bg-white/10 text-white backdrop-blur"
+                                className="h-5 bg-white/10 text-white backdrop-blur"
                               >
                                 {playerStream.portalName}
                               </Badge>
@@ -1727,11 +1733,20 @@ function LoadingShell() {
           <div className="flex flex-col gap-3 p-4 pb-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 flex-col gap-1">
-                <Skeleton className="h-4 w-28" />
+                <p className="truncate text-sm font-medium">Live Streams</p>
                 <Skeleton className="h-3 w-20" />
               </div>
             </div>
-            <Skeleton className="h-10 w-full rounded-md" />
+            <InputGroup>
+              <InputGroupAddon align="inline-start">
+                <SearchIcon />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder="Search channels"
+              // value={query}
+              // onChange={(event) => onQueryChange(event.target.value)}
+              />
+            </InputGroup>
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
@@ -1755,10 +1770,11 @@ function LoadingShell() {
         <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
           <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-4 pr-[28rem]">
             <div className="flex min-w-0 items-center gap-3">
-              <Skeleton className="size-10 rounded-lg" />
-              <div className="flex min-w-0 flex-col gap-1">
-                <Skeleton className="h-5 w-40" />
-                <Skeleton className="h-4 w-28" />
+              <div className="flex min-w-0 flex-col">
+                <p className="font-semibold">Select a channel</p>
+                <p className="text-sm text-muted-foreground">
+                  Pick a channel from the sidebar to start playback.
+                </p>
               </div>
             </div>
           </div>

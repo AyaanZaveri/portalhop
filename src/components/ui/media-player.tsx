@@ -90,7 +90,7 @@ const SPRITE_CONTAINER_HEIGHT = 128;
 
 interface DivProps
   extends React.ComponentProps<"div">,
-    useRender.ComponentProps<"div"> {}
+  useRender.ComponentProps<"div"> { }
 
 type RootElement = HTMLDivElement;
 
@@ -795,7 +795,7 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
 
 interface MediaPlayerVideoProps
   extends React.ComponentProps<"video">,
-    useRender.ComponentProps<"video"> {}
+  useRender.ComponentProps<"video"> { }
 
 function MediaPlayerVideo(props: MediaPlayerVideoProps) {
   const { render, ref, ...videoProps } = props;
@@ -842,7 +842,7 @@ function MediaPlayerVideo(props: MediaPlayerVideoProps) {
 
 interface MediaPlayerAudioProps
   extends React.ComponentProps<"audio">,
-    useRender.ComponentProps<"audio"> {}
+  useRender.ComponentProps<"audio"> { }
 
 function MediaPlayerAudio(props: MediaPlayerAudioProps) {
   const { render, ref, ...audioProps } = props;
@@ -1438,8 +1438,8 @@ interface MediaPlayerSeekProps extends SliderPrimitive.Root.Props {
   tooltipSideOffset?: number;
   tooltipCollisionBoundary?: Element | Element[];
   tooltipCollisionPadding?:
-    | number
-    | Partial<Record<"top" | "right" | "bottom" | "left", number>>;
+  | number
+  | Partial<Record<"top" | "right" | "bottom" | "left", number>>;
 }
 
 function MediaPlayerSeek(props: MediaPlayerSeekProps) {
@@ -1550,11 +1550,11 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     const padding =
       typeof tooltipCollisionPadding === "number"
         ? {
-            top: tooltipCollisionPadding,
-            right: tooltipCollisionPadding,
-            bottom: tooltipCollisionPadding,
-            left: tooltipCollisionPadding,
-          }
+          top: tooltipCollisionPadding,
+          right: tooltipCollisionPadding,
+          bottom: tooltipCollisionPadding,
+          left: tooltipCollisionPadding,
+        }
         : { top: 0, right: 0, bottom: 0, left: 0, ...tooltipCollisionPadding };
 
     const boundaries = tooltipCollisionBoundary
@@ -1779,7 +1779,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     horizontalMovementRef.current = 0;
     verticalMovementRef.current = 0;
 
-      if (seekableRange > 0) {
+    if (seekableRange > 0) {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
       }
@@ -2504,7 +2504,7 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
 
 interface MediaPlayerTimeProps
   extends React.ComponentProps<"div">,
-    useRender.ComponentProps<"div"> {
+  useRender.ComponentProps<"div"> {
   variant?: "progress" | "remaining" | "duration";
 }
 
@@ -2576,8 +2576,8 @@ function MediaPlayerTime(props: MediaPlayerTimeProps) {
 
 interface MediaPlayerPlaybackSpeedProps
   extends Omit<React.ComponentProps<typeof DropdownMenu>, "dir" | "children">,
-    Pick<React.ComponentProps<typeof DropdownMenuContent>, "sideOffset">,
-    React.ComponentProps<typeof Button> {
+  Pick<React.ComponentProps<typeof DropdownMenuContent>, "sideOffset">,
+  React.ComponentProps<typeof Button> {
   speeds?: number[];
 }
 
@@ -2668,7 +2668,7 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
   );
 }
 
-interface MediaPlayerLoopProps extends React.ComponentProps<typeof Button> {}
+interface MediaPlayerLoopProps extends React.ComponentProps<typeof Button> { }
 
 function MediaPlayerLoop(props: MediaPlayerLoopProps) {
   const { children, className, disabled, ...loopProps } = props;
@@ -2744,7 +2744,7 @@ function MediaPlayerLoop(props: MediaPlayerLoopProps) {
 }
 
 interface MediaPlayerFullscreenProps
-  extends React.ComponentProps<typeof Button> {}
+  extends React.ComponentProps<typeof Button> { }
 
 function MediaPlayerFullscreen(props: MediaPlayerFullscreenProps) {
   const { children, className, disabled, ...fullscreenProps } = props;
@@ -2796,8 +2796,8 @@ function MediaPlayerFullscreen(props: MediaPlayerFullscreenProps) {
 interface MediaPlayerPiPProps
   extends Omit<React.ComponentProps<typeof Button>, "children"> {
   children?:
-    | React.ReactNode
-    | ((isPictureInPicture: boolean) => React.ReactNode);
+  | React.ReactNode
+  | ((isPictureInPicture: boolean) => React.ReactNode);
   onPipError?: (error: unknown, state: "enter" | "exit") => void;
 }
 
@@ -2966,7 +2966,7 @@ function MediaPlayerDownload(props: React.ComponentProps<typeof Button>) {
   );
 }
 
-interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps {}
+interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps { }
 
 function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const {
@@ -3240,8 +3240,8 @@ function MediaPlayerPortal(props: MediaPlayerPortalProps) {
 
 interface MediaPlayerTooltipProps
   extends Omit<React.ComponentProps<typeof Tooltip>, "children">,
-    Pick<React.ComponentProps<typeof TooltipContent>, "sideOffset">,
-    Pick<React.ComponentProps<typeof TooltipProvider>, "delay"> {
+  Pick<React.ComponentProps<typeof TooltipContent>, "sideOffset">,
+  Pick<React.ComponentProps<typeof TooltipProvider>, "delay"> {
   tooltip?: string;
   shortcut?: string | string[];
   children?: React.ReactNode;
