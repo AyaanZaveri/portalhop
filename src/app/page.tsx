@@ -24,6 +24,7 @@ import {
   SaveIcon,
   SearchIcon,
   TvIcon,
+  BrushCleaning,
 } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -70,7 +71,6 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
@@ -588,7 +588,7 @@ export default function Home() {
                                   <AccordionTrigger className="hover:no-underline text-xs text-destructive-foreground/80 hover:text-destructive-foreground p-0 py-1 font-medium">
                                     Endpoint attempts
                                   </AccordionTrigger>
-                                  <AccordionContent className="pt-2 pb-0">
+                                  <AccordionContent className="pb-0">
                                     <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-destructive-foreground/70">
                                       {details.map((detail) => (
                                         <li key={detail}>{detail}</li>
@@ -728,7 +728,7 @@ export default function Home() {
 
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-medium">Saved portals</h2>
+            <h2 className="text-lg font-semibold">Portals</h2>
             {isLoadingPortals ? (
               <Badge variant="outline">Loading</Badge>
             ) : (
@@ -755,7 +755,7 @@ export default function Home() {
                     <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1">
                       <span className="font-semibold text-base w-full truncate">{portal.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {portal.channelCount} channels
+                        {portal.channelCount.toLocaleString()} channels
                       </span>
                     </div>
                   </Button>
@@ -791,12 +791,10 @@ export default function Home() {
 
 
 
-        <Separator />
-
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex flex-col gap-1">
-              <h2 className="text-base font-medium">Channels</h2>
+              <h2 className="text-lg font-semibold">Channels</h2>
               <p className="text-sm text-muted-foreground">
                 {result
                   ? `Connected through ${result.endpoint}`
@@ -813,7 +811,7 @@ export default function Home() {
                   setResult(null)
                 }}
               >
-                <RefreshCwIcon data-icon="inline-start" />
+                <BrushCleaning data-icon="inline-start" />
                 Clear
               </Button>
             </div>
