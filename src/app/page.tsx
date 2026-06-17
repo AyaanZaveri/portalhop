@@ -1330,7 +1330,7 @@ function ChannelBrowser({
         <ResizableHandle className="w-0 bg-transparent after:w-1 focus-visible:ring-0" />
         <ResizablePanel minSize="560px">
           <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-            <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-4 pr-[28rem]">
+            <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-5 pb-3 pr-[28rem]">
               {playerStream ? (
                 <div className="flex min-w-0 items-center gap-3">
                   {playerStream.logoUrl ? (
@@ -1344,8 +1344,8 @@ function ChannelBrowser({
                       />
                     </div>
                   ) : null}
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className="truncate font-semibold">{playerStream.channelName}</p>
+                  <div className="flex min-w-0 flex-col">
+                    <p className="truncate font-semibold text-xl">{playerStream.channelName}</p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="truncate">
                         {playerStream.genre || "Uncategorized"}
@@ -1403,7 +1403,7 @@ function ChannelBrowser({
                       <MediaPlayerControlsOverlay />
                       <div className="flex w-full items-center gap-3 pb-1">
                         {playerStream.logoUrl ? (
-                          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
+                          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-950/50 backdrop-blur p-1 shadow-inner">
                             {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
                             <img
                               src={playerStream.logoUrl}
@@ -1414,7 +1414,7 @@ function ChannelBrowser({
                           </div>
                         ) : null}
                         <div className="flex min-w-0 flex-col">
-                          <h2 className="truncate text-2xl font-semibold text-white">
+                          <h2 className="truncate text-xl font-semibold text-white">
                             {playerStream.channelName}
                           </h2>
                           <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
@@ -1501,7 +1501,7 @@ function EpgSchedule({
   }, [])
 
   return (
-    <section className="mt-8 flex flex-col gap-4">
+    <section className="mt-4 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-2 min-w-0">
           <TvIcon className="size-5 shrink-0 text-muted-foreground" />
