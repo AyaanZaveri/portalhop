@@ -114,7 +114,7 @@ export function SettingsDialog({
           <div className="flex flex-col gap-4 py-2">
             {/* Logo Source Preference */}
             <div className="flex flex-col gap-1.5">
-              <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+              <span className="text-sm font-medium text-foreground">
                 Logo Source
               </span>
               <Tabs
@@ -138,10 +138,8 @@ export function SettingsDialog({
               </Tabs>
             </div>
 
-            <div className="h-px bg-border my-1" />
-
             <div className="flex flex-col gap-2">
-              <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+              <span className="text-sm font-medium text-foreground">
                 Portals
               </span>
               <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
@@ -220,11 +218,9 @@ export function SettingsDialog({
               </Button>
             </div>
 
-            <div className="h-px bg-border my-1" />
-
             {/* EPG Status & Action */}
             <div className="flex flex-col gap-2">
-              <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+              <span className="text-sm font-medium text-foreground">
                 EPG Data Status
               </span>
               <div className="rounded-lg border bg-muted/10 p-3 text-xs flex flex-col gap-2">
