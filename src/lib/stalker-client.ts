@@ -98,7 +98,10 @@ export function getEndpointCandidates(portalUrl: string) {
     if (base) {
       candidates.add(`${origin}${base}/portal.php`)
       candidates.add(`${origin}${base}/server/load.php`)
-      candidates.add(`${origin}${base}/stalker_portal/server/load.php`)
+
+      if (!base.includes("/stalker_portal")) {
+        candidates.add(`${origin}${base}/stalker_portal/server/load.php`)
+      }
     }
 
     candidates.add(`${origin}/portal.php`)

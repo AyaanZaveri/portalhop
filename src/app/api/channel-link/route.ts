@@ -66,6 +66,19 @@ export async function POST(request: Request) {
   const errors: string[] = []
 
   for (const endpoint of endpoints) {
+    if (requestedChannel.cmd) {
+      try {
+        const link = await createChannelLink(endpoint, options, requestedChannel.cmd)
+        return NextResponse.json({ link, endpoint })
+      } catch (error) {
+        errors.push(
+          `${endpoint} cached cmd: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
+    }
+
     try {
       const result = await fetchPortalChannels(endpoint, options)
       const freshChannel = findFreshChannel(result.channels, requestedChannel)
