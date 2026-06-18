@@ -90,6 +90,7 @@ import {
 } from "@/components/ui/media-player"
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import type { EpgProgramme } from "@/lib/stalker-types"
+import { AuthDialog } from "@/components/auth-dialog"
 import { SettingsDialog } from "@/components/settings-dialog"
 import type { EpgManifest } from "@/lib/epg-store"
 import { ThemeSelector } from "@/components/theme-selector"
@@ -892,6 +893,7 @@ export default function Home() {
 
         {isLoadingPortals || !browserChannels.length ? (
           <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
+            <AuthDialog />
             <SettingsDialog
               open={settingsDialogOpen}
               onOpenChange={setSettingsDialogOpen}
@@ -925,6 +927,7 @@ export default function Home() {
             onQueryChange={(value) => updateField("query", value)}
             utilityControls={
               <>
+                <AuthDialog />
                 <SettingsDialog
                   open={settingsDialogOpen}
                   onOpenChange={setSettingsDialogOpen}
@@ -1810,9 +1813,9 @@ function EpgSchedule({
   return (
     <section className="mt-4 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <TvIcon className="size-5 shrink-0 text-muted-foreground" />
-          <span className="text-xl font-semibold">Programme Guide</span>
+        <div className="flex items-center gap-2 md:gap-2.5 min-w-0">
+          <TvIcon className="size-4 md:size-5 shrink-0 text-muted-foreground" />
+          <span className="text-base md:text-xl font-semibold">Programme Guide</span>
         </div>
         {programmes[0] ? (
           <span className="shrink-0 text-sm font-medium text-muted-foreground">

@@ -56,21 +56,20 @@ export async function POST(
       const result = await fetchPortalChannels(endpoint, options)
       const now = new Date()
 
-      db.transaction((tx) => {
-        tx.delete(savedChannels)
+      await db.transaction(async (tx) => {
+        await tx.delete(savedChannels)
           .where(eq(savedChannels.portalId, portal.id))
-          .run()
+
         if (result.channels.length) {
-          insertSavedChannels(tx, portal.id, result.channels, now)
+          await insertSavedChannels(tx, portal.id, result.channels, now)
         }
-        tx.update(savedPortals)
+        await tx.update(savedPortals)
           .set({
             endpoint: result.endpoint,
             channelCount: result.channels.length,
             updatedAt: now,
           })
           .where(eq(savedPortals.id, portal.id))
-          .run()
       })
 
       return NextResponse.json({
