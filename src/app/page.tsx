@@ -890,7 +890,7 @@ export default function Home() {
           </DialogContent>
         </Dialog>
 
-        {!browserChannels.length ? (
+        {isLoadingPortals || !browserChannels.length ? (
           <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
             <SettingsDialog
               open={settingsDialogOpen}
