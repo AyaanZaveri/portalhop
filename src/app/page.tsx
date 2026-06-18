@@ -1636,10 +1636,11 @@ function ChannelBrowser({
         </ResizablePanelGroup>
       ) : (
         <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 md:flex-row">
-          <div className="order-2 min-h-0 flex-1 md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:flex-none">
+          <div className="order-3 min-h-0 basis-[46%] shrink md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:basis-auto md:shrink-0">
             {renderChannelContent()}
           </div>
-          <div className="order-1 min-h-0 flex-1 md:order-2">
+          <div className="order-2 w-px h-px bg-transparent shrink-0 md:order-2" />
+          <div className="order-1 min-h-0 basis-[54%] shrink md:order-3 md:flex-1 md:basis-auto">
             {renderPlayerContent()}
           </div>
         </div>
@@ -2067,7 +2068,7 @@ function LoadingShell() {
 
   const playerContent = (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-      <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-4 md:pr-[28rem]">
+      <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex min-w-0 flex-col">
             <p className="font-semibold">Select a channel</p>
@@ -2077,8 +2078,8 @@ function LoadingShell() {
           </div>
         </div>
       </div>
-      <div className="flex flex-1 items-center justify-center p-4">
-        <div className="flex min-h-96 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
           <TvIcon className="size-8" />
           <p className="text-sm">No channel selected.</p>
         </div>
@@ -2108,10 +2109,11 @@ function LoadingShell() {
   if (!isResponsiveLayoutReady) {
     return (
       <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 md:flex-row">
-        <div className="order-2 min-h-0 flex-1 md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:flex-none">
+        <div className="order-3 min-h-0 basis-[46%] shrink md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:basis-auto md:shrink-0">
           {channelContent}
         </div>
-        <div className="order-1 min-h-0 flex-1 md:order-2">
+        <div className="order-2 w-px h-px bg-transparent shrink-0 md:order-2" />
+        <div className="order-1 min-h-0 basis-[54%] shrink md:order-3 md:flex-1 md:basis-auto">
           {playerContent}
         </div>
       </div>
