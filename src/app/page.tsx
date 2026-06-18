@@ -93,7 +93,6 @@ import type { EpgProgramme } from "@/lib/stalker-types"
 import { AuthDialog } from "@/components/auth-dialog"
 import { SettingsDialog } from "@/components/settings-dialog"
 import type { EpgManifest } from "@/lib/epg-store"
-import { ThemeSelector } from "@/components/theme-selector"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { cn } from "@/lib/utils"
@@ -893,7 +892,6 @@ export default function Home() {
 
         {isLoadingPortals || !browserChannels.length ? (
           <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
-            <AuthDialog />
             <SettingsDialog
               open={settingsDialogOpen}
               onOpenChange={setSettingsDialogOpen}
@@ -910,7 +908,7 @@ export default function Home() {
               onPortalCheckedChange={handlePortalCheckedChange}
               onRefetchPortal={refetchSavedPortal}
             />
-            <ThemeSelector />
+            <AuthDialog />
           </div>
         ) : null}
 
@@ -927,7 +925,6 @@ export default function Home() {
             onQueryChange={(value) => updateField("query", value)}
             utilityControls={
               <>
-                <AuthDialog />
                 <SettingsDialog
                   open={settingsDialogOpen}
                   onOpenChange={setSettingsDialogOpen}
@@ -944,7 +941,7 @@ export default function Home() {
                   onPortalCheckedChange={handlePortalCheckedChange}
                   onRefetchPortal={refetchSavedPortal}
                 />
-                <ThemeSelector />
+                <AuthDialog />
               </>
             }
           />
