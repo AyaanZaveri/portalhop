@@ -93,6 +93,7 @@ import { SettingsDialog } from "@/components/settings-dialog"
 import type { EpgManifest } from "@/lib/epg-store"
 import { ThemeSelector } from "@/components/theme-selector"
 import MuxVideo from "@mux/mux-video-react"
+import { Hls, getCoreReference } from "@mux/playback-core"
 import { cn } from "@/lib/utils"
 
 type FormState = PortalRequest & {
@@ -122,6 +123,11 @@ type PortalSource = {
 
 type PortalChannelWithSource = PortalChannel & {
   portalSource?: PortalSource
+}
+
+type StreamVariant = {
+  resolutionLabel: string
+  frameRateLabel: string
 }
 
 const initialForm: FormState = {
@@ -884,7 +890,7 @@ export default function Home() {
         </Dialog>
 
         {!browserChannels.length ? (
-          <div className="absolute top-5 right-5 z-20 flex items-center gap-1 rounded-xl bg-background/85 p-1 shadow-sm backdrop-blur">
+          <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
             <SettingsDialog
               open={settingsDialogOpen}
               onOpenChange={setSettingsDialogOpen}
@@ -1019,6 +1025,11 @@ function ChannelBrowser({
     portalName: string
     url: string
   } | null>(null)
+  const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(null)
+  const [streamVariant, setStreamVariant] = useState<StreamVariant>({
+    resolutionLabel: "",
+    frameRateLabel: "",
+  })
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
     count: channels.length,
@@ -1033,6 +1044,96 @@ function ChannelBrowser({
   useEffect(() => {
     rowVirtualizer.scrollToIndex(0)
   }, [channels, rowVirtualizer])
+
+  useEffect(() => {
+    setStreamVariant({ resolutionLabel: "", frameRateLabel: "" })
+
+    if (!playerStream || !playerElement) {
+      return
+    }
+
+    let removeHlsListeners: (() => void) | undefined
+    let intervalId: number | undefined
+
+    const updateFromNativeVideo = () => {
+      setStreamVariant((current) => {
+        if (current.resolutionLabel || !playerElement.videoHeight) {
+          return current
+        }
+
+        return {
+          resolutionLabel: formatResolutionLabel({
+            width: playerElement.videoWidth,
+            height: playerElement.videoHeight,
+          }),
+          frameRateLabel: "",
+        }
+      })
+    }
+
+    const connectToHls = () => {
+      const hls = getCoreReference(playerElement)?.engine
+
+      if (!hls) {
+        return false
+      }
+
+      const updateFromLevel = (levelIndex?: number) => {
+        const currentLevelIndex =
+          typeof levelIndex === "number" ? levelIndex : hls.currentLevel
+        const level =
+          currentLevelIndex >= 0 ? hls.levels[currentLevelIndex] : undefined
+
+        if (level) {
+          setStreamVariant(formatStreamVariant(level))
+        }
+      }
+
+      const handleManifestParsed = () => updateFromLevel()
+      const handleLevelSwitching = (
+        _event: typeof Hls.Events.LEVEL_SWITCHING,
+        data: { level: number }
+      ) => updateFromLevel(data.level)
+      const handleLevelSwitched = (
+        _event: typeof Hls.Events.LEVEL_SWITCHED,
+        data: { level: number }
+      ) => updateFromLevel(data.level)
+
+      hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
+      hls.on(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
+      hls.on(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
+      updateFromLevel()
+
+      removeHlsListeners = () => {
+        hls.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
+        hls.off(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
+        hls.off(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
+      }
+
+      return true
+    }
+
+    if (!connectToHls()) {
+      intervalId = window.setInterval(() => {
+        if (connectToHls() && intervalId) {
+          window.clearInterval(intervalId)
+          intervalId = undefined
+        }
+      }, 100)
+    }
+
+    playerElement.addEventListener("loadedmetadata", updateFromNativeVideo)
+    updateFromNativeVideo()
+
+    return () => {
+      if (intervalId) {
+        window.clearInterval(intervalId)
+      }
+
+      playerElement.removeEventListener("loadedmetadata", updateFromNativeVideo)
+      removeHlsListeners?.()
+    }
+  }, [playerElement, playerStream])
 
   useEffect(() => {
     if (!selectedChannel || !playerStream) {
@@ -1178,7 +1279,7 @@ function ChannelBrowser({
 
   return (
     <>
-      <div className="absolute top-5 right-5 z-20 flex items-center gap-2 rounded-xl bg-background/85 p-1 shadow-sm backdrop-blur">
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
         {playerStream && selectedChannel ? (
           <>
             <Button
@@ -1217,7 +1318,7 @@ function ChannelBrowser({
       >
         <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
           <div className="flex h-full min-w-80 flex-col overflow-hidden rounded-2xl bg-card shadow-sm">
-            <div className="flex flex-col gap-3 p-4 pb-3">
+            <div className="flex flex-col gap-3 p-4 pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">Live Streams</p>
@@ -1330,7 +1431,7 @@ function ChannelBrowser({
         <ResizableHandle className="w-0 bg-transparent after:w-1 focus-visible:ring-0" />
         <ResizablePanel minSize="560px">
           <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-            <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-5 pb-3 pr-[28rem]">
+            <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 pr-[28rem]">
               {playerStream ? (
                 <div className="flex min-w-0 items-center gap-3">
                   {playerStream.logoUrl ? (
@@ -1345,7 +1446,9 @@ function ChannelBrowser({
                     </div>
                   ) : null}
                   <div className="flex min-w-0 flex-col">
-                    <p className="truncate font-semibold text-xl">{playerStream.channelName}</p>
+                    <p className="truncate font-semibold text-lg">
+                      {playerStream.channelName}
+                    </p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="truncate">
                         {playerStream.genre || "Uncategorized"}
@@ -1378,6 +1481,7 @@ function ChannelBrowser({
                     <MediaPlayerVideo
                       render={
                         <MuxVideo
+                          ref={(element) => setPlayerElement(element ?? null)}
                           src={playerStream.url}
                           type="hls"
                           streamType="live"
@@ -1414,7 +1518,7 @@ function ChannelBrowser({
                           </div>
                         ) : null}
                         <div className="flex min-w-0 flex-col">
-                          <h2 className="truncate text-xl font-semibold text-white">
+                          <h2 className="truncate text-lg font-semibold text-white">
                             {playerStream.channelName}
                           </h2>
                           <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
@@ -1431,6 +1535,10 @@ function ChannelBrowser({
                                 {playerStream.portalName}
                               </Badge>
                             ) : null}
+                            <StreamInfoBadges
+                              variant={streamVariant}
+                              className="bg-white/10 text-white backdrop-blur"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1481,6 +1589,72 @@ function canResolveChannel(channel: PortalChannel) {
   return Boolean(channel.id || channel.number || channel.name || channel.cmd)
 }
 
+function StreamInfoBadges({
+  variant,
+  className,
+}: {
+  variant: StreamVariant
+  className?: string
+}) {
+  const label = [
+    variant.resolutionLabel,
+    variant.frameRateLabel,
+  ].filter(Boolean).join(" • ")
+
+  if (!label) {
+    return null
+  }
+
+  return (
+    <Badge variant="outline" className={cn("h-5", className)}>
+      {label}
+    </Badge>
+  )
+}
+
+function formatStreamVariant({
+  width,
+  height,
+  frameRate,
+}: {
+  width: number
+  height: number
+  frameRate: number
+}): StreamVariant {
+  return {
+    resolutionLabel: formatResolutionLabel({ width, height }),
+    frameRateLabel: formatFrameRateLabel(frameRate),
+  }
+}
+
+function formatResolutionLabel({
+  width,
+  height,
+}: {
+  width: number
+  height: number
+}) {
+  if (width >= 3840 || height >= 2160) {
+    return "4K"
+  }
+
+  return height ? `${height}p` : ""
+}
+
+function formatFrameRateLabel(frameRate: number) {
+  if (!frameRate) {
+    return ""
+  }
+
+  const roundedFrameRate = Math.round(frameRate)
+  const labelValue =
+    Math.abs(frameRate - roundedFrameRate) < 0.05
+      ? String(roundedFrameRate)
+      : String(Number(frameRate.toFixed(2)))
+
+  return `${labelValue} fps`
+}
+
 function EpgSchedule({
   programmes,
   isLoading,
@@ -1503,9 +1677,9 @@ function EpgSchedule({
   return (
     <section className="mt-4 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <TvIcon className="size-5 shrink-0 text-muted-foreground" />
-          <span className="text-lg font-semibold">Programme Guide</span>
+          <span className="text-xl font-semibold">Programme Guide</span>
         </div>
         {programmes[0] ? (
           <span className="shrink-0 text-sm font-medium text-muted-foreground">
@@ -1540,12 +1714,12 @@ function EpgSchedule({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
                       <span>
                         {formatTimeRange(programme.startAt, programme.stopAt)}
                       </span>
                       {isLive ? (
-                        <Badge className="h-5 text-[10px]">LIVE</Badge>
+                        <Badge className="h-5 text-[10px] font-mono ">LIVE</Badge>
                       ) : null}
                       {programme.category ? (
                         <Badge variant="outline" className="h-5">
@@ -1564,7 +1738,7 @@ function EpgSchedule({
                   </div>
                 </div>
                 {isLive ? (
-                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
                       className="h-full rounded-full bg-primary"
                       style={{ width: `${progress}%` }}
@@ -1730,7 +1904,7 @@ function LoadingShell() {
     >
       <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
         <div className="flex h-full min-w-80 flex-col overflow-hidden rounded-2xl bg-card shadow-sm">
-          <div className="flex flex-col gap-3 p-4 pb-3">
+          <div className="flex flex-col gap-3 p-4 pb-2">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 flex-col gap-1">
                 <p className="truncate text-sm font-medium">Live Streams</p>
