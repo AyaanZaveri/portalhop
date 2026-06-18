@@ -6,6 +6,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1235,7 +1236,7 @@ function ChannelBrowser({
       }
 
       if (action === "copy") {
-        await navigator.clipboard.writeText(data.link)
+        await copyTextToClipboard(data.link)
         setCopiedChannel(channelKey)
         window.setTimeout(() => setCopiedChannel(""), 1400)
         toast.dismiss(toastId)
@@ -1277,165 +1278,202 @@ function ChannelBrowser({
     }
   }
 
-  return (
-    <>
-      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
-        {playerStream && selectedChannel ? (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={Boolean(resolvingChannel)}
-              onClick={() => pullChannelStream(selectedChannel, "open")}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
-              <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
-              Open in IINA
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={Boolean(resolvingChannel)}
-              onClick={() => pullChannelStream(selectedChannel, "copy")}
-            >
-              {copiedChannel === getChannelKey(selectedChannel) ? (
-                <CheckIcon data-icon="inline-start" />
-              ) : failedChannel === getChannelKey(selectedChannel) ? (
-                <AlertCircleIcon data-icon="inline-start" />
-              ) : (
-                <CopyIcon data-icon="inline-start" />
-              )}
-              Copy stream
-            </Button>
-          </>
-        ) : null}
-        <div className="flex items-center gap-1">{utilityControls}</div>
-      </div>
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="h-full gap-1.5 overflow-hidden bg-muted/30 p-3"
-        resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
-      >
-        <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
-          <div className="flex h-full min-w-80 flex-col overflow-hidden rounded-2xl bg-card shadow-sm">
-            <div className="flex flex-col gap-3 p-4 pb-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">Live Streams</p>
-                  <p className="text-xs text-muted-foreground">
-                    {channels.length.toLocaleString()} visible
-                  </p>
-                </div>
-              </div>
-              <InputGroup>
-                <InputGroupAddon align="inline-start">
-                  <SearchIcon />
-                </InputGroupAddon>
-                <InputGroupInput
-                  placeholder="Search channels"
-                  value={query}
-                  onChange={(event) => onQueryChange(event.target.value)}
-                />
-              </InputGroup>
-            </div>
-            <ScrollArea
-              ref={scrollAreaRef}
-              className="min-h-0 flex-1 px-3 pb-2"
-              aria-rowcount={channels.length}
-            >
-              {channels.length ? (
-                <div
-                  className="relative"
-                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const channel = channels[virtualRow.index]
-                    const channelKey = getChannelKey(channel)
-                    const canResolve = canResolveChannel(channel)
-                    const isResolving = resolvingChannel === channelKey
-                    const isSelected =
-                      selectedChannel && getChannelKey(selectedChannel) === channelKey
-                    const logoUrl = getChannelLogoUrl(channel, logoSource, epgChannels)
-                    const channelBadgeId = channel.xmltvId ?? ""
+  const isMobileLayout = useMediaQuery("(max-width: 767px)", true)
+  const resizableOrientation = isMobileLayout ? "vertical" : "horizontal"
+  const isResponsiveLayoutReady = useHydratedLayout()
 
-                    return (
-                      <button
-                        key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                        type="button"
-                        disabled={!canResolve || Boolean(resolvingChannel)}
-                        className={cn(
-                          "absolute inset-x-0 flex items-center gap-3 rounded-xl px-2 text-left text-sm transition-colors hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-50",
-                          isSelected && "bg-accent shadow-xs"
-                        )}
-                        onClick={() => pullChannelStream(channel)}
-                        style={{
-                          height: `${virtualRow.size - 8}px`,
-                          transform: `translateY(${virtualRow.start + 4}px)`,
-                        }}
-                      >
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
-                          {logoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                            <img
-                              src={logoUrl}
-                              alt=""
-                              className="size-full rounded object-contain"
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <TvIcon className="text-muted-foreground" />
-                          )}
-                        </div>
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                          <span className="truncate font-medium">
-                            {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
-                          </span>
-                          <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                            <span className="truncate">
-                              {channel.genre || "Uncategorized"}
-                            </span>
-                            {channel.portalSource ? (
-                              <Badge
-                                variant="outline"
-                                className="h-4 max-w-28 rounded px-1.5 text-[10px]"
-                              >
-                                <span className="truncate">
-                                  {channel.portalSource.name}
-                                </span>
-                              </Badge>
-                            ) : null}
-                            {channelBadgeId ? (
-                              <Badge
-                                variant="secondary"
-                                className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
-                              >
-                                <span className="truncate">{channelBadgeId}</span>
-                              </Badge>
-                            ) : null}
-                          </span>
-                        </div>
-                        {isResolving ? <Spinner /> : null}
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                  No channels matched the current search.
-                </div>
-              )}
-            </ScrollArea>
+  const renderChannelContent = () => (
+    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
+      <div className="flex flex-col gap-3 p-4 pb-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">Live Streams</p>
+            <p className="text-xs text-muted-foreground">
+              {channels.length.toLocaleString()} visible
+            </p>
           </div>
-        </ResizablePanel>
-        <ResizableHandle className="w-0 bg-transparent after:w-1 focus-visible:ring-0" />
-        <ResizablePanel minSize="560px">
-          <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-            <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 pr-[28rem]">
-              {playerStream ? (
-                <div className="flex min-w-0 items-center gap-3">
+        </div>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            placeholder="Search channels"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+          />
+        </InputGroup>
+      </div>
+      <ScrollArea
+        ref={scrollAreaRef}
+        className="min-h-0 flex-1 px-3 pb-2"
+        aria-rowcount={channels.length}
+      >
+        {channels.length ? (
+          <div
+            className="relative"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const channel = channels[virtualRow.index]
+              const channelKey = getChannelKey(channel)
+              const canResolve = canResolveChannel(channel)
+              const isResolving = resolvingChannel === channelKey
+              const isSelected =
+                selectedChannel && getChannelKey(selectedChannel) === channelKey
+              const logoUrl = getChannelLogoUrl(channel, logoSource, epgChannels)
+              const channelBadgeId = channel.xmltvId ?? ""
+
+              return (
+                <button
+                  key={`${channel.id}-${channel.number}-${virtualRow.index}`}
+                  type="button"
+                  disabled={!canResolve || Boolean(resolvingChannel)}
+                  className={cn(
+                    "absolute inset-x-0 flex items-center gap-3 rounded-xl px-2 text-left text-sm transition-colors hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-50",
+                    isSelected && "bg-accent shadow-xs"
+                  )}
+                  onClick={() => pullChannelStream(channel)}
+                  style={{
+                    height: `${virtualRow.size - 8}px`,
+                    transform: `translateY(${virtualRow.start + 4}px)`,
+                  }}
+                >
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
+                    {logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                      <img
+                        src={logoUrl}
+                        alt=""
+                        className="size-full rounded object-contain"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <TvIcon className="text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="truncate font-medium">
+                      {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
+                    </span>
+                    <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                      <span className="truncate">
+                        {channel.genre || "Uncategorized"}
+                      </span>
+                      {channel.portalSource ? (
+                        <Badge
+                          variant="outline"
+                          className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                        >
+                          <span className="truncate">
+                            {channel.portalSource.name}
+                          </span>
+                        </Badge>
+                      ) : null}
+                      {channelBadgeId ? (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                        >
+                          <span className="truncate">{channelBadgeId}</span>
+                        </Badge>
+                      ) : null}
+                    </span>
+                  </div>
+                  {isResolving ? <Spinner /> : null}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+            No channels matched the current search.
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+
+  const renderPlayerContent = () => (
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
+      <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
+        {playerStream ? (
+          <div className="flex min-w-0 items-center gap-3">
+            {playerStream.logoUrl ? (
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
+                {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
+                <img
+                  src={playerStream.logoUrl}
+                  alt=""
+                  className="size-full rounded object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            ) : null}
+            <div className="flex min-w-0 flex-col">
+              <p className="truncate font-semibold text-lg">
+                {playerStream.channelName}
+              </p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="truncate">
+                  {playerStream.genre || "Uncategorized"}
+                </span>
+                {playerStream.portalName ? (
+                  <Badge variant="outline" className="h-5">
+                    {playerStream.portalName}
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            <p className="font-semibold">Select a channel</p>
+            <p className="text-sm text-muted-foreground">
+              Pick a channel from the sidebar to start playback.
+            </p>
+          </div>
+        )}
+      </div>
+      {playerStream ? (
+        <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-4">
+            <MediaPlayer
+              key={`${playerStream.channelKey}-${playerStream.url}`}
+              autoHide
+              className="aspect-video w-full overflow-hidden rounded-lg bg-black"
+            >
+              <MediaPlayerVideo
+                render={
+                  <MuxVideo
+                    ref={(element) => setPlayerElement(element ?? null)}
+                    src={playerStream.url}
+                    type="hls"
+                    streamType="live"
+                    preferPlayback="mse"
+                    preload="auto"
+                    targetLiveWindow={30}
+                    autoPlay
+                    playsInline
+                    envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
+                    metadata={{
+                      video_id: playerStream.channelKey,
+                      video_title: playerStream.channelName,
+                      video_stream_type: "live",
+                    }}
+                    className="h-full w-full bg-black object-contain"
+                  />
+                }
+              />
+              <MediaPlayerLoading />
+              <MediaPlayerError />
+              <MediaPlayerVolumeIndicator />
+              <MediaPlayerControls className="flex-col items-start gap-2.5 px-4 pb-3">
+                <MediaPlayerControlsOverlay />
+                <div className="flex w-full items-center gap-3 pb-1">
                   {playerStream.logoUrl ? (
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-950/50 backdrop-blur p-1 shadow-inner">
                       {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
                       <img
                         src={playerStream.logoUrl}
@@ -1446,147 +1484,241 @@ function ChannelBrowser({
                     </div>
                   ) : null}
                   <div className="flex min-w-0 flex-col">
-                    <p className="truncate font-semibold text-lg">
+                    <h2 className="truncate text-lg font-semibold text-white">
                       {playerStream.channelName}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="truncate">
-                        {playerStream.genre || "Uncategorized"}
-                      </span>
+                    </h2>
+                    <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
+                      {playerStream.genre ? (
+                        <span className="truncate font-medium">
+                          {playerStream.genre}
+                        </span>
+                      ) : null}
                       {playerStream.portalName ? (
-                        <Badge variant="outline" className="h-5">
+                        <Badge
+                          variant="outline"
+                          className="h-5 bg-white/10 text-white backdrop-blur"
+                        >
                           {playerStream.portalName}
                         </Badge>
                       ) : null}
+                      <StreamInfoBadges
+                        variant={streamVariant}
+                        className="bg-white/10 text-white backdrop-blur"
+                      />
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-col">
-                  <p className="font-semibold">Select a channel</p>
-                  <p className="text-sm text-muted-foreground">
-                    Pick a channel from the sidebar to start playback.
-                  </p>
+                <MediaPlayerSeek />
+                <div className="flex w-full items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2">
+                    <MediaPlayerPlay />
+                    <MediaPlayerSeekBackward>
+                      <RotateCcwIcon />
+                    </MediaPlayerSeekBackward>
+                    <MediaPlayerSeekForward>
+                      <RotateCwIcon />
+                    </MediaPlayerSeekForward>
+                    <MediaPlayerTime />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MediaPlayerVolume expandable />
+                    <MediaPlayerSettings />
+                    <MediaPlayerPiP />
+                    <MediaPlayerFullscreen />
+                  </div>
                 </div>
-              )}
-            </div>
-            {playerStream ? (
-              <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
-                <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-4">
-                  <MediaPlayer
-                    key={`${playerStream.channelKey}-${playerStream.url}`}
-                    autoHide
-                    className="aspect-video w-full overflow-hidden rounded-lg bg-black"
-                  >
-                    <MediaPlayerVideo
-                      render={
-                        <MuxVideo
-                          ref={(element) => setPlayerElement(element ?? null)}
-                          src={playerStream.url}
-                          type="hls"
-                          streamType="live"
-                          preferPlayback="mse"
-                          preload="auto"
-                          targetLiveWindow={30}
-                          autoPlay
-                          playsInline
-                          envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
-                          metadata={{
-                            video_id: playerStream.channelKey,
-                            video_title: playerStream.channelName,
-                            video_stream_type: "live",
-                          }}
-                          className="h-full w-full bg-black object-contain"
-                        />
-                      }
-                    />
-                    <MediaPlayerLoading />
-                    <MediaPlayerError />
-                    <MediaPlayerVolumeIndicator />
-                    <MediaPlayerControls className="flex-col items-start gap-2.5 px-4 pb-3">
-                      <MediaPlayerControlsOverlay />
-                      <div className="flex w-full items-center gap-3 pb-1">
-                        {playerStream.logoUrl ? (
-                          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-950/50 backdrop-blur p-1 shadow-inner">
-                            {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
-                            <img
-                              src={playerStream.logoUrl}
-                              alt=""
-                              className="size-full rounded object-contain"
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-                        ) : null}
-                        <div className="flex min-w-0 flex-col">
-                          <h2 className="truncate text-lg font-semibold text-white">
-                            {playerStream.channelName}
-                          </h2>
-                          <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
-                            {playerStream.genre ? (
-                              <span className="truncate font-medium">
-                                {playerStream.genre}
-                              </span>
-                            ) : null}
-                            {playerStream.portalName ? (
-                              <Badge
-                                variant="outline"
-                                className="h-5 bg-white/10 text-white backdrop-blur"
-                              >
-                                {playerStream.portalName}
-                              </Badge>
-                            ) : null}
-                            <StreamInfoBadges
-                              variant={streamVariant}
-                              className="bg-white/10 text-white backdrop-blur"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <MediaPlayerSeek />
-                      <div className="flex w-full items-center gap-2">
-                        <div className="flex flex-1 items-center gap-2">
-                          <MediaPlayerPlay />
-                          <MediaPlayerSeekBackward>
-                            <RotateCcwIcon />
-                          </MediaPlayerSeekBackward>
-                          <MediaPlayerSeekForward>
-                            <RotateCwIcon />
-                          </MediaPlayerSeekForward>
-                          <MediaPlayerTime />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MediaPlayerVolume expandable />
-                          <MediaPlayerSettings />
-                          <MediaPlayerPiP />
-                          <MediaPlayerFullscreen />
-                        </div>
-                      </div>
-                    </MediaPlayerControls>
-                  </MediaPlayer>
-                  <EpgSchedule
-                    programmes={epgProgrammes}
-                    isLoading={isLoadingEpg}
-                    error={epgError}
-                  />
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-4">
-                <div className="flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-                  <TvIcon className="size-8" />
-                  <p className="text-sm">No channel selected.</p>
-                </div>
-              </div>
-            )}
+              </MediaPlayerControls>
+            </MediaPlayer>
+            <EpgSchedule
+              programmes={epgProgrammes}
+              isLoading={isLoadingEpg}
+              error={epgError}
+            />
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </ScrollArea>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-4">
+          <div className="flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+            <TvIcon className="size-8" />
+            <p className="text-sm">No channel selected.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const renderChannelPanel = () => (
+    <ResizablePanel
+      key="channels"
+      defaultSize={isMobileLayout ? "46%" : "360px"}
+      minSize={isMobileLayout ? "260px" : "320px"}
+      {...(isMobileLayout ? {} : { maxSize: "520px" })}
+    >
+      {renderChannelContent()}
+    </ResizablePanel>
+  )
+
+  const renderPlayerPanel = () => (
+    <ResizablePanel
+      key="player"
+      defaultSize={isMobileLayout ? "54%" : undefined}
+      minSize={isMobileLayout ? "190px" : "560px"}
+    >
+      {renderPlayerContent()}
+    </ResizablePanel>
+  )
+
+  const resizeHandle = (
+    <ResizableHandle
+      key="handle"
+      className="bg-transparent focus-visible:ring-0"
+    />
+  )
+
+  return (
+    <>
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+        {playerStream && selectedChannel ? (
+          <>
+            {!isMobileLayout && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={Boolean(resolvingChannel)}
+                onClick={() => pullChannelStream(selectedChannel, "open")}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
+                <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
+                Open in IINA
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size={isMobileLayout ? "icon" : "default"}
+              disabled={Boolean(resolvingChannel)}
+              onClick={() => pullChannelStream(selectedChannel, "copy")}
+              title={isMobileLayout ? "Copy stream" : undefined}
+            >
+              {copiedChannel === getChannelKey(selectedChannel) ? (
+                <CheckIcon data-icon={isMobileLayout ? undefined : "inline-start"} />
+              ) : failedChannel === getChannelKey(selectedChannel) ? (
+                <AlertCircleIcon data-icon={isMobileLayout ? undefined : "inline-start"} />
+              ) : (
+                <CopyIcon data-icon={isMobileLayout ? undefined : "inline-start"} />
+              )}
+              {!isMobileLayout && "Copy stream"}
+            </Button>
+          </>
+        ) : null}
+        <div className="flex items-center gap-1">{utilityControls}</div>
+      </div>
+      {isResponsiveLayoutReady ? (
+        <ResizablePanelGroup
+          key={resizableOrientation}
+          orientation={resizableOrientation}
+          className="h-full gap-1.5 overflow-hidden bg-muted/30 p-3"
+          resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
+        >
+          {isMobileLayout ? (
+            <>
+              {renderPlayerPanel()}
+              {resizeHandle}
+              {renderChannelPanel()}
+            </>
+          ) : (
+            <>
+              {renderChannelPanel()}
+              {resizeHandle}
+              {renderPlayerPanel()}
+            </>
+          )}
+        </ResizablePanelGroup>
+      ) : (
+        <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 md:flex-row">
+          <div className="order-2 min-h-0 flex-1 md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:flex-none">
+            {renderChannelContent()}
+          </div>
+          <div className="order-1 min-h-0 flex-1 md:order-2">
+            {renderPlayerContent()}
+          </div>
+        </div>
+      )}
     </>
   )
 }
 
+const useBrowserLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect
+
+function useMediaQuery(query: string, defaultMatches = false) {
+  const [matches, setMatches] = useState(() =>
+    typeof window === "undefined" ? defaultMatches : window.matchMedia(query).matches
+  )
+
+  useBrowserLayoutEffect(() => {
+    const mediaQuery = window.matchMedia(query)
+    const handleChange = () => setMatches(mediaQuery.matches)
+
+    handleChange()
+    mediaQuery.addEventListener("change", handleChange)
+
+    return () => mediaQuery.removeEventListener("change", handleChange)
+  }, [query])
+
+  return matches
+}
+
+function useHydratedLayout() {
+  const [isReady, setIsReady] = useState(false)
+
+  useBrowserLayoutEffect(() => {
+    setIsReady(true)
+  }, [])
+
+  return isReady
+}
+
 function canResolveChannel(channel: PortalChannel) {
   return Boolean(channel.id || channel.number || channel.name || channel.cmd)
+}
+
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch (err) {
+      console.warn("navigator.clipboard.writeText failed, trying fallback:", err)
+    }
+  }
+
+  // Fallback for insecure contexts (e.g. HTTP access from a local network IP address)
+  if (typeof document !== "undefined") {
+    const textArea = document.createElement("textarea")
+    textArea.value = text
+    textArea.style.position = "fixed"
+    textArea.style.top = "0"
+    textArea.style.left = "0"
+    textArea.style.opacity = "0"
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+
+    try {
+      const successful = document.execCommand("copy")
+      if (!successful) {
+        throw new Error("Copy command was unsuccessful")
+      }
+    } catch (err) {
+      console.error("Fallback clipboard copy failed:", err)
+      throw new Error("Unable to copy to clipboard")
+    } finally {
+      document.body.removeChild(textArea)
+    }
+  } else {
+    throw new Error("Clipboard API not available")
+  }
 }
 
 function StreamInfoBadges({
@@ -1896,70 +2028,122 @@ function uniqueGenres(channels: PortalChannel[]) {
 }
 
 function LoadingShell() {
+  const isMobileLayout = useMediaQuery("(max-width: 767px)", true)
+  const isResponsiveLayoutReady = useHydratedLayout()
+
+  const channelContent = (
+    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
+      <div className="flex flex-col gap-3 p-4 pb-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="truncate text-sm font-medium">Live Streams</p>
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </div>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput placeholder="Search channels" />
+        </InputGroup>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
+        {Array.from({ length: 14 }).map((_, index) => (
+          <div
+            key={index}
+            className="mb-2 flex h-14 items-center gap-3 rounded-xl px-3"
+          >
+            <Skeleton className="size-10 shrink-0 rounded-lg" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-3 w-2/5" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  const playerContent = (
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
+      <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-4 md:pr-[28rem]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 flex-col">
+            <p className="font-semibold">Select a channel</p>
+            <p className="text-sm text-muted-foreground">
+              Pick a channel from the sidebar to start playback.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <div className="flex min-h-96 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+          <TvIcon className="size-8" />
+          <p className="text-sm">No channel selected.</p>
+        </div>
+      </div>
+    </div>
+  )
+
+  const channelPanel = (
+    <ResizablePanel
+      defaultSize={isMobileLayout ? "46%" : "360px"}
+      minSize={isMobileLayout ? "260px" : "320px"}
+      {...(isMobileLayout ? {} : { maxSize: "520px" })}
+    >
+      {channelContent}
+    </ResizablePanel>
+  )
+
+  const playerPanel = (
+    <ResizablePanel
+      defaultSize={isMobileLayout ? "54%" : undefined}
+      minSize={isMobileLayout ? "190px" : "560px"}
+    >
+      {playerContent}
+    </ResizablePanel>
+  )
+
+  if (!isResponsiveLayoutReady) {
+    return (
+      <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 md:flex-row">
+        <div className="order-2 min-h-0 flex-1 md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:flex-none">
+          {channelContent}
+        </div>
+        <div className="order-1 min-h-0 flex-1 md:order-2">
+          {playerContent}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <ResizablePanelGroup
-      orientation="horizontal"
+      key={isMobileLayout ? "vertical" : "horizontal"}
+      orientation={isMobileLayout ? "vertical" : "horizontal"}
       className="h-full gap-1.5 overflow-hidden bg-muted/30 p-3"
       resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
     >
-      <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
-        <div className="flex h-full min-w-80 flex-col overflow-hidden rounded-2xl bg-card shadow-sm">
-          <div className="flex flex-col gap-3 p-4 pb-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className="truncate text-sm font-medium">Live Streams</p>
-                <Skeleton className="h-3 w-20" />
-              </div>
-            </div>
-            <InputGroup>
-              <InputGroupAddon align="inline-start">
-                <SearchIcon />
-              </InputGroupAddon>
-              <InputGroupInput
-                placeholder="Search channels"
-              // value={query}
-              // onChange={(event) => onQueryChange(event.target.value)}
-              />
-            </InputGroup>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
-            {Array.from({ length: 14 }).map((_, index) => (
-              <div
-                key={index}
-                className="mb-2 flex h-14 items-center gap-3 rounded-xl px-3"
-              >
-                <Skeleton className="size-10 shrink-0 rounded-lg" />
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <Skeleton className="h-4 w-4/5" />
-                  <Skeleton className="h-3 w-2/5" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </ResizablePanel>
-      <ResizableHandle className="w-0 bg-transparent after:w-1 focus-visible:ring-0" />
-      <ResizablePanel minSize="560px">
-        <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-          <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-4 pr-[28rem]">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex min-w-0 flex-col">
-                <p className="font-semibold">Select a channel</p>
-                <p className="text-sm text-muted-foreground">
-                  Pick a channel from the sidebar to start playback.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-1 items-center justify-center p-4">
-            <div className="flex min-h-96 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-              <TvIcon className="size-8" />
-              <p className="text-sm">No channel selected.</p>
-            </div>
-          </div>
-        </div>
-      </ResizablePanel>
+      {isMobileLayout ? (
+        <>
+          {playerPanel}
+          <ResizableHandle
+            key="handle"
+            className="bg-transparent focus-visible:ring-0"
+          />
+          {channelPanel}
+        </>
+      ) : (
+        <>
+          {channelPanel}
+          <ResizableHandle
+            key="handle"
+            className="bg-transparent focus-visible:ring-0"
+          />
+          {playerPanel}
+        </>
+      )}
     </ResizablePanelGroup>
   )
 }
