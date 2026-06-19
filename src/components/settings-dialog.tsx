@@ -38,6 +38,10 @@ interface SettingsDialogProps {
   onRefetchPortal: (portal: SavedPortalRecord) => void | Promise<void>;
 }
 
+interface SettingsDialogTriggerProps {
+  onOpen: () => void;
+}
+
 type SavedPortalRecord = PortalRequest & {
   id: number;
   name: string;
@@ -46,6 +50,20 @@ type SavedPortalRecord = PortalRequest & {
   createdAt: string | number | Date;
   updatedAt: string | number | Date;
 };
+
+export function SettingsDialogTrigger({ onOpen }: SettingsDialogTriggerProps) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8 cursor-pointer rounded-md text-muted-foreground hover:text-foreground"
+      onClick={onOpen}
+      aria-label="Settings"
+    >
+      <SettingsIcon className="size-4" />
+    </Button>
+  );
+}
 
 export function SettingsDialog({
   open,
@@ -98,19 +116,8 @@ export function SettingsDialog({
   };
 
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8 cursor-pointer rounded-md text-muted-foreground hover:text-foreground"
-        onClick={() => onOpenChange(true)}
-        aria-label="Settings"
-      >
-        <SettingsIcon className="size-4" />
-      </Button>
-
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>
@@ -270,9 +277,8 @@ export function SettingsDialog({
             </div>
           </div>
 
-          <DialogFooter showCloseButton />
-        </DialogContent>
-      </Dialog>
-    </>
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -13,6 +13,8 @@ import {
 } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { toast } from "sonner"
+import { useTheme } from "next-themes"
+import { MeshGradient } from "@paper-design/shaders-react"
 import {
   AlertCircleIcon,
   ArrowRightIcon,
@@ -91,7 +93,10 @@ import {
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import type { EpgProgramme } from "@/lib/stalker-types"
 import { AuthDialog } from "@/components/auth-dialog"
-import { SettingsDialog } from "@/components/settings-dialog"
+import {
+  SettingsDialog,
+  SettingsDialogTrigger,
+} from "@/components/settings-dialog"
 import type { EpgManifest } from "@/lib/epg-store"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
@@ -890,24 +895,26 @@ export default function Home() {
           </DialogContent>
         </Dialog>
 
+        <SettingsDialog
+          open={settingsDialogOpen}
+          onOpenChange={setSettingsDialogOpen}
+          logoSource={logoSource}
+          onLogoSourceChange={handleLogoSourceChange}
+          epgManifest={epgManifest}
+          onRefetchComplete={handleEpgRefetchComplete}
+          savedPortals={savedPortals}
+          activePortalIds={activePortalIds}
+          isLoadingPortals={isLoadingPortals}
+          loadingPortalId={loadingPortalId}
+          refetchingPortalId={refetchingPortalId}
+          onAddPortal={() => setSheetOpen(true)}
+          onPortalCheckedChange={handlePortalCheckedChange}
+          onRefetchPortal={refetchSavedPortal}
+        />
+
         {isLoadingPortals || !browserChannels.length ? (
           <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
-            <SettingsDialog
-              open={settingsDialogOpen}
-              onOpenChange={setSettingsDialogOpen}
-              logoSource={logoSource}
-              onLogoSourceChange={handleLogoSourceChange}
-              epgManifest={epgManifest}
-              onRefetchComplete={handleEpgRefetchComplete}
-              savedPortals={savedPortals}
-              activePortalIds={activePortalIds}
-              isLoadingPortals={isLoadingPortals}
-              loadingPortalId={loadingPortalId}
-              refetchingPortalId={refetchingPortalId}
-              onAddPortal={() => setSheetOpen(true)}
-              onPortalCheckedChange={handlePortalCheckedChange}
-              onRefetchPortal={refetchSavedPortal}
-            />
+            <SettingsDialogTrigger onOpen={() => setSettingsDialogOpen(true)} />
             <AuthDialog />
           </div>
         ) : null}
@@ -925,39 +932,63 @@ export default function Home() {
             onQueryChange={(value) => updateField("query", value)}
             utilityControls={
               <>
-                <SettingsDialog
-                  open={settingsDialogOpen}
-                  onOpenChange={setSettingsDialogOpen}
-                  logoSource={logoSource}
-                  onLogoSourceChange={handleLogoSourceChange}
-                  epgManifest={epgManifest}
-                  onRefetchComplete={handleEpgRefetchComplete}
-                  savedPortals={savedPortals}
-                  activePortalIds={activePortalIds}
-                  isLoadingPortals={isLoadingPortals}
-                  loadingPortalId={loadingPortalId}
-                  refetchingPortalId={refetchingPortalId}
-                  onAddPortal={() => setSheetOpen(true)}
-                  onPortalCheckedChange={handlePortalCheckedChange}
-                  onRefetchPortal={refetchSavedPortal}
+                <SettingsDialogTrigger
+                  onOpen={() => setSettingsDialogOpen(true)}
                 />
                 <AuthDialog />
               </>
             }
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-            <TvIcon className="size-8 text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <p className="font-medium">No channels loaded</p>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Add a portal to start browsing channels.
-              </p>
-            </div>
-          </div>
+          <NoPortalsSelected />
         )}
       </div>
     </main>
+  )
+}
+
+function NoPortalsSelected() {
+  const { resolvedTheme } = useTheme()
+  const isHydrated = useHydratedLayout()
+
+  const isDark = resolvedTheme === "dark"
+  const primaryColor = isDark ? "#7ccf00" : "#9ae600"
+  const gradientColors = isDark
+    ? [primaryColor, primaryColor, primaryColor, "#1c1917"]
+    : [primaryColor, primaryColor, primaryColor, primaryColor]
+
+  return (
+    <div className="relative flex h-full flex-col items-center justify-center overflow-hidden text-center">
+      {isHydrated ? (
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-35 dark:opacity-20">
+          <MeshGradient
+            colors={gradientColors}
+            speed={0.5}
+            distortion={0.38}
+            swirl={0.15}
+            style={{ width: "100%", height: "100%" }}
+          />
+          <div className="absolute inset-0 bg-background/35" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle, transparent 16%, var(--background) 92%)",
+            }}
+          />
+        </div>
+      ) : null}
+
+      <div className="relative z-10 flex flex-col items-center justify-center gap-4 px-4">
+        <TvIcon className="size-8 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <p className="font-medium">No channels loaded</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Add a portal to start browsing channels.
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }
 
