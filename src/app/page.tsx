@@ -21,6 +21,7 @@ import {
   CheckIcon,
   CopyIcon,
   Loader2Icon,
+  RabbitIcon,
   RotateCcwIcon,
   RotateCwIcon,
   SaveIcon,
@@ -924,6 +925,7 @@ export default function Home() {
         ) : browserChannels.length ? (
           <ChannelBrowser
             channels={filteredChannels}
+            channelCount={browserChannels.length}
             endpoint={result?.endpoint ?? ""}
             portalRequest={portalRequest}
             logoSource={logoSource}
@@ -948,36 +950,9 @@ export default function Home() {
 }
 
 function NoPortalsSelected() {
-  const { resolvedTheme } = useTheme()
-  const isHydrated = useHydratedLayout()
-
-  const isDark = resolvedTheme === "dark"
-  const primaryColor = isDark ? "#7ccf00" : "#9ae600"
-  const gradientColors = isDark
-    ? [primaryColor, primaryColor, primaryColor, "#1c1917"]
-    : [primaryColor, primaryColor, primaryColor, primaryColor]
-
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden text-center">
-      {isHydrated ? (
-        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-35 dark:opacity-20">
-          <MeshGradient
-            colors={gradientColors}
-            speed={0.5}
-            distortion={0.38}
-            swirl={0.15}
-            style={{ width: "100%", height: "100%" }}
-          />
-          <div className="absolute inset-0 bg-background/35" />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(circle, transparent 16%, var(--background) 92%)",
-            }}
-          />
-        </div>
-      ) : null}
+      <PrimaryMeshGradientBackdrop />
 
       <div className="relative z-10 flex flex-col items-center justify-center gap-4 px-4">
         <TvIcon className="size-8 text-muted-foreground" />
@@ -987,6 +962,53 @@ function NoPortalsSelected() {
             Add a portal to start browsing channels.
           </p>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function PrimaryMeshGradientBackdrop() {
+  const { resolvedTheme } = useTheme()
+  const isHydrated = useHydratedLayout()
+
+  const isDark = resolvedTheme === "dark"
+  const primaryColor = isDark ? "#7ccf00" : "#9ae600"
+  const gradientColors = isDark
+    ? [primaryColor, primaryColor, primaryColor, "#1c1917"]
+    : [primaryColor, primaryColor, primaryColor, primaryColor]
+
+  if (!isHydrated) {
+    return null
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0 hidden overflow-hidden dark:block dark:opacity-20">
+      <MeshGradient
+        colors={gradientColors}
+        speed={0.5}
+        distortion={0.38}
+        swirl={0.15}
+        style={{ width: "100%", height: "100%" }}
+      />
+      <div className="absolute inset-0 bg-background/35" />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle, transparent 16%, var(--background) 92%)",
+        }}
+      />
+    </div>
+  )
+}
+
+function EmptyPlayerPanel({ showBackdrop = true }: { showBackdrop?: boolean }) {
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden p-4">
+      {showBackdrop ? <PrimaryMeshGradientBackdrop /> : null}
+      <div className="relative z-10 flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+        <TvIcon className="size-8" />
+        <p className="text-sm">No channel selected.</p>
       </div>
     </div>
   )
@@ -1022,6 +1044,7 @@ function SimpleInput({
 
 function ChannelBrowser({
   channels,
+  channelCount,
   endpoint,
   portalRequest,
   logoSource,
@@ -1031,6 +1054,7 @@ function ChannelBrowser({
   utilityControls,
 }: {
   channels: PortalChannelWithSource[]
+  channelCount: number
   endpoint: string
   portalRequest: PortalRequest
   logoSource: "provider" | "epg"
@@ -1316,20 +1340,13 @@ function ChannelBrowser({
   const renderChannelContent = () => (
     <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">Live Streams</p>
-            <p className="text-xs text-muted-foreground">
-              {channels.length.toLocaleString()} visible
-            </p>
-          </div>
-        </div>
+        <PortalHopWordmark className="mb-1" />
         <InputGroup>
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
           <InputGroupInput
-            placeholder="Search channels"
+            placeholder={`Search ${channelCount.toLocaleString()} channels`}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
           />
@@ -1427,8 +1444,9 @@ function ChannelBrowser({
   )
 
   const renderPlayerContent = () => (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-      <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-background">
+      {!playerStream ? <PrimaryMeshGradientBackdrop /> : null}
+      <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
         {playerStream ? (
           <div className="flex min-w-0 items-center gap-3">
             {playerStream.logoUrl ? (
@@ -1568,12 +1586,7 @@ function ChannelBrowser({
           </div>
         </ScrollArea>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-4">
-          <div className="flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-            <TvIcon className="size-8" />
-            <p className="text-sm">No channel selected.</p>
-          </div>
-        </div>
+        <EmptyPlayerPanel showBackdrop={false} />
       )}
     </div>
   )
@@ -2059,6 +2072,15 @@ function uniqueGenres(channels: PortalChannel[]) {
   return [...genres.values()]
 }
 
+function PortalHopWordmark({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center gap-2 text-xl font-semibold tracking-tight", className)}>
+      <span>PortalHop</span>
+      <RabbitIcon className="size-6 text-primary brightness-75 dark:brightness-100" />
+    </div>
+  )
+}
+
 function LoadingShell() {
   const isMobileLayout = useMediaQuery("(max-width: 767px)", true)
   const isResponsiveLayoutReady = useHydratedLayout()
@@ -2066,12 +2088,7 @@ function LoadingShell() {
   const channelContent = (
     <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <p className="truncate text-sm font-medium">Live Streams</p>
-            <Skeleton className="h-3 w-20" />
-          </div>
-        </div>
+        <PortalHopWordmark className="mb-1" />
         <InputGroup>
           <InputGroupAddon align="inline-start">
             <SearchIcon />
@@ -2098,8 +2115,9 @@ function LoadingShell() {
   )
 
   const playerContent = (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl bg-background">
-      <div className="flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-background">
+      <PrimaryMeshGradientBackdrop />
+      <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex min-w-0 flex-col">
             <p className="font-semibold">Select a channel</p>
@@ -2109,12 +2127,7 @@ function LoadingShell() {
           </div>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-4">
-        <div className="flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-          <TvIcon className="size-8" />
-          <p className="text-sm">No channel selected.</p>
-        </div>
-      </div>
+      <EmptyPlayerPanel showBackdrop={false} />
     </div>
   )
 
