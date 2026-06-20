@@ -712,7 +712,7 @@ export default function Home() {
                           <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-2">
                             Show advanced
                           </AccordionTrigger>
-                          <AccordionContent className="pt-2">
+                          <AccordionContent className="px-1 pt-2">
                             <div className="grid gap-4 pt-1 pb-1">
                               <SimpleInput
                                 id="serial"
