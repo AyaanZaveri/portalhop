@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
-import { savedChannels, savedPortals } from "@/db/schema"
+import { selectSavedSource } from "@/db/saved-sources"
+import { savedChannels } from "@/db/schema"
 
 export const runtime = "nodejs"
 
@@ -11,27 +12,23 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params
-  const portalId = Number(id)
+  const sourceId = Number(id)
 
-  if (!Number.isInteger(portalId)) {
-    return NextResponse.json({ error: "Invalid portal id." }, { status: 400 })
+  if (!Number.isInteger(sourceId)) {
+    return NextResponse.json({ error: "Invalid source id." }, { status: 400 })
   }
 
   const db = getDb()
-  const [portal] = await db
-    .select()
-    .from(savedPortals)
-    .where(eq(savedPortals.id, portalId))
-    .limit(1)
+  const portal = await selectSavedSource(db, sourceId)
 
   if (!portal) {
-    return NextResponse.json({ error: "Portal not found." }, { status: 404 })
+    return NextResponse.json({ error: "Source not found." }, { status: 404 })
   }
 
   const channels = await db
     .select()
     .from(savedChannels)
-    .where(eq(savedChannels.portalId, portalId))
+    .where(eq(savedChannels.sourceId, sourceId))
 
   return NextResponse.json({
     portal,

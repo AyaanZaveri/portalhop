@@ -5,15 +5,39 @@ import {
   getEndpointCandidates,
   normalizePortalRequest,
 } from "@/lib/stalker-client"
-import type { PortalRequest } from "@/lib/stalker-types"
+import { fetchM3uChannels } from "@/lib/m3u-client"
+import type { SourceRequest } from "@/lib/source-types"
+import { fetchXtreamChannels } from "@/lib/xtream-client"
 
 export async function POST(request: Request) {
-  let body: PortalRequest
+  let body: SourceRequest
 
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 })
+  }
+
+  if (body.sourceType === "xtream") {
+    try {
+      return NextResponse.json(await fetchXtreamChannels(body))
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Could not connect to Xtream." },
+        { status: 502 }
+      )
+    }
+  }
+
+  if (body.sourceType === "m3u") {
+    try {
+      return NextResponse.json(await fetchM3uChannels(body.playlistUrl))
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Could not load M3U playlist." },
+        { status: 502 }
+      )
+    }
   }
 
   const portalUrl = body.portalUrl?.trim()

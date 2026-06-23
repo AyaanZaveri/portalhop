@@ -15,7 +15,7 @@ type ChannelInserter = {
 
 export async function insertSavedChannels(
   db: ChannelInserter,
-  portalId: number,
+  sourceId: number,
   channels: PortalChannel[],
   timestamp: Date
 ) {
@@ -23,7 +23,7 @@ export async function insertSavedChannels(
     const batch = channels.slice(index, index + CHANNEL_INSERT_BATCH_SIZE)
     const insert = db.insert(savedChannels).values(
       batch.map((channel) => ({
-        portalId,
+        sourceId,
         channelId: channel.id,
         xmltvId: channel.xmltvId ?? "",
         number: channel.number,

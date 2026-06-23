@@ -19,6 +19,7 @@ import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckIcon,
+  ClipboardPasteIcon,
   CopyIcon,
   Loader2Icon,
   RabbitIcon,
@@ -65,6 +66,8 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   ResizableHandle,
@@ -92,8 +95,10 @@ import {
   MediaPlayerVolumeIndicator,
 } from "@/components/ui/media-player"
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
+import type { SavedSourceRecord, SourceRequest, SourceType } from "@/lib/source-types"
 import type { EpgProgramme } from "@/lib/stalker-types"
 import { AuthDialog } from "@/components/auth-dialog"
+import { copyTextToClipboard } from "@/lib/clipboard"
 import {
   SettingsDialog,
   SettingsDialogTrigger,
@@ -102,19 +107,19 @@ import type { EpgManifest } from "@/lib/epg-store"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { cn } from "@/lib/utils"
+import { useAiSettings } from "@/hooks/use-ai-settings"
 
 type FormState = PortalRequest & {
+  sourceType: SourceType
+  serverUrl: string
+  username: string
+  password: string
+  outputFormat: string
+  playlistUrl: string
   query: string
 }
 
-type SavedPortalRecord = PortalRequest & {
-  id: number
-  name: string
-  endpoint?: string | null
-  channelCount: number
-  createdAt: string | number | Date
-  updatedAt: string | number | Date
-}
+type SavedPortalRecord = SavedSourceRecord
 
 type LoadedPortal = {
   portal: SavedPortalRecord
@@ -125,7 +130,7 @@ type PortalSource = {
   id: number
   name: string
   endpoint: string
-  request: PortalRequest
+  request: SourceRequest
 }
 
 type PortalChannelWithSource = PortalChannel & {
@@ -138,6 +143,7 @@ type StreamVariant = {
 }
 
 const initialForm: FormState = {
+  sourceType: "stalker",
   portalUrl: "",
   mac: "",
   serial: "",
@@ -146,6 +152,11 @@ const initialForm: FormState = {
   signature: "",
   timezone: "America/Toronto",
   stbType: "MAG254",
+  serverUrl: "",
+  username: "",
+  password: "",
+  outputFormat: "m3u8",
+  playlistUrl: "",
   query: "",
 }
 
@@ -153,6 +164,8 @@ const lastOpenedPortalStorageKey = "portalhop-last-opened-portal-id"
 const openedPortalsStorageKey = "portalhop-opened-portal-ids"
 
 export default function Home() {
+  const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
+    useAiSettings()
   const [form, setForm] = useState<FormState>(initialForm)
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [testResult, setTestResult] = useState<PortalResponse | null>(null)
@@ -171,6 +184,9 @@ export default function Home() {
   const [saveError, setSaveError] = useState("")
   const [isSavingPortal, setIsSavingPortal] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importText, setImportText] = useState("")
+  const [isImportingPortal, setIsImportingPortal] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [logoSource, setLogoSource] = useState<"provider" | "epg">(() => {
     if (typeof window !== "undefined") {
@@ -257,26 +273,52 @@ export default function Home() {
   }
 
   const deferredQuery = useDeferredValue(form.query)
-  const portalRequest = useMemo<PortalRequest>(
-    () => ({
-      portalUrl: form.portalUrl,
-      mac: form.mac,
-      serial: form.serial,
-      deviceId: form.deviceId,
-      deviceId2: form.deviceId2,
-      signature: form.signature,
-      timezone: form.timezone,
-      stbType: form.stbType,
-    }),
+  const portalRequest = useMemo<SourceRequest>(
+    () => {
+      if (form.sourceType === "xtream") {
+        return {
+          sourceType: "xtream",
+          serverUrl: form.serverUrl,
+          username: form.username,
+          password: form.password,
+          outputFormat: form.outputFormat,
+        }
+      }
+
+      if (form.sourceType === "m3u") {
+        return {
+          sourceType: "m3u",
+          playlistUrl: form.playlistUrl,
+        }
+      }
+
+      return {
+        sourceType: "stalker",
+        portalUrl: form.portalUrl,
+        mac: form.mac,
+        serial: form.serial,
+        deviceId: form.deviceId,
+        deviceId2: form.deviceId2,
+        signature: form.signature,
+        timezone: form.timezone,
+        stbType: form.stbType,
+      }
+    },
     [
       form.deviceId,
       form.deviceId2,
       form.mac,
+      form.outputFormat,
+      form.password,
+      form.playlistUrl,
       form.portalUrl,
       form.serial,
       form.signature,
+      form.serverUrl,
+      form.sourceType,
       form.stbType,
       form.timezone,
+      form.username,
     ]
   )
 
@@ -443,6 +485,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          sourceType: form.sourceType,
           portalUrl: form.portalUrl,
           mac: form.mac,
           serial: form.serial,
@@ -451,6 +494,11 @@ export default function Home() {
           signature: form.signature,
           timezone: form.timezone,
           stbType: form.stbType,
+          serverUrl: form.serverUrl,
+          username: form.username,
+          password: form.password,
+          outputFormat: form.outputFormat,
+          playlistUrl: form.playlistUrl,
         }),
       })
 
@@ -478,6 +526,66 @@ export default function Home() {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
     setTestResult(null)
+  }
+
+  async function importPortalText() {
+    const text = importText.trim()
+
+    if (!text) {
+      toast.error("Paste portal text to import.")
+      return
+    }
+
+    setIsImportingPortal(true)
+
+    try {
+      const response = await fetch("/api/import-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          settings: {
+            baseUrl: effectiveBaseUrl,
+            apiKey: effectiveApiKey,
+            model: aiSettings.model,
+            reasoningEffort: aiSettings.reasoningEffort,
+          },
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not import portal text.")
+      }
+
+      const portal = data.portal as Partial<PortalRequest> | undefined
+
+      if (!portal) {
+        throw new Error("No portal fields were found.")
+      }
+
+      setForm((current) => ({
+        ...current,
+        portalUrl: portal.portalUrl || current.portalUrl,
+        mac: portal.mac || current.mac,
+        serial: portal.serial ?? current.serial,
+        deviceId: portal.deviceId ?? current.deviceId,
+        deviceId2: portal.deviceId2 ?? current.deviceId2,
+        signature: portal.signature ?? current.signature,
+        timezone: portal.timezone || current.timezone,
+        stbType: portal.stbType || current.stbType,
+      }))
+      setTestResult(null)
+      setImportDialogOpen(false)
+      setImportText("")
+      toast.success("Portal fields imported.")
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not import portal text."
+      )
+    } finally {
+      setIsImportingPortal(false)
+    }
   }
 
   async function loadSavedPortal(
@@ -663,10 +771,12 @@ export default function Home() {
         >
           <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
             <SheetHeader>
-              <SheetTitle>Connection</SheetTitle>
-              <SheetDescription>
-                Enter the Stalker portal URL and your device identity details below.
-              </SheetDescription>
+              <div className="flex min-w-0 flex-col gap-0.5 pr-8">
+                <SheetTitle>Connection</SheetTitle>
+                <SheetDescription>
+                  Enter the Stalker portal URL and your device identity details below.
+                </SheetDescription>
+              </div>
             </SheetHeader>
 
             <form onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
@@ -674,92 +784,162 @@ export default function Home() {
                 <div className="px-4 pt-0 pb-4">
                   <FieldGroup>
                     <div className="grid gap-4">
-                      <Field>
-                        <FieldLabel htmlFor="portalUrl">Portal URL</FieldLabel>
-                        <InputGroup>
-                          <InputGroupAddon align="inline-start">URL</InputGroupAddon>
-                          <InputGroupInput
-                            id="portalUrl"
-                            required
-                            inputMode="url"
-                            placeholder="http://example.com:8080/c/"
-                            value={form.portalUrl}
-                            onChange={(event) =>
-                              updateField("portalUrl", event.target.value)
-                            }
-                          />
-                        </InputGroup>
+                      <Tabs
+                        value={form.sourceType}
+                        onValueChange={(value) =>
+                          updateField("sourceType", value as SourceType)
+                        }
+                      >
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="stalker">Stalker</TabsTrigger>
+                          <TabsTrigger value="xtream">Xtream</TabsTrigger>
+                          <TabsTrigger value="m3u">M3U</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
 
-                      </Field>
-
-                      <Field>
-                        <FieldLabel htmlFor="mac">MAC address</FieldLabel>
-                        <InputGroup>
-                          <InputGroupAddon align="inline-start">MAC</InputGroupAddon>
-                          <InputGroupInput
-                            id="mac"
-                            required
-                            placeholder="00:1A:79:00:00:00"
-                            value={form.mac}
-                            onChange={(event) => updateField("mac", event.target.value)}
-                          />
-                        </InputGroup>
-
-                      </Field>
-
-                      <Accordion className="w-full">
-                        <AccordionItem value="advanced" className="border-none">
-                          <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-2">
-                            Show advanced
-                          </AccordionTrigger>
-                          <AccordionContent className="px-1 pt-2">
-                            <div className="grid gap-4 pt-1 pb-1">
-                              <SimpleInput
-                                id="serial"
-                                label="Serial number"
-                                placeholder="Optional"
-                                value={form.serial}
-                                onChange={(value) => updateField("serial", value)}
-                              />
-                              <SimpleInput
-                                id="deviceId"
-                                label="Device ID"
-                                placeholder="Optional"
-                                value={form.deviceId}
-                                onChange={(value) => updateField("deviceId", value)}
-                              />
-                              <SimpleInput
-                                id="deviceId2"
-                                label="Device ID 2"
-                                placeholder="Optional"
-                                value={form.deviceId2}
-                                onChange={(value) => updateField("deviceId2", value)}
-                              />
-                              <SimpleInput
-                                id="signature"
-                                label="Signature"
-                                placeholder="Optional"
-                                value={form.signature}
-                                onChange={(value) => updateField("signature", value)}
-                              />
-                              <SimpleInput
-                                id="timezone"
-                                label="Timezone"
-                                placeholder="America/Toronto"
-                                value={form.timezone}
-                                onChange={(value) => updateField("timezone", value)}
-                              />
-                              <SimpleInput
-                                id="stbType"
-                                label="STB model"
-                                placeholder="MAG254"
-                                value={form.stbType}
-                                onChange={(value) => updateField("stbType", value)}
-                              />
+                      {form.sourceType === "stalker" ? (
+                        <>
+                          <Field>
+                            <div className="flex items-center justify-between gap-3">
+                              <FieldLabel htmlFor="portalUrl">Portal URL</FieldLabel>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="shrink-0"
+                                onClick={() => setImportDialogOpen(true)}
+                              >
+                                <ClipboardPasteIcon data-icon="inline-start" />
+                                Import text
+                              </Button>
                             </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
+                            <InputGroup>
+                              <InputGroupAddon align="inline-start">URL</InputGroupAddon>
+                              <InputGroupInput
+                                id="portalUrl"
+                                required
+                                inputMode="url"
+                                placeholder="http://example.com:8080/c/"
+                                value={form.portalUrl}
+                                onChange={(event) =>
+                                  updateField("portalUrl", event.target.value)
+                                }
+                              />
+                            </InputGroup>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel htmlFor="mac">MAC address</FieldLabel>
+                            <InputGroup>
+                              <InputGroupAddon align="inline-start">MAC</InputGroupAddon>
+                              <InputGroupInput
+                                id="mac"
+                                required
+                                placeholder="00:1A:79:00:00:00"
+                                value={form.mac}
+                                onChange={(event) => updateField("mac", event.target.value)}
+                              />
+                            </InputGroup>
+                          </Field>
+
+                          <Accordion className="w-full">
+                            <AccordionItem value="advanced" className="border-none">
+                              <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-2">
+                                Show advanced
+                              </AccordionTrigger>
+                              <AccordionContent className="px-1 pt-2">
+                                <div className="grid gap-4 pt-1 pb-1">
+                                  <SimpleInput
+                                    id="serial"
+                                    label="Serial number"
+                                    placeholder="Optional"
+                                    value={form.serial}
+                                    onChange={(value) => updateField("serial", value)}
+                                  />
+                                  <SimpleInput
+                                    id="deviceId"
+                                    label="Device ID"
+                                    placeholder="Optional"
+                                    value={form.deviceId}
+                                    onChange={(value) => updateField("deviceId", value)}
+                                  />
+                                  <SimpleInput
+                                    id="deviceId2"
+                                    label="Device ID 2"
+                                    placeholder="Optional"
+                                    value={form.deviceId2}
+                                    onChange={(value) => updateField("deviceId2", value)}
+                                  />
+                                  <SimpleInput
+                                    id="signature"
+                                    label="Signature"
+                                    placeholder="Optional"
+                                    value={form.signature}
+                                    onChange={(value) => updateField("signature", value)}
+                                  />
+                                  <SimpleInput
+                                    id="timezone"
+                                    label="Timezone"
+                                    placeholder="America/Toronto"
+                                    value={form.timezone}
+                                    onChange={(value) => updateField("timezone", value)}
+                                  />
+                                  <SimpleInput
+                                    id="stbType"
+                                    label="STB model"
+                                    placeholder="MAG254"
+                                    value={form.stbType}
+                                    onChange={(value) => updateField("stbType", value)}
+                                  />
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </>
+                      ) : null}
+
+                      {form.sourceType === "xtream" ? (
+                        <>
+                          <SimpleInput
+                            id="serverUrl"
+                            label="Server URL"
+                            placeholder="http://example.com:8080"
+                            value={form.serverUrl}
+                            onChange={(value) => updateField("serverUrl", value)}
+                          />
+                          <SimpleInput
+                            id="username"
+                            label="Username"
+                            placeholder="Username"
+                            value={form.username}
+                            onChange={(value) => updateField("username", value)}
+                          />
+                          <SimpleInput
+                            id="password"
+                            label="Password"
+                            placeholder="Password"
+                            value={form.password}
+                            onChange={(value) => updateField("password", value)}
+                          />
+                          <SimpleInput
+                            id="outputFormat"
+                            label="Output format"
+                            placeholder="m3u8"
+                            value={form.outputFormat}
+                            onChange={(value) => updateField("outputFormat", value)}
+                          />
+                        </>
+                      ) : null}
+
+                      {form.sourceType === "m3u" ? (
+                        <SimpleInput
+                          id="playlistUrl"
+                          label="M3U playlist URL"
+                          placeholder="http://example.com/get.php?username=..."
+                          value={form.playlistUrl}
+                          onChange={(value) => updateField("playlistUrl", value)}
+                        />
+                      ) : null}
                     </div>
                   </FieldGroup>
 
@@ -841,9 +1021,9 @@ export default function Home() {
           <DialogContent>
             <div className="flex flex-col gap-4">
               <DialogHeader>
-                <DialogTitle>Save portal</DialogTitle>
+                <DialogTitle>Save source</DialogTitle>
                 <DialogDescription>
-                  Add a nickname for this portal so you can load it later.
+                  Add a nickname for this source so you can load it later.
                 </DialogDescription>
               </DialogHeader>
 
@@ -890,6 +1070,54 @@ export default function Home() {
                     <SaveIcon data-icon="inline-start" />
                   )}
                   Save
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <DialogContent className="overflow-hidden sm:max-w-lg">
+            <div className="flex min-w-0 flex-col gap-4">
+              <DialogHeader>
+                <DialogTitle>Import portal text</DialogTitle>
+                <DialogDescription>
+                  Paste a portal dump and Portal Hop will fill the connection fields it can find.
+                </DialogDescription>
+              </DialogHeader>
+
+              <ScrollArea className="h-80 min-w-0 rounded-lg border border-input bg-transparent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+                <Textarea
+                  value={importText}
+                  onChange={(event) => setImportText(event.target.value)}
+                  placeholder="Paste portal, MAC, serial, device IDs, and signature text..."
+                  wrap="soft"
+                  className="min-h-full min-w-0 resize-none overflow-hidden break-all whitespace-pre-wrap border-0 bg-transparent shadow-none ring-0 field-sizing-content focus-visible:ring-0 dark:bg-transparent [overflow-wrap:anywhere]"
+                />
+              </ScrollArea>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={isImportingPortal || !importText.trim()}
+                  onClick={importPortalText}
+                >
+                  {isImportingPortal ? (
+                    <Loader2Icon
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <ClipboardPasteIcon data-icon="inline-start" />
+                  )}
+                  Import
                 </Button>
               </DialogFooter>
             </div>
@@ -1056,7 +1284,7 @@ function ChannelBrowser({
   channels: PortalChannelWithSource[]
   channelCount: number
   endpoint: string
-  portalRequest: PortalRequest
+  portalRequest: SourceRequest
   logoSource: "provider" | "epg"
   epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>
   query: string
@@ -1728,44 +1956,6 @@ function canResolveChannel(channel: PortalChannel) {
   return Boolean(channel.id || channel.number || channel.name || channel.cmd)
 }
 
-async function copyTextToClipboard(text: string) {
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return
-    } catch (err) {
-      console.warn("navigator.clipboard.writeText failed, trying fallback:", err)
-    }
-  }
-
-  // Fallback for insecure contexts (e.g. HTTP access from a local network IP address)
-  if (typeof document !== "undefined") {
-    const textArea = document.createElement("textarea")
-    textArea.value = text
-    textArea.style.position = "fixed"
-    textArea.style.top = "0"
-    textArea.style.left = "0"
-    textArea.style.opacity = "0"
-    document.body.appendChild(textArea)
-    textArea.focus()
-    textArea.select()
-
-    try {
-      const successful = document.execCommand("copy")
-      if (!successful) {
-        throw new Error("Copy command was unsuccessful")
-      }
-    } catch (err) {
-      console.error("Fallback clipboard copy failed:", err)
-      throw new Error("Unable to copy to clipboard")
-    } finally {
-      document.body.removeChild(textArea)
-    }
-  } else {
-    throw new Error("Clipboard API not available")
-  }
-}
-
 function StreamInfoBadges({
   variant,
   className,
@@ -1943,13 +2133,41 @@ function getChannelKey(channel: PortalChannelWithSource) {
 }
 
 function getPortalSource(portal: SavedPortalRecord): PortalSource {
+  if (portal.sourceType === "xtream") {
+    return {
+      id: portal.id,
+      name: portal.name,
+      endpoint: portal.endpoint || "",
+      request: {
+        sourceType: "xtream",
+        serverUrl: portal.serverUrl ?? "",
+        username: portal.username ?? "",
+        password: portal.password ?? "",
+        outputFormat: portal.outputFormat ?? "m3u8",
+      },
+    }
+  }
+
+  if (portal.sourceType === "m3u") {
+    return {
+      id: portal.id,
+      name: portal.name,
+      endpoint: portal.endpoint || "",
+      request: {
+        sourceType: "m3u",
+        playlistUrl: portal.playlistUrl ?? "",
+      },
+    }
+  }
+
   return {
     id: portal.id,
     name: portal.name,
     endpoint: portal.endpoint || "",
     request: {
-      portalUrl: portal.portalUrl,
-      mac: portal.mac,
+      sourceType: "stalker",
+      portalUrl: portal.portalUrl ?? "",
+      mac: portal.mac ?? "",
       serial: portal.serial ?? "",
       deviceId: portal.deviceId ?? "",
       deviceId2: portal.deviceId2 ?? "",

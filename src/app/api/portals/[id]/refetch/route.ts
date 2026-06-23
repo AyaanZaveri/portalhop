@@ -3,12 +3,16 @@ import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
 import { insertSavedChannels } from "@/db/saved-channels"
-import { savedChannels, savedPortals } from "@/db/schema"
+import { selectSavedSource } from "@/db/saved-sources"
+import { savedChannels, savedSources, savedStalkerSources } from "@/db/schema"
+import { fetchM3uChannels } from "@/lib/m3u-client"
 import {
   fetchPortalChannels,
   getEndpointCandidates,
   normalizePortalRequest,
 } from "@/lib/stalker-client"
+import type { SourceResponse } from "@/lib/source-types"
+import { fetchXtreamChannels } from "@/lib/xtream-client"
 
 export const runtime = "nodejs"
 
@@ -17,26 +21,59 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params
-  const portalId = Number(id)
+  const sourceId = Number(id)
 
-  if (!Number.isInteger(portalId)) {
-    return NextResponse.json({ error: "Invalid portal id." }, { status: 400 })
+  if (!Number.isInteger(sourceId)) {
+    return NextResponse.json({ error: "Invalid source id." }, { status: 400 })
   }
 
   const db = getDb()
-  const [portal] = await db
-    .select()
-    .from(savedPortals)
-    .where(eq(savedPortals.id, portalId))
-    .limit(1)
+  const portal = await selectSavedSource(db, sourceId)
 
   if (!portal) {
-    return NextResponse.json({ error: "Portal not found." }, { status: 404 })
+    return NextResponse.json({ error: "Source not found." }, { status: 404 })
+  }
+
+  if (portal.sourceType === "xtream") {
+    try {
+      return refetchDirectSource(
+        portal,
+        await fetchXtreamChannels({
+          serverUrl: portal.serverUrl ?? "",
+          username: portal.username ?? "",
+          password: portal.password ?? "",
+          outputFormat: portal.outputFormat ?? "m3u8",
+        })
+      )
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Could not refetch this source.",
+        },
+        { status: 502 }
+      )
+    }
+  }
+
+  if (portal.sourceType === "m3u") {
+    try {
+      return refetchDirectSource(
+        portal,
+        await fetchM3uChannels(portal.playlistUrl ?? "")
+      )
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Could not refetch this source.",
+        },
+        { status: 502 }
+      )
+    }
   }
 
   const options = normalizePortalRequest({
-    portalUrl: portal.portalUrl,
-    mac: portal.mac,
+    portalUrl: portal.portalUrl ?? "",
+    mac: portal.mac ?? "",
     serial: portal.serial ?? "",
     deviceId: portal.deviceId ?? "",
     deviceId2: portal.deviceId2 ?? "",
@@ -46,7 +83,7 @@ export async function POST(
   })
   const endpoints = [
     ...(portal.endpoint ? [portal.endpoint] : []),
-    ...getEndpointCandidates(portal.portalUrl),
+    ...getEndpointCandidates(portal.portalUrl ?? ""),
   ].filter((endpoint, index, list) => endpoint && list.indexOf(endpoint) === index)
 
   const errors: string[] = []
@@ -59,17 +96,21 @@ export async function POST(
       await db.transaction(async (tx) => {
         await tx.delete(savedChannels)
           .where(eq(savedChannels.portalId, portal.id))
+        await tx.delete(savedChannels)
+          .where(eq(savedChannels.sourceId, portal.id))
 
         if (result.channels.length) {
           await insertSavedChannels(tx, portal.id, result.channels, now)
         }
-        await tx.update(savedPortals)
+        await tx.update(savedSources)
           .set({
-            endpoint: result.endpoint,
             channelCount: result.channels.length,
             updatedAt: now,
           })
-          .where(eq(savedPortals.id, portal.id))
+          .where(eq(savedSources.id, portal.id))
+        await tx.update(savedStalkerSources)
+          .set({ endpoint: result.endpoint })
+          .where(eq(savedStalkerSources.sourceId, portal.id))
       })
 
       return NextResponse.json({
@@ -95,4 +136,37 @@ export async function POST(
     },
     { status: 502 }
   )
+}
+
+async function refetchDirectSource(
+  portal: { id: number },
+  result: SourceResponse
+) {
+  const db = getDb()
+  const now = new Date()
+
+  await db.transaction(async (tx) => {
+    await tx.delete(savedChannels).where(eq(savedChannels.sourceId, portal.id))
+
+    if (result.channels.length) {
+      await insertSavedChannels(tx, portal.id, result.channels, now)
+    }
+
+    await tx
+      .update(savedSources)
+      .set({
+        channelCount: result.channels.length,
+        updatedAt: now,
+      })
+      .where(eq(savedSources.id, portal.id))
+  })
+
+  return NextResponse.json({
+    portal: {
+      ...portal,
+      channelCount: result.channels.length,
+      updatedAt: now,
+    },
+    result,
+  })
 }

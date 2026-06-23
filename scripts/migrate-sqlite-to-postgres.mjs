@@ -97,9 +97,48 @@ async function createSchema() {
       updated_at timestamp not null
     );
 
+    create table if not exists saved_sources (
+      id serial primary key,
+      name text not null,
+      source_type text not null check (source_type in ('stalker', 'xtream', 'm3u')),
+      channel_count integer not null default 0,
+      created_at timestamp not null,
+      updated_at timestamp not null
+    );
+
+    create table if not exists saved_stalker_sources (
+      source_id integer primary key references saved_sources(id) on delete cascade,
+      portal_url text not null,
+      mac text not null,
+      serial text,
+      device_id text,
+      device_id_2 text,
+      signature text,
+      timezone text not null,
+      stb_type text not null,
+      endpoint text
+    );
+
+    create table if not exists saved_xtream_sources (
+      source_id integer primary key references saved_sources(id) on delete cascade,
+      server_url text not null,
+      username text not null,
+      password text not null,
+      output_format text not null
+    );
+
+    create table if not exists saved_m3u_sources (
+      source_id integer primary key references saved_sources(id) on delete cascade,
+      playlist_url text not null,
+      derived_xtream_server_url text,
+      derived_xtream_username text,
+      derived_xtream_password text
+    );
+
     create table if not exists saved_channels (
       id serial primary key,
-      portal_id integer not null references saved_portals(id) on delete cascade,
+      source_id integer not null references saved_sources(id) on delete cascade,
+      portal_id integer references saved_portals(id) on delete cascade,
       channel_id text not null,
       xmltv_id text not null default '',
       number text not null,
@@ -117,12 +156,18 @@ async function createSchema() {
     create index if not exists account_user_id_idx on account(user_id);
     create index if not exists account_provider_account_idx on account(provider_id, account_id);
     create index if not exists saved_channels_portal_id_idx on saved_channels(portal_id);
+    create index if not exists saved_channels_source_id_idx on saved_channels(source_id);
+    create index if not exists saved_sources_updated_at_idx on saved_sources(updated_at);
 
     alter table "user" enable row level security;
     alter table session enable row level security;
     alter table account enable row level security;
     alter table verification enable row level security;
     alter table saved_portals enable row level security;
+    alter table saved_sources enable row level security;
+    alter table saved_stalker_sources enable row level security;
+    alter table saved_xtream_sources enable row level security;
+    alter table saved_m3u_sources enable row level security;
     alter table saved_channels enable row level security;
   `)
 }
@@ -135,6 +180,10 @@ async function migrateData() {
     await client.query(`
       truncate table
         saved_channels,
+        saved_m3u_sources,
+        saved_xtream_sources,
+        saved_stalker_sources,
+        saved_sources,
         saved_portals,
         verification,
         account,
@@ -191,6 +240,46 @@ async function migrateData() {
       channel_count: row.channel_count,
       created_at: toDate(row.created_at),
       updated_at: toDate(row.updated_at),
+    })))
+
+    await insertRows(client, "saved_sources", [
+      "id",
+      "name",
+      "source_type",
+      "channel_count",
+      "created_at",
+      "updated_at",
+    ], readRows("saved_portals").map((row) => ({
+      id: row.id,
+      name: row.name,
+      source_type: "stalker",
+      channel_count: row.channel_count,
+      created_at: toDate(row.created_at),
+      updated_at: toDate(row.updated_at),
+    })))
+
+    await insertRows(client, "saved_stalker_sources", [
+      "source_id",
+      "portal_url",
+      "mac",
+      "serial",
+      "device_id",
+      "device_id_2",
+      "signature",
+      "timezone",
+      "stb_type",
+      "endpoint",
+    ], readRows("saved_portals").map((row) => ({
+      source_id: row.id,
+      portal_url: row.portal_url,
+      mac: row.mac,
+      serial: row.serial,
+      device_id: row.device_id,
+      device_id_2: row.device_id_2,
+      signature: row.signature,
+      timezone: row.timezone,
+      stb_type: row.stb_type,
+      endpoint: row.endpoint,
     })))
 
     await insertRows(client, "session", [
@@ -261,6 +350,7 @@ async function migrateData() {
 
     await insertRows(client, "saved_channels", [
       "id",
+      "source_id",
       "portal_id",
       "channel_id",
       "xmltv_id",
@@ -275,6 +365,7 @@ async function migrateData() {
       "updated_at",
     ], readRows("saved_channels").map((row) => ({
       id: row.id,
+      source_id: row.portal_id,
       portal_id: row.portal_id,
       channel_id: row.channel_id,
       xmltv_id: row.xmltv_id,
@@ -290,6 +381,7 @@ async function migrateData() {
     })), 1000)
 
     await resetSequence(client, "saved_portals", "id")
+    await resetSequence(client, "saved_sources", "id")
     await resetSequence(client, "saved_channels", "id")
 
     await client.query("commit")
@@ -304,6 +396,7 @@ async function migrateData() {
 async function verifyData() {
   const { rows } = await pool.query(`
     select 'saved_portals' as table_name, count(*)::int as count from saved_portals
+    union all select 'saved_sources', count(*)::int from saved_sources
     union all select 'saved_channels', count(*)::int from saved_channels
     union all select 'user', count(*)::int from "user"
     union all select 'session', count(*)::int from session

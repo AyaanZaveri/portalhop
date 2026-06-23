@@ -75,10 +75,56 @@ export const savedPortals = pgTable("saved_portals", {
   updatedAt: timestamp("updated_at").notNull(),
 })
 
+export const savedSources = pgTable("saved_sources", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  sourceType: text("source_type").notNull(),
+  channelCount: integer("channel_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+})
+
+export const savedStalkerSources = pgTable("saved_stalker_sources", {
+  sourceId: integer("source_id")
+    .primaryKey()
+    .references(() => savedSources.id, { onDelete: "cascade" }),
+  portalUrl: text("portal_url").notNull(),
+  mac: text("mac").notNull(),
+  serial: text("serial"),
+  deviceId: text("device_id"),
+  deviceId2: text("device_id_2"),
+  signature: text("signature"),
+  timezone: text("timezone").notNull(),
+  stbType: text("stb_type").notNull(),
+  endpoint: text("endpoint"),
+})
+
+export const savedXtreamSources = pgTable("saved_xtream_sources", {
+  sourceId: integer("source_id")
+    .primaryKey()
+    .references(() => savedSources.id, { onDelete: "cascade" }),
+  serverUrl: text("server_url").notNull(),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  outputFormat: text("output_format").notNull(),
+})
+
+export const savedM3uSources = pgTable("saved_m3u_sources", {
+  sourceId: integer("source_id")
+    .primaryKey()
+    .references(() => savedSources.id, { onDelete: "cascade" }),
+  playlistUrl: text("playlist_url").notNull(),
+  derivedXtreamServerUrl: text("derived_xtream_server_url"),
+  derivedXtreamUsername: text("derived_xtream_username"),
+  derivedXtreamPassword: text("derived_xtream_password"),
+})
+
 export const savedChannels = pgTable("saved_channels", {
   id: serial("id").primaryKey(),
-  portalId: integer("portal_id")
+  sourceId: integer("source_id")
     .notNull()
+    .references(() => savedSources.id, { onDelete: "cascade" }),
+  portalId: integer("portal_id")
     .references(() => savedPortals.id, { onDelete: "cascade" }),
   channelId: text("channel_id").notNull(),
   xmltvId: text("xmltv_id").notNull().default(""),
@@ -96,6 +142,43 @@ export const savedChannels = pgTable("saved_channels", {
 export const savedPortalsRelations = relations(savedPortals, ({ many }) => ({
   channels: many(savedChannels),
 }))
+
+export const savedSourcesRelations = relations(savedSources, ({ many, one }) => ({
+  channels: many(savedChannels),
+  stalker: one(savedStalkerSources),
+  xtream: one(savedXtreamSources),
+  m3u: one(savedM3uSources),
+}))
+
+export const savedStalkerSourcesRelations = relations(
+  savedStalkerSources,
+  ({ one }) => ({
+    source: one(savedSources, {
+      fields: [savedStalkerSources.sourceId],
+      references: [savedSources.id],
+    }),
+  })
+)
+
+export const savedXtreamSourcesRelations = relations(
+  savedXtreamSources,
+  ({ one }) => ({
+    source: one(savedSources, {
+      fields: [savedXtreamSources.sourceId],
+      references: [savedSources.id],
+    }),
+  })
+)
+
+export const savedM3uSourcesRelations = relations(
+  savedM3uSources,
+  ({ one }) => ({
+    source: one(savedSources, {
+      fields: [savedM3uSources.sourceId],
+      references: [savedSources.id],
+    }),
+  })
+)
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
@@ -117,6 +200,10 @@ export const accountRelations = relations(account, ({ one }) => ({
 }))
 
 export const savedChannelsRelations = relations(savedChannels, ({ one }) => ({
+  source: one(savedSources, {
+    fields: [savedChannels.sourceId],
+    references: [savedSources.id],
+  }),
   portal: one(savedPortals, {
     fields: [savedChannels.portalId],
     references: [savedPortals.id],
@@ -125,5 +212,7 @@ export const savedChannelsRelations = relations(savedChannels, ({ one }) => ({
 
 export type SavedPortal = typeof savedPortals.$inferSelect
 export type NewSavedPortal = typeof savedPortals.$inferInsert
+export type SavedSource = typeof savedSources.$inferSelect
+export type NewSavedSource = typeof savedSources.$inferInsert
 export type SavedChannel = typeof savedChannels.$inferSelect
 export type NewSavedChannel = typeof savedChannels.$inferInsert

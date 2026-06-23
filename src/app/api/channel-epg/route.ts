@@ -7,9 +7,11 @@ import {
   getEndpointCandidates,
   normalizePortalRequest,
 } from "@/lib/stalker-client"
+import type { SourceType } from "@/lib/source-types"
 import type { EpgProgramme, PortalRequest } from "@/lib/stalker-types"
 
 type EpgRequest = PortalRequest & {
+  sourceType?: SourceType
   source?: "provider" | "epg"
   endpoint?: string
   channelId?: string
@@ -61,6 +63,10 @@ export async function POST(request: Request) {
         source: "epg",
       })),
     })
+  }
+
+  if (body.sourceType === "xtream" || body.sourceType === "m3u") {
+    return NextResponse.json({ programmes: [] })
   }
 
   const portalUrl = body.portalUrl?.trim()
