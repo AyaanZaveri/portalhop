@@ -23,7 +23,7 @@ import {
 import { getEpgChannels } from "@/lib/epg-store"
 
 export const runtime = "nodejs"
-export const maxDuration = 800
+export const maxDuration = 300
 
 const AI_BATCH_SIZE = 30
 
