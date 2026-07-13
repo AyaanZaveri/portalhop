@@ -164,8 +164,11 @@ async function createChannelLink(
     token
   )
   const payload = readObject(linkEnvelope.js)
-  const link = cleanStreamCommand(
-    stringValue(payload.cmd ?? payload.url ?? payload.link)
+  const link = normalizeStreamLink(
+    stringValue(payload.cmd ?? payload.url ?? payload.link),
+    endpoint,
+    options.mac,
+    cmd
   )
 
   if (!link) {
@@ -292,6 +295,103 @@ function getToken(envelope: StalkerEnvelope) {
 
 function cleanStreamCommand(value: string) {
   return value.replace(/^(ffmpeg|ffrt)\s+/i, "").trim()
+}
+
+function normalizeStreamLink(
+  value: string,
+  endpoint: string,
+  mac: string,
+  fallbackCmd: string
+) {
+  const cleaned = cleanStreamCommand(value)
+  const streamId = readStreamId(cleaned) || readStreamId(fallbackCmd)
+
+  if (isHttpUrl(cleaned)) {
+    return fillMissingStreamId(cleaned, streamId)
+  }
+
+  if (streamId) {
+    return buildDirectStreamUrl(endpoint, mac, streamId)
+  }
+
+  return cleaned
+}
+
+function fillMissingStreamId(value: string, streamId: string) {
+  if (!streamId) {
+    return value
+  }
+
+  try {
+    const url = new URL(value)
+    const isDirectPlayUrl = /\/play\/live\.php$/i.test(url.pathname)
+
+    if (!isDirectPlayUrl) {
+      return value
+    }
+
+    if (!url.searchParams.get("stream")) {
+      url.searchParams.set("stream", streamId)
+    }
+
+    const extension = url.searchParams.get("extension")?.trim().toLowerCase()
+
+    if (!extension || extension === "ts") {
+      url.searchParams.set("extension", "m3u8")
+    }
+
+    return url.href
+  } catch {
+    return value
+  }
+}
+
+function readStreamId(value: string) {
+  const cleaned = cleanStreamCommand(value)
+
+  if (!cleaned) {
+    return ""
+  }
+
+  try {
+    const url = new URL(cleaned)
+    const stream = url.searchParams.get("stream")?.trim()
+
+    if (stream) {
+      return stream
+    }
+  } catch {
+    // Continue with command/path parsing.
+  }
+
+  const numericCommand = cleaned.match(/^\d+$/)
+
+  if (numericCommand) {
+    return numericCommand[0]
+  }
+
+  const pathMatch = cleaned.match(/(?:^|\/)(\d+)(?:\.[a-z0-9]+)?(?:[/?#]|$)/i)
+
+  return pathMatch?.[1] ?? ""
+}
+
+function buildDirectStreamUrl(endpoint: string, mac: string, streamId: string) {
+  const url = new URL("/play/live.php", endpoint)
+
+  url.searchParams.set("mac", mac)
+  url.searchParams.set("stream", streamId)
+  url.searchParams.set("extension", "m3u8")
+
+  return url.href
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:"
+  } catch {
+    return false
+  }
 }
 
 function readObject(value: unknown): Record<string, unknown> {

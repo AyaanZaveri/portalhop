@@ -19,14 +19,17 @@ import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckIcon,
+  ChevronDownIcon,
   ClipboardPasteIcon,
   CopyIcon,
+  LayoutGridIcon,
   Loader2Icon,
   RabbitIcon,
   RotateCcwIcon,
   RotateCwIcon,
   SaveIcon,
   SearchIcon,
+  StarIcon,
   TvIcon,
 } from "lucide-react"
 
@@ -97,17 +100,34 @@ import {
 import type { PortalChannel, PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import type { SavedSourceRecord, SourceRequest, SourceType } from "@/lib/source-types"
 import type { EpgProgramme } from "@/lib/stalker-types"
+import {
+  Combobox,
+  ComboboxTrigger,
+  ComboboxInput,
+  ComboboxContent,
+  ComboboxList,
+  ComboboxItem,
+  ComboboxEmpty,
+} from "@/components/ui/combobox"
 import { AuthDialog } from "@/components/auth-dialog"
 import { copyTextToClipboard } from "@/lib/clipboard"
-import {
-  SettingsDialog,
-  SettingsDialogTrigger,
-} from "@/components/settings-dialog"
+import { useFavorites } from "@/hooks/use-favorites"
+import { getFavorites } from "@/lib/favorites"
+import { SettingsLink } from "@/components/settings-link"
+import { CategoryVisual } from "@/components/category-visual"
 import type { EpgManifest } from "@/lib/epg-store"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { cn } from "@/lib/utils"
 import { useAiSettings } from "@/hooks/use-ai-settings"
+import { useRouter } from "next/navigation"
+import { loadPortalSettings } from "@/lib/portal-settings"
+import {
+  readOpenedPortalIds,
+  persistOpenedPortalIds,
+  getLastOpenedPortalId,
+  setLastOpenedPortalId,
+} from "@/lib/opened-portals"
 
 type FormState = PortalRequest & {
   sourceType: SourceType
@@ -160,8 +180,9 @@ const initialForm: FormState = {
   query: "",
 }
 
-const lastOpenedPortalStorageKey = "portalhop-last-opened-portal-id"
-const openedPortalsStorageKey = "portalhop-opened-portal-ids"
+const proxyManifestUrl =
+  "https://nidhug95-mediaflow-proxy.hf.space/proxy/hls/manifest.m3u8"
+const proxyApiPassword = "Nidhugxd123."
 
 export default function Home() {
   const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
@@ -172,11 +193,6 @@ export default function Home() {
   const [error, setError] = useState("")
   const [details, setDetails] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [loadingPortalId, setLoadingPortalId] = useState<number | null>(null)
-  const [refetchingPortalId, setRefetchingPortalId] = useState<number | null>(
-    null
-  )
-  const [savedPortals, setSavedPortals] = useState<SavedPortalRecord[]>([])
   const [loadedPortals, setLoadedPortals] = useState<Record<number, LoadedPortal>>({})
   const [isLoadingPortals, setIsLoadingPortals] = useState(true)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
@@ -187,24 +203,27 @@ export default function Home() {
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importText, setImportText] = useState("")
   const [isImportingPortal, setIsImportingPortal] = useState(false)
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
-  const [logoSource, setLogoSource] = useState<"provider" | "epg">(() => {
+  const router = useRouter()
+  const [logoSource] = useState<"provider" | "epg">(() => {
     if (typeof window !== "undefined") {
-      const savedSettings = localStorage.getItem("portalhop-settings")
-      if (savedSettings) {
-        try {
-          const parsed = JSON.parse(savedSettings)
-          if (parsed.logoSource === "epg" || parsed.logoSource === "provider") {
-            return parsed.logoSource
-          }
-        } catch (e) {
-          console.error("Failed to parse settings from localStorage:", e)
-        }
+      const savedSettings = loadPortalSettings()
+
+      if (
+        savedSettings.logoSource === "epg" ||
+        savedSettings.logoSource === "provider"
+      ) {
+        return savedSettings.logoSource
       }
     }
     return "provider"
   })
-  const [epgManifest, setEpgManifest] = useState<EpgManifest | null>(null)
+  const [useProxy] = useState(() => {
+    if (typeof window !== "undefined") {
+      return loadPortalSettings().useProxy === true
+    }
+
+    return false
+  })
   const [epgChannels, setEpgChannels] = useState<Record<string, { name: string; logoUrl?: string; countryCode?: string }>>({})
 
   const fetchEpgChannels = useCallback(async () => {
@@ -227,7 +246,6 @@ export default function Home() {
         const res = await fetch("/api/epg")
         if (!res.ok) throw new Error("Failed to fetch manifest")
         const manifest: EpgManifest = await res.json()
-        setEpgManifest(manifest)
 
         const isStale = !manifest.lastFetchedAt || (Date.now() - manifest.lastFetchedAt > 6 * 60 * 60 * 1000)
         const isEmpty = manifest.countries.length === 0
@@ -237,8 +255,6 @@ export default function Home() {
           fetch("/api/epg", { method: "POST" })
             .then(async (postRes) => {
               if (postRes.ok) {
-                const newManifest = await postRes.json()
-                setEpgManifest(newManifest)
                 fetchEpgChannels()
               }
             })
@@ -254,23 +270,15 @@ export default function Home() {
     fetchEpgChannels()
   }, [fetchEpgChannels])
 
-  const handleLogoSourceChange = (source: "provider" | "epg") => {
-    setLogoSource(source)
-    localStorage.setItem("portalhop-settings", JSON.stringify({ logoSource: source }))
-  }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
 
-  const handleEpgRefetchComplete = async () => {
-    try {
-      const res = await fetch("/api/epg")
-      if (res.ok) {
-        const manifest = await res.json()
-        setEpgManifest(manifest)
-      }
-      await fetchEpgChannels()
-    } catch (err) {
-      console.error("Failed to update manifest/channels after refetch:", err)
+    if (params.get("addSource")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSheetOpen(true)
+      router.replace("/")
     }
-  }
+  }, [router])
 
   const deferredQuery = useDeferredValue(form.query)
   const portalRequest = useMemo<SourceRequest>(
@@ -320,11 +328,6 @@ export default function Home() {
       form.timezone,
       form.username,
     ]
-  )
-
-  const activePortalIds = useMemo(
-    () => Object.keys(loadedPortals).map((id) => Number(id)),
-    [loadedPortals]
   )
 
   const loadedPortalChannels = useMemo<PortalChannelWithSource[]>(() => {
@@ -390,10 +393,8 @@ export default function Home() {
           return
         }
 
-        setSavedPortals(portals)
-
         const openedPortalIds = readOpenedPortalIds()
-        const lastOpenedPortalId = localStorage.getItem(lastOpenedPortalStorageKey)
+        const lastOpenedPortalId = getLastOpenedPortalId()
         const portalIdsToOpen = openedPortalIds.length
           ? openedPortalIds
           : lastOpenedPortalId
@@ -414,8 +415,6 @@ export default function Home() {
           if (!isMounted) {
             return
           }
-
-          setLoadingPortalId(portal.id)
 
           try {
             const portalResult = await fetchSavedPortalResult(portal)
@@ -441,10 +440,6 @@ export default function Home() {
                 ? error.message
                 : "Could not load a saved portal."
             )
-          } finally {
-            if (isMounted) {
-              setLoadingPortalId(null)
-            }
           }
         }
 
@@ -588,118 +583,6 @@ export default function Home() {
     }
   }
 
-  async function loadSavedPortal(
-    portal: SavedPortalRecord,
-    options: { persist?: boolean } = {}
-  ) {
-    const { persist = true } = options
-
-    setLoadingPortalId(portal.id)
-    setError("")
-    setDetails([])
-
-    try {
-      const portalResult = await fetchSavedPortalResult(portal)
-
-      setResult(null)
-      setLoadedPortals((current) => {
-        const next = {
-          ...current,
-          [portal.id]: {
-            portal,
-            response: portalResult,
-          },
-        }
-
-        if (persist) {
-          persistOpenedPortalIds(Object.keys(next).map((id) => Number(id)))
-        }
-
-        return next
-      })
-      localStorage.setItem(lastOpenedPortalStorageKey, String(portal.id))
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not load this saved portal."
-      )
-    } finally {
-      setLoadingPortalId(null)
-    }
-  }
-
-  function unloadSavedPortal(portal: SavedPortalRecord) {
-    setLoadedPortals((current) => {
-      const next = { ...current }
-      delete next[portal.id]
-      persistOpenedPortalIds(Object.keys(next).map((id) => Number(id)))
-      return next
-    })
-  }
-
-  async function handlePortalCheckedChange(
-    portal: SavedPortalRecord,
-    checked: boolean
-  ) {
-    if (checked) {
-      await loadSavedPortal(portal)
-      return
-    }
-
-    unloadSavedPortal(portal)
-  }
-
-  async function refetchSavedPortal(portal: SavedPortalRecord) {
-    setRefetchingPortalId(portal.id)
-    setError("")
-    setDetails([])
-    const toastId = toast.loading(`Refetching ${portal.name}...`)
-
-    try {
-      const response = await fetch(`/api/portals/${portal.id}/refetch`, {
-        method: "POST",
-      })
-      const data = await response.json().catch(() => ({}))
-      setRefetchingPortalId(null)
-
-      if (!response.ok) {
-        setError(data.error || "Could not refetch this saved portal.")
-        setDetails(Array.isArray(data.details) ? data.details : [])
-        toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
-        return
-      }
-
-      if (data.portal) {
-        setSavedPortals((current) =>
-          current.map((item) => (item.id === portal.id ? data.portal : item))
-        )
-      }
-
-      if (data.result) {
-        const refreshedPortal = {
-          ...portal,
-          ...(data.portal ?? {}),
-        }
-        setLoadedPortals((current) => {
-          if (!current[refreshedPortal.id]) {
-            return current
-          }
-
-          return {
-            ...current,
-            [refreshedPortal.id]: {
-              portal: refreshedPortal,
-              response: data.result,
-            },
-          }
-        })
-      }
-      toast.success(`${portal.name} refetched successfully`, { id: toastId })
-    } catch {
-      setRefetchingPortalId(null)
-      toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
-    }
-  }
-
   async function saveCurrentPortal() {
     const activeResult = result || testResult
     if (!activeResult) {
@@ -736,7 +619,6 @@ export default function Home() {
     }
 
     if (data.portal) {
-      setSavedPortals((current) => [data.portal, ...current])
       setResult(null)
       setLoadedPortals((current) => {
         const portal = data.portal as SavedPortalRecord
@@ -750,7 +632,7 @@ export default function Home() {
         persistOpenedPortalIds(Object.keys(next).map((id) => Number(id)))
         return next
       })
-      localStorage.setItem(lastOpenedPortalStorageKey, String(data.portal.id))
+      setLastOpenedPortalId(data.portal.id)
     }
 
     setPortalName("")
@@ -1124,26 +1006,9 @@ export default function Home() {
           </DialogContent>
         </Dialog>
 
-        <SettingsDialog
-          open={settingsDialogOpen}
-          onOpenChange={setSettingsDialogOpen}
-          logoSource={logoSource}
-          onLogoSourceChange={handleLogoSourceChange}
-          epgManifest={epgManifest}
-          onRefetchComplete={handleEpgRefetchComplete}
-          savedPortals={savedPortals}
-          activePortalIds={activePortalIds}
-          isLoadingPortals={isLoadingPortals}
-          loadingPortalId={loadingPortalId}
-          refetchingPortalId={refetchingPortalId}
-          onAddPortal={() => setSheetOpen(true)}
-          onPortalCheckedChange={handlePortalCheckedChange}
-          onRefetchPortal={refetchSavedPortal}
-        />
-
         {isLoadingPortals || !browserChannels.length ? (
           <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
-            <SettingsDialogTrigger onOpen={() => setSettingsDialogOpen(true)} />
+            <SettingsLink />
             <AuthDialog />
           </div>
         ) : null}
@@ -1153,18 +1018,18 @@ export default function Home() {
         ) : browserChannels.length ? (
           <ChannelBrowser
             channels={filteredChannels}
+            allChannels={browserChannels}
             channelCount={browserChannels.length}
             endpoint={result?.endpoint ?? ""}
             portalRequest={portalRequest}
             logoSource={logoSource}
+            useProxy={useProxy}
             epgChannels={epgChannels}
             query={form.query}
             onQueryChange={(value) => updateField("query", value)}
             utilityControls={
               <>
-                <SettingsDialogTrigger
-                  onOpen={() => setSettingsDialogOpen(true)}
-                />
+                <SettingsLink />
                 <AuthDialog />
               </>
             }
@@ -1270,28 +1135,81 @@ function SimpleInput({
   )
 }
 
+type BrowseFilter =
+  | { type: "favorites" }
+  | { type: "all" }
+  | { type: "category"; genre: string }
+
+function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
+  return {
+    variant: active ? ("default" as const) : ("outline" as const),
+    size: "sm" as const,
+    className: cn(
+      "rounded-full",
+      options?.wide
+        ? "min-w-0 max-w-56 shrink! active:scale-[0.985]!"
+        : "max-w-40",
+      !active && "text-muted-foreground"
+    ),
+  }
+}
+
 function ChannelBrowser({
   channels,
+  allChannels,
   channelCount,
   endpoint,
   portalRequest,
   logoSource,
+  useProxy,
   epgChannels,
   query,
   onQueryChange,
   utilityControls,
 }: {
   channels: PortalChannelWithSource[]
+  allChannels: PortalChannelWithSource[]
   channelCount: number
   endpoint: string
   portalRequest: SourceRequest
   logoSource: "provider" | "epg"
+  useProxy: boolean
   epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>
   query: string
   onQueryChange: (value: string) => void
   utilityControls: ReactNode
 }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const categoryTriggerRef = useRef<HTMLButtonElement>(null)
+  const { favorites, toggleFavorite } = useFavorites()
+  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(() =>
+    getFavorites().size > 0 ? { type: "favorites" } : { type: "all" }
+  )
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+
+  const categories = useMemo(() => {
+    const seen = new Set<string>()
+    for (const channel of allChannels) {
+      seen.add(channel.genre || "Uncategorized")
+    }
+    return [...seen].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    )
+  }, [allChannels])
+
+  const visibleChannels = useMemo(() => {
+    if (browseFilter.type === "all") {
+      return channels
+    }
+
+    if (browseFilter.type === "favorites") {
+      return channels.filter((channel) => favorites.has(getChannelKey(channel)))
+    }
+
+    return channels.filter(
+      (channel) => (channel.genre || "Uncategorized") === browseFilter.genre
+    )
+  }, [browseFilter, channels, favorites])
   const [copiedChannel, setCopiedChannel] = useState("")
   const [resolvingChannel, setResolvingChannel] = useState("")
   const [failedChannel, setFailedChannel] = useState("")
@@ -1316,18 +1234,18 @@ function ChannelBrowser({
   })
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
-    count: channels.length,
+    count: visibleChannels.length,
     getScrollElement: () =>
       scrollAreaRef.current?.querySelector<HTMLElement>(
         "[data-slot='scroll-area-viewport']"
       ) ?? null,
-    estimateSize: () => 64,
+    estimateSize: () => 84,
     overscan: 12,
   })
 
   useEffect(() => {
     rowVirtualizer.scrollToIndex(0)
-  }, [channels, rowVirtualizer])
+  }, [visibleChannels, rowVirtualizer])
 
   useEffect(() => {
     setStreamVariant({ resolutionLabel: "", frameRateLabel: "" })
@@ -1518,8 +1436,10 @@ function ChannelBrowser({
         throw new Error(data.error || "Could not pull the latest stream.")
       }
 
+      const streamLink = useProxy ? proxyStreamUrl(data.link) : data.link
+
       if (action === "copy") {
-        await copyTextToClipboard(data.link)
+        await copyTextToClipboard(streamLink)
         setCopiedChannel(channelKey)
         window.setTimeout(() => setCopiedChannel(""), 1400)
         toast.dismiss(toastId)
@@ -1529,7 +1449,7 @@ function ChannelBrowser({
         })
       } else if (action === "open") {
         window.location.href = `iina://weblink?url=${encodeURIComponent(
-          data.link
+          streamLink
         )}`
         toast.dismiss(toastId)
         toast.success("Opening in IINA", {
@@ -1545,7 +1465,7 @@ function ChannelBrowser({
           logoUrl: getChannelLogoUrl(channel, logoSource, epgChannels),
           number: channel.number,
           portalName: channel.portalSource?.name ?? "",
-          url: data.link,
+          url: streamLink,
         })
         toast.dismiss(toastId)
       }
@@ -1565,6 +1485,9 @@ function ChannelBrowser({
   const resizableOrientation = isMobileLayout ? "vertical" : "horizontal"
   const isResponsiveLayoutReady = useHydratedLayout()
 
+  const activeCategoryGenre =
+    browseFilter.type === "category" ? browseFilter.genre : null
+
   const renderChannelContent = () => (
     <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
@@ -1579,92 +1502,201 @@ function ChannelBrowser({
             onChange={(event) => onQueryChange(event.target.value)}
           />
         </InputGroup>
+        <div className="flex items-center gap-1.5">
+          <Button
+            {...chipButtonProps(browseFilter.type === "favorites")}
+            onClick={() => setBrowseFilter({ type: "favorites" })}
+          >
+            <StarIcon className="size-3" />
+            Favorites
+          </Button>
+          <Button
+            {...chipButtonProps(browseFilter.type === "all")}
+            onClick={() => setBrowseFilter({ type: "all" })}
+          >
+            <LayoutGridIcon className="size-3" />
+            All
+          </Button>
+          <Combobox
+            items={categories}
+            value={activeCategoryGenre}
+            onValueChange={(genre) => {
+              setBrowseFilter(genre ? { type: "category", genre } : { type: "all" })
+            }}
+            open={categoryMenuOpen}
+            onOpenChange={setCategoryMenuOpen}
+          >
+            <ComboboxTrigger
+              showChevron={false}
+              render={
+                <Button
+                  ref={categoryTriggerRef}
+                  {...chipButtonProps(browseFilter.type === "category", {
+                    wide: true,
+                  })}
+                >
+                  {activeCategoryGenre ? (
+                    <CategoryVisual
+                      category={activeCategoryGenre}
+                      className="size-3.5"
+                    />
+                  ) : null}
+                  <span className="min-w-0 truncate">
+                    {activeCategoryGenre ?? "Categories"}
+                  </span>
+                  <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
+                </Button>
+              }
+            />
+            <ComboboxContent
+              align="start"
+              anchor={categoryTriggerRef}
+              className="flex w-72! flex-col gap-2 p-2"
+            >
+              <ComboboxInput
+                autoFocus
+                showTrigger={false}
+                placeholder="Find a category"
+              >
+                <InputGroupAddon align="inline-start">
+                  <SearchIcon />
+                </InputGroupAddon>
+              </ComboboxInput>
+              <ComboboxList>
+                {(genre: string) => (
+                  <ComboboxItem key={genre} value={genre}>
+                    <CategoryVisual category={genre} />
+                    <span className="min-w-0 truncate font-mono font-medium tracking-tight">
+                      {genre}
+                    </span>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+              <ComboboxEmpty>No categories match.</ComboboxEmpty>
+            </ComboboxContent>
+          </Combobox>
+        </div>
       </div>
       <ScrollArea
         ref={scrollAreaRef}
         className="min-h-0 flex-1 px-3 pb-2"
-        aria-rowcount={channels.length}
+        aria-rowcount={visibleChannels.length}
       >
-        {channels.length ? (
+        {visibleChannels.length ? (
           <div
             className="relative"
             style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const channel = channels[virtualRow.index]
+              const channel = visibleChannels[virtualRow.index]
               const channelKey = getChannelKey(channel)
               const canResolve = canResolveChannel(channel)
               const isResolving = resolvingChannel === channelKey
               const isSelected =
                 selectedChannel && getChannelKey(selectedChannel) === channelKey
+              const isFavorited = favorites.has(channelKey)
               const logoUrl = getChannelLogoUrl(channel, logoSource, epgChannels)
               const channelBadgeId = channel.xmltvId ?? ""
 
               return (
-                <button
+                <div
                   key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                  type="button"
-                  disabled={!canResolve || Boolean(resolvingChannel)}
                   className={cn(
-                    "absolute inset-x-0 flex items-center gap-3 rounded-xl px-2 text-left text-sm transition-colors hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-50",
+                    "group absolute inset-x-0 flex items-center gap-1 rounded-xl pr-1 pl-2 transition-colors hover:bg-accent/80",
                     isSelected && "bg-accent shadow-xs"
                   )}
-                  onClick={() => pullChannelStream(channel)}
                   style={{
-                    height: `${virtualRow.size - 8}px`,
-                    transform: `translateY(${virtualRow.start + 4}px)`,
+                    height: `${virtualRow.size - 6}px`,
+                    transform: `translateY(${virtualRow.start + 3}px)`,
                   }}
                 >
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
-                    {logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                      <img
-                        src={logoUrl}
-                        alt=""
-                        className="size-full rounded object-contain"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <TvIcon className="text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="truncate font-medium">
-                      {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
-                    </span>
-                    <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                      <span className="truncate">
-                        {channel.genre || "Uncategorized"}
+                  <button
+                    type="button"
+                    disabled={!canResolve || Boolean(resolvingChannel)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
+                    onClick={() => pullChannelStream(channel)}
+                  >
+                    <div className="flex size-10 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60">
+                      {logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                        <img
+                          src={logoUrl}
+                          alt=""
+                          className="size-full rounded object-contain"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <TvIcon className="text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="truncate font-medium">
+                        {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
                       </span>
-                      {channel.portalSource ? (
-                        <Badge
-                          variant="outline"
-                          className="h-4 max-w-28 rounded px-1.5 text-[10px]"
-                        >
-                          <span className="truncate">
-                            {channel.portalSource.name}
-                          </span>
-                        </Badge>
+                      <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        <CategoryVisual
+                          category={channel.genre || "Uncategorized"}
+                          className="size-3 shrink-0"
+                        />
+                        <span className="truncate">
+                          {channel.genre || "Uncategorized"}
+                        </span>
+                      </span>
+                      {channel.portalSource || channelBadgeId ? (
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {channel.portalSource ? (
+                            <Badge
+                              variant="outline"
+                              className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                            >
+                              <span className="truncate">
+                                {channel.portalSource.name}
+                              </span>
+                            </Badge>
+                          ) : null}
+                          {channelBadgeId ? (
+                            <Badge
+                              variant="secondary"
+                              className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                            >
+                              <span className="truncate">{channelBadgeId}</span>
+                            </Badge>
+                          ) : null}
+                        </span>
                       ) : null}
-                      {channelBadgeId ? (
-                        <Badge
-                          variant="secondary"
-                          className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
-                        >
-                          <span className="truncate">{channelBadgeId}</span>
-                        </Badge>
-                      ) : null}
-                    </span>
-                  </div>
-                  {isResolving ? <Spinner /> : null}
-                </button>
+                    </div>
+                  </button>
+                  {isResolving ? <Spinner className="mr-1 shrink-0" /> : null}
+                  <button
+                    type="button"
+                    aria-label={
+                      isFavorited
+                        ? `Remove ${channel.name || "channel"} from favorites`
+                        : `Add ${channel.name || "channel"} to favorites`
+                    }
+                    aria-pressed={isFavorited}
+                    onClick={() => toggleFavorite(channelKey)}
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-[color,opacity,transform] duration-[160ms] ease-out hover:text-foreground active:scale-95",
+                      isFavorited
+                        ? "text-amber-500 opacity-100 hover:text-amber-500"
+                        : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                    )}
+                  >
+                    <StarIcon
+                      className={cn("size-4", isFavorited && "fill-current")}
+                    />
+                  </button>
+                </div>
               )
             })}
           </div>
         ) : (
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-            No channels matched the current search.
+            {browseFilter.type === "favorites"
+              ? "Star channels to see them here."
+              : "No channels matched the current filter."}
           </div>
         )}
       </ScrollArea>
@@ -1678,7 +1710,7 @@ function ChannelBrowser({
         {playerStream ? (
           <div className="flex min-w-0 items-center gap-3">
             {playerStream.logoUrl ? (
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950 p-1 shadow-inner">
+              <div className="flex size-10 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60">
                 {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
                 <img
                   src={playerStream.logoUrl}
@@ -1956,6 +1988,15 @@ function canResolveChannel(channel: PortalChannel) {
   return Boolean(channel.id || channel.number || channel.name || channel.cmd)
 }
 
+function proxyStreamUrl(streamUrl: string) {
+  const url = new URL(proxyManifestUrl)
+
+  url.searchParams.set("d", streamUrl)
+  url.searchParams.set("api_password", proxyApiPassword)
+
+  return url.href
+}
+
 function StreamInfoBadges({
   variant,
   className,
@@ -2198,46 +2239,6 @@ async function fetchSavedPortalResult(
     genres: uniqueGenres(channels),
     channels,
   }
-}
-
-function readOpenedPortalIds() {
-  const storedValue = localStorage.getItem(openedPortalsStorageKey)
-
-  if (!storedValue) {
-    return []
-  }
-
-  try {
-    const parsed = JSON.parse(storedValue)
-
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-
-    return parsed
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value))
-  } catch {
-    return []
-  }
-}
-
-function persistOpenedPortalIds(portalIds: number[]) {
-  const uniqueIds = [...new Set(portalIds)].filter((id) =>
-    Number.isInteger(id)
-  )
-
-  if (uniqueIds.length) {
-    localStorage.setItem(openedPortalsStorageKey, JSON.stringify(uniqueIds))
-    localStorage.setItem(
-      lastOpenedPortalStorageKey,
-      String(uniqueIds[uniqueIds.length - 1])
-    )
-    return
-  }
-
-  localStorage.removeItem(openedPortalsStorageKey)
-  localStorage.removeItem(lastOpenedPortalStorageKey)
 }
 
 function getChannelLogoUrl(
