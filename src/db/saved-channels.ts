@@ -1,11 +1,11 @@
-import { eq, inArray } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import { getDb } from "@/db/client"
 import { savedChannels } from "@/db/schema"
 import type { PortalChannel } from "@/lib/stalker-types"
 
 const CHANNEL_INSERT_BATCH_SIZE = 100
-const CHANNEL_UPDATE_BATCH_SIZE = 500
+const CHANNEL_UPDATE_BATCH_SIZE = 100
 
 type ChannelInsert = typeof savedChannels.$inferInsert
 type ChannelInserter = {
@@ -75,12 +75,13 @@ export async function selectSavedChannelRows(
 }
 
 /**
- * Apply xmltv id assignments to channel rows. Rows are grouped by their target
- * id so we run one UPDATE per distinct xmltv id (bounded by the EPG list size)
- * rather than one per channel.
+ * Apply xmltv id assignments in batches. A single UPDATE … FROM (VALUES …)
+ * statement updates hundreds of rows with distinct ids, avoiding one network
+ * round-trip per EPG channel for large sources.
  */
 export async function applyXmltvIdUpdates(
-  updates: { id: number; xmltvId: string }[]
+  updates: { id: number; xmltvId: string }[],
+  onBatchApplied?: (batch: { id: number; xmltvId: string }[]) => void | Promise<void>
 ): Promise<number> {
   if (!updates.length) {
     return 0
@@ -89,31 +90,24 @@ export async function applyXmltvIdUpdates(
   const db = getDb()
   const now = new Date()
 
-  const byXmltvId = new Map<string, number[]>()
-  for (const update of updates) {
-    const bucket = byXmltvId.get(update.xmltvId)
-    if (bucket) {
-      bucket.push(update.id)
-    } else {
-      byXmltvId.set(update.xmltvId, [update.id])
-    }
-  }
-
   let updated = 0
 
-  for (const [xmltvId, rowIds] of byXmltvId) {
-    for (
-      let index = 0;
-      index < rowIds.length;
-      index += CHANNEL_UPDATE_BATCH_SIZE
-    ) {
-      const batch = rowIds.slice(index, index + CHANNEL_UPDATE_BATCH_SIZE)
-      await db
-        .update(savedChannels)
-        .set({ xmltvId, updatedAt: now })
-        .where(inArray(savedChannels.id, batch))
-      updated += batch.length
-    }
+  for (let index = 0; index < updates.length; index += CHANNEL_UPDATE_BATCH_SIZE) {
+    const batch = updates.slice(index, index + CHANNEL_UPDATE_BATCH_SIZE)
+    const values = sql.join(
+      batch.map(({ id, xmltvId }) => sql`(${id}::integer, ${xmltvId}::text)`),
+      sql`, `
+    )
+
+    await db.execute(sql`
+      UPDATE "saved_channels" AS channel
+      SET "xmltv_id" = assignment.xmltv_id,
+          "updated_at" = ${now}
+      FROM (VALUES ${values}) AS assignment(id, xmltv_id)
+      WHERE channel.id = assignment.id
+    `)
+    await onBatchApplied?.(batch)
+    updated += batch.length
   }
 
   return updated

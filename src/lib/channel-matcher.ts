@@ -143,7 +143,15 @@ export type EpgIndex = {
   byName: Map<string, string[]>
   /** Token → set of entry indexes for fuzzy retrieval. */
   byToken: Map<string, Set<number>>
-  entries: { id: string; name: string; tokens: string[] }[]
+  entries: {
+    id: string
+    name: string
+    tokens: string[]
+    tokenSet: Set<string>
+    normalizedName: string
+  }[]
+  /** EPG id → entry, for cheap lookup after an exact-name hit. */
+  byId: Map<string, EpgIndex["entries"][number]>
   /** All EPG ids currently known, lowercased — used to detect stale ids. */
   knownIds: Set<string>
 }
@@ -158,6 +166,7 @@ export function buildEpgIndex(
   const byName = new Map<string, string[]>()
   const byToken = new Map<string, Set<number>>()
   const entries: EpgIndex["entries"] = []
+  const byId = new Map<string, EpgIndex["entries"][number]>()
   const knownIds = new Set<string>()
 
   for (const channel of list) {
@@ -169,7 +178,15 @@ export function buildEpgIndex(
 
     const tokens = stripQuality(toTokens(channel.name))
     const entryIndex = entries.length
-    entries.push({ id: channel.id, name: channel.name, tokens })
+    const entry = {
+      id: channel.id,
+      name: channel.name,
+      tokens,
+      tokenSet: new Set(tokens),
+      normalizedName: tokens.join(" "),
+    }
+    entries.push(entry)
+    byId.set(channel.id, entry)
 
     for (const key of nameKeys(channel.name)) {
       const ids = byName.get(key)
@@ -183,6 +200,9 @@ export function buildEpgIndex(
     }
 
     for (const token of new Set(tokens)) {
+      if (RETRIEVAL_IGNORED_TOKENS.has(token)) {
+        continue
+      }
       const bucket = byToken.get(token)
       if (bucket) {
         bucket.add(entryIndex)
@@ -192,30 +212,31 @@ export function buildEpgIndex(
     }
   }
 
-  return { byName, byToken, entries, knownIds }
+  return { byName, byToken, entries, byId, knownIds }
 }
 
-function diceScore(a: string[], b: string[]): number {
-  if (!a.length || !b.length) {
+function diceScore(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) {
     return 0
   }
 
-  const setA = new Set(a)
-  const setB = new Set(b)
   let intersection = 0
-  for (const token of setA) {
-    if (setB.has(token)) {
+  for (const token of a) {
+    if (b.has(token)) {
       intersection += 1
     }
   }
 
-  return (2 * intersection) / (setA.size + setB.size)
+  return (2 * intersection) / (a.size + b.size)
 }
 
 const CANDIDATE_LIMIT = 8
 const FUZZY_FLOOR = 0.34
 const STRONG_AUTO = 0.86
 const AUTO_GAP = 0.2
+// "tv" occurs in a large share of EPG names and conveys no useful identity.
+// Excluding it from fuzzy retrieval prevents a broad 28k-channel scan per row.
+const RETRIEVAL_IGNORED_TOKENS = new Set(["tv"])
 
 /**
  * Retrieve the best candidate EPG channels for a query name via the inverted
@@ -227,29 +248,40 @@ export function retrieveCandidates(
   limit = CANDIDATE_LIMIT
 ): MatchCandidate[] {
   const queryTokens = stripQuality(toTokens(raw))
-  if (!queryTokens.length) {
+  const retrievalTokens = [...new Set(queryTokens)].filter(
+    (token) => !RETRIEVAL_IGNORED_TOKENS.has(token)
+  )
+  if (!retrievalTokens.length) {
     return []
   }
 
+  // Start with the two rarest terms. A union over a generic term such as
+  // "sports" can contain thousands of EPG rows; the rarest terms retain the
+  // relevant candidates while bounding work for very large portals.
+  const tokenBuckets = retrievalTokens
+    .map((token) => index.byToken.get(token))
+    .filter((bucket): bucket is Set<number> => Boolean(bucket))
+    .sort((a, b) => a.size - b.size)
   const candidateIndexes = new Set<number>()
-  for (const token of new Set(queryTokens)) {
-    const bucket = index.byToken.get(token)
-    if (bucket) {
-      for (const entryIndex of bucket) {
-        candidateIndexes.add(entryIndex)
-      }
+  for (const bucket of tokenBuckets.slice(0, 2)) {
+    for (const entryIndex of bucket) {
+      candidateIndexes.add(entryIndex)
     }
   }
 
+  const queryTokenSet = new Set(queryTokens)
+  const queryName = queryTokens.join(" ")
   const scored: MatchCandidate[] = []
   for (const entryIndex of candidateIndexes) {
     const entry = index.entries[entryIndex]
-    let score = diceScore(queryTokens, entry.tokens)
+    let score = diceScore(queryTokenSet, entry.tokenSet)
 
     // Reward one name fully containing the other (e.g. "cnn" ⊂ "cnn international").
-    const q = queryTokens.join(" ")
-    const e = entry.tokens.join(" ")
-    if (q && e && (q.includes(e) || e.includes(q))) {
+    if (
+      queryName &&
+      entry.normalizedName &&
+      (queryName.includes(entry.normalizedName) || entry.normalizedName.includes(queryName))
+    ) {
       score += 0.1
     }
 
@@ -304,12 +336,11 @@ export function classifyMatch(raw: string, index: EpgIndex): ClassifiedMatch {
   }
 
   if (exactIds.size > 1) {
-    const byId = new Map(index.entries.map((entry) => [entry.id, entry]))
     return {
       kind: "regional",
       candidates: [...exactIds].map((id) => ({
         id,
-        name: byId.get(id)?.name ?? id,
+        name: index.byId.get(id)?.name ?? id,
         score: 1,
       })),
     }

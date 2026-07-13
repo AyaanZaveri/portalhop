@@ -68,6 +68,7 @@ type EnrichProgress =
       aiFailed: number;
       aiAvailable: boolean;
       aiError: string | null;
+      cleared: number;
     }
   | { type: "error"; error: string };
 
@@ -122,8 +123,7 @@ export default function SourcesSettingsPage() {
   const [portalPendingDelete, setPortalPendingDelete] =
     React.useState<SavedPortalRecord | null>(null);
   const [useProxy, setUseProxy] = React.useState(false);
-  const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
-    useAiSettings();
+  const { settings: aiSettings } = useAiSettings();
 
   function handleUseProxyChange(nextUseProxy: boolean) {
     setUseProxy(nextUseProxy);
@@ -135,10 +135,14 @@ export default function SourcesSettingsPage() {
   }
 
   React.useEffect(() => {
-    setActivePortalIds(readOpenedPortalIds());
-    setUseProxy(loadPortalSettings().useProxy === true);
-
     let isMounted = true;
+
+    queueMicrotask(() => {
+      if (isMounted) {
+        setActivePortalIds(readOpenedPortalIds());
+        setUseProxy(loadPortalSettings().useProxy === true);
+      }
+    });
 
     (async () => {
       try {
@@ -211,10 +215,21 @@ export default function SourcesSettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          force: true,
           settings: {
-            baseUrl: effectiveBaseUrl,
-            apiKey: effectiveApiKey,
-            model: aiSettings.model,
+            // Only send browser-saved credentials when the user explicitly
+            // chose to override .env. Otherwise the route resolves its own
+            // server-side provider credentials.
+            baseUrl: aiSettings.overrideEnv
+              ? (aiSettings.customBaseUrl ?? "")
+              : "",
+            apiKey: aiSettings.overrideEnv
+              ? (aiSettings.customApiKey ?? "")
+              : "",
+            // When using server credentials, let the server's tested model be
+            // authoritative. This avoids a stale browser localStorage value
+            // sending a model id that NVIDIA no longer serves.
+            model: aiSettings.overrideEnv ? aiSettings.model : "",
             reasoningEffort: aiSettings.reasoningEffort,
           },
         }),
@@ -234,18 +249,22 @@ export default function SourcesSettingsPage() {
       let buffer = "";
       let final: Extract<EnrichProgress, { type: "done" }> | null = null;
       let streamError: string | null = null;
-      // Throttle toast re-renders so rapid matches don't spam image loads.
+      let latestMatch: Extract<EnrichProgress, { type: "match" }> | null =
+        null;
+      // Keep the toast focused on the most recently reconciled channel while
+      // avoiding an expensive render for every streamed match.
       let lastRender = 0;
 
       const renderMatch = (
         message: Extract<EnrichProgress, { type: "match" }>,
         force: boolean
       ) => {
+        latestMatch = message;
         const now = Date.now();
-        if (!force && now - lastRender < 140) return;
+        if (!force && now - lastRender < 75) return;
         lastRender = now;
         toast.loading(
-          `Enriching ${portal.name}... · ${message.matched.toLocaleString()} matched`,
+          `Enriching ${portal.name}... · ${message.matched.toLocaleString()} updated`,
           {
             id: toastId,
             description: (
@@ -271,21 +290,35 @@ export default function SourcesSettingsPage() {
         if (message.type === "match") {
           renderMatch(message, false);
         } else if (message.type === "progress") {
-          // Only surface progress before the first match / on the AI stage,
-          // so the live match feed isn't overwritten by a plain counter.
-          if (message.matched === 0) {
-            const label =
-              message.stage === "ai"
-                ? "Resolving ambiguous channels"
-                : "Scanning channels";
-            const suffix = message.total
-              ? ` · ${message.processed.toLocaleString()}/${message.total.toLocaleString()}`
-              : "";
-            toast.loading(`Enriching ${portal.name}...`, {
+          const label =
+            message.stage === "ai"
+              ? "AI reviewing candidate mappings"
+              : message.stage === "exact"
+                ? "Finding deterministic mappings"
+                : "Preparing channel list";
+          const progress = message.total
+            ? `${message.processed.toLocaleString()}/${message.total.toLocaleString()}`
+            : "";
+          toast.loading(
+            `Enriching ${portal.name}... · ${message.matched.toLocaleString()} updated`,
+            {
               id: toastId,
-              description: `${label}${suffix}`,
-            });
-          }
+              description: latestMatch ? (
+                <span className="flex min-w-0 flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">
+                    {label} · {progress}
+                  </span>
+                  <EnrichMatchRow
+                    name={latestMatch.name}
+                    xmltvId={latestMatch.xmltvId}
+                    logoUrl={latestMatch.logoUrl}
+                  />
+                </span>
+              ) : (
+                `${label}${progress ? ` · ${progress}` : ""}`
+              ),
+            }
+          );
         } else if (message.type === "done") {
           final = message;
         } else if (message.type === "error") {
@@ -313,7 +346,7 @@ export default function SourcesSettingsPage() {
 
       if (final) {
         const done: Extract<EnrichProgress, { type: "done" }> = final;
-        const parts = [`${done.matched.toLocaleString()} channels matched`];
+        const parts = [`${done.matched.toLocaleString()} XMLTV IDs updated`];
         if (done.aiResolved) {
           parts.push(`${done.aiResolved.toLocaleString()} via AI`);
         }
@@ -543,7 +576,7 @@ export default function SourcesSettingsPage() {
                       onClick={() => handleEnrichPortal(portal)}
                     >
                       <SparklesIcon className="size-4" />
-                      Enrich XMLTV IDs
+                      Reconcile all XMLTV IDs
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"

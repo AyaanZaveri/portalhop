@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import pc from "picocolors"
 
 import { getDb } from "@/db/client"
 import {
@@ -25,7 +26,11 @@ import { getEpgChannels } from "@/lib/epg-store"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-const AI_BATCH_SIZE = 30
+// Smaller batches are more accurate — the model attends to each item better,
+// and 20-item batches measured ~2.5s vs noticeably worse picks at 40+. Wall
+// time is recovered by running more of them in parallel instead.
+const AI_BATCH_SIZE = 20
+const AI_BATCH_CONCURRENCY = 10
 
 interface EnrichRequest {
   settings?: EnrichAiSettings
@@ -55,6 +60,7 @@ type ProgressLine =
       aiFailed: number
       aiAvailable: boolean
       aiError: string | null
+      cleared: number
     }
   | { type: "error"; error: string }
 
@@ -98,9 +104,27 @@ export async function POST(
   }
 
   const settings = body.settings
-  const aiAvailable = Boolean(
-    (settings?.baseUrl || process.env.AI_BASE_URL) &&
-      settings?.model?.trim()
+  const aiBaseUrl = settings?.baseUrl || process.env.AI_BASE_URL || ""
+  const aiApiKey = settings?.apiKey || process.env.AI_API_KEY || ""
+  const aiModel = settings?.model?.trim() || process.env.AI_MODEL?.trim() || ""
+  const aiCredentialSource = settings?.baseUrl || settings?.apiKey
+    ? "AI Provider settings"
+    : ".env"
+  const missingAiSettings = [
+    !aiBaseUrl && "base URL",
+    !aiApiKey && "API key",
+    !aiModel && "model",
+  ].filter(Boolean)
+  const aiAvailable = missingAiSettings.length === 0
+
+  console.log(
+    aiAvailable
+      ? pc.green(
+          `[XMLTV] ${portal.name}: AI reranking enabled from ${aiCredentialSource} (${AI_BATCH_SIZE} channels/request, ${AI_BATCH_CONCURRENCY} concurrent requests)`
+        )
+      : pc.yellow(
+          `[XMLTV] ${portal.name}: AI reranking disabled — missing ${missingAiSettings.join(", ")}`
+        )
   )
 
   const encoder = new TextEncoder()
@@ -118,7 +142,11 @@ export async function POST(
         // Group the rows that still need a valid id by their dedup key.
         const groups = new Map<
           string,
-          { sampleName: string; rowIds: number[] }
+          {
+            sampleName: string
+            rowIds: number[]
+            existingXmltvIds: string[]
+          }
         >()
 
         for (const row of rows) {
@@ -131,15 +159,30 @@ export async function POST(
           }
 
           const key = dedupKey(row.name)
-          if (!key) {
-            continue
-          }
+          // A nameless row cannot be matched, but is still included so a
+          // full reconciliation never drops an existing valid XMLTV id.
+          const groupKey = key || `row-${row.id}`
+          const existingXmltvId = index.knownIds.has(
+            row.xmltvId.toLowerCase()
+          )
+            ? row.xmltvId
+            : ""
 
-          const group = groups.get(key)
+          const group = groups.get(groupKey)
           if (group) {
             group.rowIds.push(row.id)
+            if (
+              existingXmltvId &&
+              !group.existingXmltvIds.includes(existingXmltvId)
+            ) {
+              group.existingXmltvIds.push(existingXmltvId)
+            }
           } else {
-            groups.set(key, { sampleName: row.name, rowIds: [row.id] })
+            groups.set(groupKey, {
+              sampleName: row.name,
+              rowIds: [row.id],
+              existingXmltvIds: existingXmltvId ? [existingXmltvId] : [],
+            })
           }
         }
 
@@ -149,23 +192,12 @@ export async function POST(
 
         const assignments = new Map<string, string>() // dedupKey -> xmltvId
 
-        // Emit a live "matched" event as each name is resolved so the client
-        // can show the channel and its new logo.
+        // Match events are emitted only after a database batch commits. This
+        // keeps the UI's update count truthful instead of showing provisional
+        // classifier results as if they had already been written.
         let matchedNames = 0
         const logoFor = (xmltvId: string) =>
           epgChannels[xmltvId.toLowerCase()]?.logoUrl ?? ""
-        const emitMatch = (name: string, xmltvId: string, processed: number) => {
-          matchedNames += 1
-          send({
-            type: "match",
-            name,
-            xmltvId,
-            logoUrl: logoFor(xmltvId),
-            matched: matchedNames,
-            processed,
-            total,
-          })
-        }
 
         // Tier 1 + 2: deterministic exact / regional / ambiguous split.
         const regional: {
@@ -173,7 +205,12 @@ export async function POST(
           sampleName: string
           candidates: MatchCandidate[]
         }[] = []
-        const ambiguous: { key: string; sampleName: string }[] = []
+        const ambiguous: {
+          key: string
+          sampleName: string
+          candidates: MatchCandidate[]
+          currentXmltvId?: string
+        }[] = []
         const regionTally = new Map<string, number>()
 
         let processed = 0
@@ -183,17 +220,38 @@ export async function POST(
           }
           processed += 1
           const match = classifyMatch(group.sampleName, index)
+          const currentXmltvId = group.existingXmltvIds[0]
           if (match.kind === "exact") {
             assignments.set(key, match.xmltvId)
             const region = regionOf(match.xmltvId)
             if (region) {
               regionTally.set(region, (regionTally.get(region) ?? 0) + 1)
             }
-            emitMatch(group.sampleName, match.xmltvId, processed)
           } else if (match.kind === "regional") {
             regional.push({ key, sampleName: group.sampleName, candidates: match.candidates })
           } else if (match.kind === "ambiguous") {
-            ambiguous.push({ key, sampleName: group.sampleName })
+            const candidates = [...match.candidates]
+            if (
+              currentXmltvId &&
+              !candidates.some((candidate) => candidate.id === currentXmltvId)
+            ) {
+              candidates.unshift({
+                id: currentXmltvId,
+                name:
+                  epgChannels[currentXmltvId.toLowerCase()]?.name ??
+                  currentXmltvId,
+                score: 1,
+              })
+            }
+            ambiguous.push({
+              key,
+              sampleName: group.sampleName,
+              candidates,
+              currentXmltvId,
+            })
+          } else if (currentXmltvId) {
+            // No viable new candidate: retain a currently valid IPTV-EPG.org id.
+            assignments.set(key, currentXmltvId)
           }
 
           // Yield periodically so the stream flushes to the client live.
@@ -218,7 +276,6 @@ export async function POST(
           const xmltvId = pickRegional(entry.candidates, regionHint)
           if (xmltvId) {
             assignments.set(entry.key, xmltvId)
-            emitMatch(entry.sampleName, xmltvId, total)
           }
         }
 
@@ -232,58 +289,85 @@ export async function POST(
         let aiError: string | null = null
 
         if (aiAvailable && ambiguous.length) {
-          for (let start = 0; start < ambiguous.length; start += AI_BATCH_SIZE) {
-            if (request.signal.aborted) {
-              break
-            }
+          let nextBatchStart = 0
+          let aiProcessed = 0
 
-            const slice = ambiguous.slice(start, start + AI_BATCH_SIZE)
-            const items: RerankItem[] = slice.map((entry, offset) => {
-              const match = classifyMatch(entry.sampleName, index)
-              const candidates =
-                match.kind === "ambiguous" ? match.candidates : []
-              return { key: start + offset, name: entry.sampleName, candidates }
-            })
+          const processBatch = async () => {
+            while (!request.signal.aborted) {
+              const start = nextBatchStart
+              nextBatchStart += AI_BATCH_SIZE
+              if (start >= ambiguous.length) {
+                return
+              }
 
-            try {
-              const picks = await rerankBatch(items, settings ?? {})
-              aiCalls += 1
-              for (const [itemKey, xmltvId] of picks) {
-                const entry = ambiguous[itemKey]
-                if (entry) {
-                  assignments.set(entry.key, xmltvId)
-                  aiResolved += 1
-                  emitMatch(
-                    entry.sampleName,
-                    xmltvId,
-                    Math.min(start + AI_BATCH_SIZE, ambiguous.length)
-                  )
+              const slice = ambiguous.slice(start, start + AI_BATCH_SIZE)
+              const items: RerankItem[] = slice.map((entry, offset) => ({
+                key: start + offset,
+                name: entry.sampleName,
+                candidates: entry.candidates,
+                currentXmltvId: entry.currentXmltvId,
+              }))
+
+              try {
+                const picks = await rerankBatch(items, settings ?? {})
+                aiCalls += 1
+                for (const [itemKey, xmltvId] of picks) {
+                  const entry = ambiguous[itemKey]
+                  if (entry) {
+                    assignments.set(entry.key, xmltvId)
+                    aiResolved += 1
+                  }
+                }
+              } catch (err) {
+                // Skip this batch on provider error; keep deterministic matches.
+                aiCalls += 1
+                aiFailed += 1
+                if (!aiError) {
+                  aiError = err instanceof Error ? err.message : "AI provider error"
                 }
               }
-            } catch (err) {
-              // Skip this batch on provider error; keep deterministic matches.
-              aiCalls += 1
-              aiFailed += 1
-              if (!aiError) {
-                aiError = err instanceof Error ? err.message : "AI provider error"
-              }
-            }
 
-            send({
-              type: "progress",
-              stage: "ai",
-              processed: Math.min(start + AI_BATCH_SIZE, ambiguous.length),
-              total: ambiguous.length,
-              matched: matchedNames,
-            })
+              aiProcessed += slice.length
+              send({
+                type: "progress",
+                stage: "ai",
+                processed: aiProcessed,
+                total: ambiguous.length,
+                matched: matchedNames,
+              })
+            }
+          }
+
+          await Promise.all(
+            Array.from(
+              {
+                length: Math.min(
+                  AI_BATCH_CONCURRENCY,
+                  Math.ceil(ambiguous.length / AI_BATCH_SIZE)
+                ),
+              },
+              processBatch
+            )
+          )
+        }
+
+        // Keep valid current IDs for ambiguous channels when the AI is not
+        // configured, rejects a batch, or returns no replacement.
+        for (const entry of ambiguous) {
+          if (!assignments.has(entry.key) && entry.currentXmltvId) {
+            assignments.set(entry.key, entry.currentXmltvId)
           }
         }
 
         // Fan assignments back out to every row in each group and persist.
         const updates: { id: number; xmltvId: string }[] = []
-        for (const [key, xmltvId] of assignments) {
-          const group = groups.get(key)
-          if (!group) {
+        for (const [key, group] of groups) {
+          const xmltvId =
+            assignments.get(key) ?? group.existingXmltvIds[0] ?? ""
+          // Reconciliation overwrites only with a verified candidate id. An
+          // unmatchable name or an unavailable AI model must never clear an
+          // existing mapping merely because this is a forced full pass.
+          if (!xmltvId) {
             continue
           }
           for (const rowId of group.rowIds) {
@@ -291,7 +375,52 @@ export async function POST(
           }
         }
 
-        const matchedRows = await applyXmltvIdUpdates(updates)
+        const rowsById = new Map(rows.map((row) => [row.id, row]))
+        const changedUpdates = updates.filter(
+          (update) => rowsById.get(update.id)?.xmltvId !== update.xmltvId
+        )
+
+        const cleared = changedUpdates.filter((update) => !update.xmltvId).length
+        console.log(
+          pc.bold(
+            pc.cyan(
+              `[XMLTV] ${portal.name}: applying ${changedUpdates.length.toLocaleString()} changed mappings in 100-row batches`
+            )
+          )
+        )
+
+        await applyXmltvIdUpdates(changedUpdates, async (batch) => {
+          for (const update of batch) {
+            const row = rowsById.get(update.id)
+            if (!row) {
+              continue
+            }
+            const oldXmltvId = row.xmltvId || "∅"
+            const newXmltvId = update.xmltvId || "∅"
+            console.log(
+              `${pc.dim("[XMLTV]")} ${pc.white(row.name)} ${pc.red(oldXmltvId)} ${pc.dim("→")} ${pc.green(newXmltvId)}`
+            )
+            matchedNames += 1
+            send({
+              type: "match",
+              name: row.name,
+              xmltvId: update.xmltvId,
+              logoUrl: logoFor(update.xmltvId),
+              matched: matchedNames,
+              processed: matchedNames,
+              total: changedUpdates.length,
+            })
+          }
+        })
+        const matchedRows = changedUpdates.length - cleared
+
+        if (aiAvailable) {
+          console.log(
+            pc.green(
+              `[XMLTV] ${portal.name}: completed ${aiCalls} AI batch calls; ${aiResolved} channels resolved by AI; ${aiFailed} failed batches`
+            )
+          )
+        }
 
         send({
           type: "done",
@@ -304,6 +433,7 @@ export async function POST(
           aiFailed,
           aiAvailable,
           aiError,
+          cleared,
         })
       } catch (error) {
         send({

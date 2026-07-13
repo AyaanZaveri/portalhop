@@ -38,6 +38,7 @@ export default function AiProviderSettingsPage() {
   >("none");
   const [models, setModels] = React.useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = React.useState(false);
+  const [isTesting, setIsTesting] = React.useState(false);
 
   React.useEffect(() => {
     if (mounted) {
@@ -109,6 +110,47 @@ export default function AiProviderSettingsPage() {
       customApiKey: overrideEnv ? customApiKey.trim() : "",
     });
     toast.success("AI settings saved");
+  }
+
+  async function handleTest() {
+    setIsTesting(true);
+    const toastId = toast.loading("Testing AI provider...");
+    try {
+      const response = await fetch("/api/ai-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: overrideEnv ? customBaseUrl : "",
+          apiKey: overrideEnv ? customApiKey : "",
+          model: normalizedModel,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      const timing = `${data.model} · ${(data.responseTimeMs / 1000).toFixed(2)}s`;
+      if (data.jsonSupported) {
+        toast.success("AI provider is working", {
+          id: toastId,
+          description: `${timing} · JSON output supported`,
+        });
+      } else {
+        // Enrichment sends response_format:{type:"json_object"} — a model
+        // without it drops matches, so warn instead of a clean success.
+        toast.warning("Model has no JSON output mode", {
+          id: toastId,
+          description: `${timing} · channel enrichment needs a model that supports JSON output`,
+        });
+      }
+    } catch (error) {
+      toast.error("AI provider test failed", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setIsTesting(false);
+    }
   }
 
   return (
@@ -239,7 +281,17 @@ export default function AiProviderSettingsPage() {
         </Tabs>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={handleTest}
+          disabled={!canSave || isTesting}
+        >
+          {isTesting ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+          Test
+        </Button>
         <Button
           type="button"
           size="sm"

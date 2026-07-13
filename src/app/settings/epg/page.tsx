@@ -25,14 +25,18 @@ export default function EpgAndLogosSettingsPage() {
   const [isRefetching, setIsRefetching] = React.useState(false);
 
   React.useEffect(() => {
-    const saved = loadPortalSettings();
-    setLogoSource(
-      saved.logoSource === "epg" || saved.logoSource === "provider"
-        ? saved.logoSource
-        : "provider"
-    );
-
     let isMounted = true;
+
+    queueMicrotask(() => {
+      const saved = loadPortalSettings();
+      if (isMounted) {
+        setLogoSource(
+          saved.logoSource === "epg" || saved.logoSource === "provider"
+            ? saved.logoSource
+            : "provider"
+        );
+      }
+    });
 
     (async () => {
       try {
