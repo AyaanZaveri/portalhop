@@ -2,6 +2,10 @@ const openedPortalsStorageKey = "portalhop-opened-portal-ids"
 const lastOpenedPortalStorageKey = "portalhop-last-opened-portal-id"
 
 export function readOpenedPortalIds() {
+  if (typeof window === "undefined") {
+    return []
+  }
+
   const storedValue = localStorage.getItem(openedPortalsStorageKey)
 
   if (!storedValue) {
@@ -24,6 +28,10 @@ export function readOpenedPortalIds() {
 }
 
 export function persistOpenedPortalIds(portalIds: number[]) {
+  if (typeof window === "undefined") {
+    return
+  }
+
   const uniqueIds = [...new Set(portalIds)].filter((id) =>
     Number.isInteger(id)
   )
@@ -42,9 +50,17 @@ export function persistOpenedPortalIds(portalIds: number[]) {
 }
 
 export function getLastOpenedPortalId() {
+  if (typeof window === "undefined") {
+    return null
+  }
+
   return localStorage.getItem(lastOpenedPortalStorageKey)
 }
 
 export function setLastOpenedPortalId(portalId: number) {
+  if (typeof window === "undefined") {
+    return
+  }
+
   localStorage.setItem(lastOpenedPortalStorageKey, String(portalId))
 }

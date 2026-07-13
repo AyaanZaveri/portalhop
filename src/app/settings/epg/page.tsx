@@ -16,18 +16,22 @@ export default function EpgAndLogosSettingsPage() {
     ? "https://img.logo.dev/iptv-epg.org?token=live_6a1a28fd-6420-4492-aeb0-b297461d9de2&size=128&retina=true&format=png"
     : "https://www.google.com/s2/favicons?sz=64&domain=iptv-epg.org";
 
-  const [logoSource, setLogoSource] = React.useState<"provider" | "epg">(() => {
-    const saved = loadPortalSettings();
-    return saved.logoSource === "epg" || saved.logoSource === "provider"
-      ? saved.logoSource
-      : "provider";
-  });
+  const [logoSource, setLogoSource] = React.useState<"provider" | "epg">(
+    "provider"
+  );
   const [epgManifest, setEpgManifest] = React.useState<EpgManifest | null>(
     null
   );
   const [isRefetching, setIsRefetching] = React.useState(false);
 
   React.useEffect(() => {
+    const saved = loadPortalSettings();
+    setLogoSource(
+      saved.logoSource === "epg" || saved.logoSource === "provider"
+        ? saved.logoSource
+        : "provider"
+    );
+
     let isMounted = true;
 
     (async () => {

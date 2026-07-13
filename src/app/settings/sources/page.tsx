@@ -106,9 +106,7 @@ export default function SourcesSettingsPage() {
     []
   );
   const [isLoading, setIsLoading] = React.useState(true);
-  const [activePortalIds, setActivePortalIds] = React.useState<number[]>(
-    () => readOpenedPortalIds()
-  );
+  const [activePortalIds, setActivePortalIds] = React.useState<number[]>([]);
   const [refetchingPortalId, setRefetchingPortalId] = React.useState<
     number | null
   >(null);
@@ -123,9 +121,7 @@ export default function SourcesSettingsPage() {
   >(null);
   const [portalPendingDelete, setPortalPendingDelete] =
     React.useState<SavedPortalRecord | null>(null);
-  const [useProxy, setUseProxy] = React.useState(
-    () => loadPortalSettings().useProxy === true
-  );
+  const [useProxy, setUseProxy] = React.useState(false);
   const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
     useAiSettings();
 
@@ -139,6 +135,9 @@ export default function SourcesSettingsPage() {
   }
 
   React.useEffect(() => {
+    setActivePortalIds(readOpenedPortalIds());
+    setUseProxy(loadPortalSettings().useProxy === true);
+
     let isMounted = true;
 
     (async () => {
