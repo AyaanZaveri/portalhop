@@ -32,6 +32,18 @@ export async function selectSavedSources(db: Db): Promise<SavedSourceRecord[]> {
   )
 }
 
+export async function deleteSavedSource(
+  db: Db,
+  sourceId: number
+): Promise<boolean> {
+  const deleted = await db
+    .delete(savedSources)
+    .where(eq(savedSources.id, sourceId))
+    .returning({ id: savedSources.id })
+
+  return deleted.length > 0
+}
+
 export async function selectSavedSource(
   db: Db,
   sourceId: number

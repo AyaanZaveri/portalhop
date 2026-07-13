@@ -239,16 +239,17 @@ export default function AiProviderSettingsPage() {
         </Tabs>
       </div>
 
-      <Button
-        type="button"
-        size="sm"
-        onClick={handleSave}
-        disabled={!canSave}
-        className="w-full"
-      >
-        <CheckIcon className="size-3.5" />
-        Save AI Settings
-      </Button>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSave}
+          disabled={!canSave}
+        >
+          <CheckIcon className="size-3.5" />
+          Save AI Settings
+        </Button>
+      </div>
     </div>
   );
 }

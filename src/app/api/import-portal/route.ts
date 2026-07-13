@@ -28,7 +28,7 @@ interface ImportPortalRequest {
 
 const SYSTEM_PROMPT = `You are a strict field extraction engine for Stalker portal connection data.
 
-Do not think out loud. Do not explain. Do not summarize. Do not include reasoning, notes, markdown, code fences, labels, or commentary. Return only the structured object requested by the schema.
+Do not think out loud. Do not explain. Do not summarize. Do not include reasoning, notes, markdown, code fences, labels, or commentary. Return only the JSON object requested by the schema.
 
 Copy values verbatim from the pasted text except for portalUrl normalization described below. Preserve casing for serial, DeviceID1, DeviceID2, and signature. Do not invent or rewrite missing values. Fill every schema field that is available in the text.
 
@@ -299,7 +299,12 @@ ${text}`,
       output: Output.object({ schema: importedPortalSchema }),
       temperature: 0,
       providerOptions: {
-        custom: { reasoningEffort: settings?.reasoningEffort ?? "none" },
+        custom:
+          settings?.reasoningEffort === "low" ||
+          settings?.reasoningEffort === "medium" ||
+          settings?.reasoningEffort === "high"
+            ? { reasoningEffort: settings.reasoningEffort }
+            : {},
       },
     })
 

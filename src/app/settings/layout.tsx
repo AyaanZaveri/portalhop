@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop";
 
 const sections = [
-  { href: "/settings/general", label: "General" },
   { href: "/settings/sources", label: "Sources" },
   { href: "/settings/ai", label: "AI Provider" },
-  { href: "/settings/epg", label: "EPG Status" },
+  { href: "/settings/epg", label: "EPG & Logos" },
 ];
 
 export default function SettingsLayout({
@@ -20,8 +20,10 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <div className="flex items-center gap-3">
+    <div className="relative flex min-h-screen w-full flex-col gap-6 overflow-hidden p-4 sm:p-6 lg:p-8">
+      <PrimaryMeshGradientBackdrop />
+
+      <div className="relative z-10 flex items-center gap-3">
         <Link
           href="/"
           className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -32,7 +34,7 @@ export default function SettingsLayout({
         <h1 className="text-lg font-semibold text-foreground">Settings</h1>
       </div>
 
-      <div className="flex flex-1 flex-col gap-6 sm:flex-row sm:gap-10">
+      <div className="relative z-10 flex flex-1 flex-col gap-6 sm:flex-row sm:gap-10">
         <nav className="flex shrink-0 flex-row gap-1 overflow-x-auto sm:w-44 sm:flex-col sm:overflow-visible">
           {sections.map((section) => {
             const isActive = pathname === section.href;
@@ -54,7 +56,7 @@ export default function SettingsLayout({
           })}
         </nav>
 
-        <div className="min-w-0 flex-1 pb-8">{children}</div>
+        <div className="min-w-0 max-w-2xl flex-1 pb-8">{children}</div>
       </div>
     </div>
   );

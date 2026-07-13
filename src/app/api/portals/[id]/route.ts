@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
-import { selectSavedSource } from "@/db/saved-sources"
+import { deleteSavedSource, selectSavedSource } from "@/db/saved-sources"
 import { savedChannels } from "@/db/schema"
 
 export const runtime = "nodejs"
@@ -44,4 +44,25 @@ export async function GET(
       logoUrl: channel.logoUrl,
     })),
   })
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params
+  const sourceId = Number(id)
+
+  if (!Number.isInteger(sourceId)) {
+    return NextResponse.json({ error: "Invalid source id." }, { status: 400 })
+  }
+
+  const db = getDb()
+  const deleted = await deleteSavedSource(db, sourceId)
+
+  if (!deleted) {
+    return NextResponse.json({ error: "Source not found." }, { status: 404 })
+  }
+
+  return NextResponse.json({ ok: true })
 }
