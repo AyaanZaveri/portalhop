@@ -52,6 +52,7 @@ import { copyTextToClipboard } from "@/lib/clipboard";
 import type { SavedSourceRecord } from "@/lib/source-types";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org";
+import { proxyImageUrl } from "@/lib/image-proxy";
 
 const IPTV_ORG_GITHUB_URL = "https://github.com/iptv-org/iptv";
 const IPTV_ORG_LOGO_BASE =
@@ -112,7 +113,7 @@ function EnrichMatchRow({
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={logoUrl}
+          src={proxyImageUrl(logoUrl)}
           alt=""
           className="size-5 shrink-0 rounded bg-muted/40 object-contain"
         />

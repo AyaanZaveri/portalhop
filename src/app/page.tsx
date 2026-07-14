@@ -93,6 +93,7 @@ import {
   prunePortalChannelsCache,
   setCachedPortalChannels,
 } from "@/lib/portal-channels-cache"
+import { proxyImageUrl } from "@/lib/image-proxy"
 
 type SavedPortalRecord = SavedSourceRecord
 
@@ -1739,13 +1740,14 @@ function getChannelLogoUrl(
 ) {
   const lookupId = channel.xmltvId || channel.id
 
-  return (
+  const logoUrl =
     (logoSource === "epg" && lookupId
       ? epgChannels[lookupId.toLowerCase()]?.logoUrl
       : null) ||
     channel.logoUrl ||
     ""
-  )
+
+  return logoUrl ? proxyImageUrl(logoUrl) : ""
 }
 
 function formatTimeRange(startAt: string, stopAt: string) {
