@@ -13,7 +13,6 @@ import {
   UserIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
-import { siGoogle } from "simple-icons"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
@@ -41,12 +40,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(false)
@@ -66,14 +65,8 @@ function useIsMobile() {
 
 function GoogleIcon() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="size-4 shrink-0"
-      fill={`#${siGoogle.hex}`}
-    >
-      <path d={siGoogle.path} />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/google.svg" alt="" aria-hidden="true" className="size-4 shrink-0" />
   )
 }
 
@@ -107,21 +100,21 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
       const result =
         mode === "signUp"
           ? await authClient.signUp.email({
-              name: name.trim() || email.split("@")[0],
-              email: email.trim(),
-              password,
-            })
+            name: name.trim() || email.split("@")[0],
+            email: email.trim(),
+            password,
+          })
           : await authClient.signIn.email({
-              email: email.trim(),
-              password,
-            })
+            email: email.trim(),
+            password,
+          })
 
       if (result.error) {
         toast.error(
           result.error.message ??
-            (mode === "signUp"
-              ? "Could not create account."
-              : "Could not sign in.")
+          (mode === "signUp"
+            ? "Could not create account."
+            : "Could not sign in.")
         )
         return
       }
@@ -140,10 +133,6 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-        Sign in to sync your Portal Hop data across devices.
-      </div>
-
       <Button
         type="button"
         variant="outline"
@@ -410,19 +399,19 @@ export function AuthDialog({
       )}
 
       {isMobile ? (
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" className="rounded-t-xl">
-            <SheetHeader>
-              <SheetTitle>Sign in</SheetTitle>
-              <SheetDescription>
+        <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
+          <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl border after:hidden">
+            <DrawerHeader>
+              <DrawerTitle>Sign in</DrawerTitle>
+              <DrawerDescription>
                 Use Google or an email and password to continue.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="px-4 pb-4">
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="p-4">
               <SignInContent onSignedIn={handleSignedIn} />
             </div>
-          </SheetContent>
-        </Sheet>
+          </DrawerContent>
+        </Drawer>
       ) : (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>

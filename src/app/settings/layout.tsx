@@ -97,7 +97,7 @@ export default function SettingsLayout({
       {/* Floating dock nav (mobile only). */}
       <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center p-4 md:hidden">
         <Dock
-          className="pointer-events-auto mt-0 h-auto gap-2 rounded-full border bg-background/70 p-2 shadow-lg backdrop-blur-xl"
+          className="pointer-events-auto mt-0 h-auto gap-2 rounded-full border bg-background/70 p-2 shadow-2xl shadow-primary/20 backdrop-blur-xl"
           iconSize={44}
           disableMagnification
         >

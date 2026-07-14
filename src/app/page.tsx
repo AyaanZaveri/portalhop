@@ -995,7 +995,7 @@ function ChannelBrowser({
                     className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
                     onClick={() => pullChannelStream(channel)}
                   >
-                    <div className="flex size-10 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60">
+                    <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
                       {logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
                         <img
@@ -1046,27 +1046,35 @@ function ChannelBrowser({
                       ) : null}
                     </div>
                   </button>
-                  {isResolving ? <Spinner className="mr-1 shrink-0" /> : null}
-                  <button
-                    type="button"
-                    aria-label={
-                      isFavorited
-                        ? `Remove ${channel.name || "channel"} from favorites`
-                        : `Add ${channel.name || "channel"} to favorites`
-                    }
-                    aria-pressed={isFavorited}
-                    onClick={() => toggleFavorite(channelKey)}
-                    className={cn(
-                      "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-[color,opacity,transform] duration-[160ms] ease-out hover:text-foreground active:scale-95",
-                      isFavorited
-                        ? "text-amber-500 opacity-100 hover:text-amber-500"
-                        : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-                    )}
-                  >
-                    <StarIcon
-                      className={cn("size-4", isFavorited && "fill-current")}
-                    />
-                  </button>
+                  <div className="relative flex size-8 shrink-0 items-center justify-center">
+                    <button
+                      type="button"
+                      aria-label={
+                        isFavorited
+                          ? `Remove ${channel.name || "channel"} from favorites`
+                          : `Add ${channel.name || "channel"} to favorites`
+                      }
+                      aria-pressed={isFavorited}
+                      onClick={() => toggleFavorite(channelKey)}
+                      className={cn(
+                        "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[color,opacity,transform] duration-[160ms] ease-out hover:text-foreground active:scale-95",
+                        isResolving
+                          ? "opacity-0"
+                          : isFavorited
+                            ? "text-amber-500 opacity-100 hover:text-amber-500"
+                            : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                      )}
+                    >
+                      <StarIcon
+                        className={cn("size-4", isFavorited && "fill-current")}
+                      />
+                    </button>
+                    {isResolving ? (
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <Spinner />
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               )
             })}
@@ -1089,7 +1097,7 @@ function ChannelBrowser({
         {playerStream ? (
           <div className="flex min-w-0 items-center gap-3">
             {playerStream.logoUrl ? (
-              <div className="flex size-10 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60">
+              <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
                 <img
                   src={playerStream.logoUrl}
@@ -1126,7 +1134,7 @@ function ChannelBrowser({
       </div>
       {playerStream ? (
         <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-4">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-2">
             <MediaPlayer
               key={`${playerStream.channelKey}-${playerStream.url}`}
               autoHide
