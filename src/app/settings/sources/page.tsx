@@ -34,6 +34,12 @@ import { copyTextToClipboard } from "@/lib/clipboard";
 import type { SavedSourceRecord } from "@/lib/source-types";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org";
+
+const IPTV_ORG_GITHUB_URL = "https://github.com/iptv-org/iptv";
+const IPTV_ORG_LOGO_BASE =
+  "https://img.logo.dev/iptv-org.github.io?token=live_6a1a28fd-6420-4492-aeb0-b297461d9de2&size=128&retina=true&format=png";
+const IPTV_ORG_LOGO_LIGHT = IPTV_ORG_LOGO_BASE;
+const IPTV_ORG_LOGO_DARK = `${IPTV_ORG_LOGO_BASE}&theme=dark`;
 import { AddPortalSheet } from "@/components/add-portal-sheet";
 import { ShimmeringText } from "@/components/ui/shimmering-text";
 import { useAiSettings } from "@/hooks/use-ai-settings";
@@ -484,17 +490,38 @@ export default function SourcesSettingsPage() {
       </div>
 
       <div className="flex w-full items-center justify-between gap-4 rounded-md border bg-background/50 p-3">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <Label htmlFor="iptv-org">Free channels ({IPTV_ORG_SOURCE_NAME})</Label>
-          <span className="text-xs text-muted-foreground">
-            Thousands of free public channels, shown by default
-          </span>
+        <div className="flex min-w-0 items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={IPTV_ORG_LOGO_LIGHT}
+            alt=""
+            className="size-8 shrink-0 rounded-md dark:hidden"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={IPTV_ORG_LOGO_DARK}
+            alt=""
+            className="hidden size-8 shrink-0 rounded-md dark:block"
+          />
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <a
+              href={IPTV_ORG_GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-fit text-sm font-medium leading-none underline-offset-4 hover:underline"
+            >
+              {IPTV_ORG_SOURCE_NAME}
+            </a>
+            <span className="text-xs text-muted-foreground">
+              Publicly available IPTV channels, shown by default
+            </span>
+          </div>
         </div>
         <Switch
           id="iptv-org"
           checked={settings.iptvOrgEnabled}
           onCheckedChange={handleIptvOrgChange}
-          aria-label="Show free IPTV-org channels"
+          aria-label="Show IPTV-org channels"
         />
       </div>
 
