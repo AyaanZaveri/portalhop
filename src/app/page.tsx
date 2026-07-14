@@ -88,6 +88,11 @@ import { cn } from "@/lib/utils"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
 import { AddPortalSheet } from "@/components/add-portal-sheet"
+import {
+  getCachedPortalChannels,
+  prunePortalChannelsCache,
+  setCachedPortalChannels,
+} from "@/lib/portal-channels-cache"
 
 type SavedPortalRecord = SavedSourceRecord
 
@@ -290,6 +295,11 @@ export default function Home() {
           enabledSourceIds.includes(portal.id)
         )
 
+        // Drop cache entries for sources that were deleted entirely, so the
+        // cache doesn't grow forever. Sources that are merely disabled keep
+        // their cached channels for whenever they're re-enabled.
+        prunePortalChannelsCache(portals.map((portal) => portal.id))
+
         const loaded: Record<number, LoadedPortal> = {}
 
         for (const portal of portalsToOpen) {
@@ -298,7 +308,7 @@ export default function Home() {
           }
 
           try {
-            const portalResult = await fetchSavedPortalResult(portal)
+            const portalResult = await loadPortalChannels(portal)
 
             if (!isMounted) {
               return
@@ -1687,6 +1697,39 @@ async function fetchSavedPortalResult(
     genres: uniqueGenres(channels),
     channels,
   }
+}
+
+// Skips the /api/portals/[id] round trip (and the Postgres read behind it)
+// when the source's cached channels are still fresh, so a plain page
+// refresh doesn't re-download every enabled portal's full channel list.
+async function loadPortalChannels(
+  portal: SavedPortalRecord
+): Promise<PortalResponse> {
+  const updatedAt = new Date(portal.updatedAt).getTime()
+  const cached = Number.isFinite(updatedAt)
+    ? await getCachedPortalChannels(portal.id)
+    : null
+
+  if (cached && cached.updatedAt === updatedAt) {
+    return {
+      endpoint: portal.endpoint || "",
+      profile: {},
+      genres: uniqueGenres(cached.channels),
+      channels: cached.channels,
+    }
+  }
+
+  const result = await fetchSavedPortalResult(portal)
+
+  if (Number.isFinite(updatedAt)) {
+    setCachedPortalChannels({
+      sourceId: portal.id,
+      updatedAt,
+      channels: result.channels,
+    })
+  }
+
+  return result
 }
 
 function getChannelLogoUrl(
