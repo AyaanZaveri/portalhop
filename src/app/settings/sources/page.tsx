@@ -7,8 +7,9 @@ import {
   MoreHorizontalIcon,
   PlusIcon,
   RefreshCwIcon,
-  SparklesIcon,
   Trash2Icon,
+  TvIcon,
+  WaypointsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -41,6 +42,8 @@ const IPTV_ORG_LOGO_BASE =
 const IPTV_ORG_LOGO_LIGHT = IPTV_ORG_LOGO_BASE;
 const IPTV_ORG_LOGO_DARK = `${IPTV_ORG_LOGO_BASE}&theme=dark`;
 import { AddPortalSheet } from "@/components/add-portal-sheet";
+import { AuthDialog } from "@/components/auth-dialog";
+import { SettingsHeader } from "@/components/settings-header";
 import { ShimmeringText } from "@/components/ui/shimmering-text";
 import { useAiSettings } from "@/hooks/use-ai-settings";
 
@@ -48,34 +51,34 @@ type SavedPortalRecord = SavedSourceRecord;
 
 type EnrichProgress =
   | {
-      type: "progress";
-      stage: "scan" | "exact" | "ai";
-      processed: number;
-      total: number;
-      matched: number;
-    }
+    type: "progress";
+    stage: "scan" | "exact" | "ai";
+    processed: number;
+    total: number;
+    matched: number;
+  }
   | {
-      type: "match";
-      name: string;
-      xmltvId: string;
-      logoUrl: string;
-      matched: number;
-      processed: number;
-      total: number;
-    }
+    type: "match";
+    name: string;
+    xmltvId: string;
+    logoUrl: string;
+    matched: number;
+    processed: number;
+    total: number;
+  }
   | {
-      type: "done";
-      total: number;
-      needing: number;
-      matched: number;
-      exact: number;
-      aiResolved: number;
-      aiCalls: number;
-      aiFailed: number;
-      aiAvailable: boolean;
-      aiError: string | null;
-      cleared: number;
-    }
+    type: "done";
+    total: number;
+    needing: number;
+    matched: number;
+    exact: number;
+    aiResolved: number;
+    aiCalls: number;
+    aiFailed: number;
+    aiAvailable: boolean;
+    aiError: string | null;
+    cleared: number;
+  }
   | { type: "error"; error: string };
 
 function EnrichMatchRow({
@@ -113,7 +116,8 @@ export default function SourcesSettingsPage() {
     []
   );
   const [isLoading, setIsLoading] = React.useState(true);
-  const { settings, updateSettings } = useUserSettings();
+  const { settings, updateSettings, userId } = useUserSettings();
+  const [authOpen, setAuthOpen] = React.useState(false);
   const activePortalIds = settings.enabledSourceIds;
   const useProxy = settings.useProxy;
   const [refetchingPortalId, setRefetchingPortalId] = React.useState<
@@ -322,7 +326,7 @@ export default function SourcesSettingsPage() {
         }
       };
 
-      for (;;) {
+      for (; ;) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -428,6 +432,8 @@ export default function SourcesSettingsPage() {
         }}
       />
 
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} hideTrigger />
+
       <AlertDialog
         open={portalPendingDelete !== null}
         onOpenChange={(open) => {
@@ -461,20 +467,22 @@ export default function SourcesSettingsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex items-center justify-between gap-4">
-        <span className="text-base font-medium text-foreground">Sources</span>
+      <div className="flex items-start justify-between gap-4">
+        <SettingsHeader icon={TvIcon} title="Sources" />
         <Button
           type="button"
           size="sm"
           className="flex items-center justify-center gap-1.5 rounded-md"
-          onClick={() => setAddSourceOpen(true)}
+          onClick={() =>
+            userId ? setAddSourceOpen(true) : setAuthOpen(true)
+          }
         >
           <PlusIcon className="size-4" />
           Add Source
         </Button>
       </div>
 
-      <div className="flex w-full items-center justify-between gap-4 rounded-md border bg-background/50 p-3">
+      <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Label htmlFor="use-proxy">Use proxy</Label>
           <span className="text-xs text-muted-foreground">
@@ -489,7 +497,7 @@ export default function SourcesSettingsPage() {
         />
       </div>
 
-      <div className="flex w-full items-center justify-between gap-4 rounded-md border bg-background/50 p-3">
+      <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
         <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -525,114 +533,124 @@ export default function SourcesSettingsPage() {
         />
       </div>
 
-      <div className="flex flex-col gap-1 bg-background/50 p-2 rounded-lg border">
-        {savedPortals.length ? (
-          savedPortals.map((portal) => {
-            const isActive = activePortalIds.includes(portal.id);
-
-            const isBusy =
-              refetchingPortalId === portal.id ||
-              copyingPortalId === portal.id ||
-              deletingPortalId === portal.id ||
-              enrichingPortalId === portal.id;
-
-            return (
-              <div
-                key={portal.id}
-                className="flex items-center gap-3 rounded-md p-2 hover:bg-muted/50"
-              >
-                <div
-                  className={cn(
-                    "flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium",
-                    isActive
-                      ? "bg-primary/15 text-primary brightness-85 dark:bg-primary/15 dark:brightness-100"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {portal.name.charAt(0).toUpperCase()}
-                </div>
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
-                  onClick={() => handleCheckedChange(portal, !isActive)}
-                >
-                  <span className="w-full truncate text-sm font-medium">
-                    {portal.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {sourceTypeLabel(portal.sourceType)} ·{" "}
-                    {portal.channelCount.toLocaleString()} channels
-                  </span>
-                </button>
-                <Switch
-                  checked={isActive}
-                  onCheckedChange={(checked) =>
-                    handleCheckedChange(portal, checked)
-                  }
-                  aria-label={`Toggle ${portal.name}`}
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={isBusy}
-                        aria-label={`More actions for ${portal.name}`}
-                      >
-                        {isBusy ? (
-                          <Loader2Icon className="size-4 animate-spin" />
-                        ) : (
-                          <MoreHorizontalIcon className="size-4" />
-                        )}
-                      </Button>
-                    }
-                  />
-                  <DropdownMenuContent align="end" className="w-52! shadow-2xl shadow-primary/15">
-                    {portal.sourceType === "stalker" ? (
-                      <DropdownMenuItem
-                        onClick={() => handleCopyPlaylist(portal)}
-                      >
-                        <CopyIcon className="size-4" />
-                        Copy M3U Plus URL
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                      onClick={() => handleRefetchPortal(portal)}
-                    >
-                      <RefreshCwIcon className="size-4" />
-                      Refetch source
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleEnrichPortal(portal)}
-                    >
-                      <SparklesIcon className="size-4" />
-                      Reconcile all XMLTV IDs
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => setPortalPendingDelete(portal)}
-                    >
-                      <Trash2Icon className="size-4" />
-                      Delete source
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            );
-          })
-        ) : isLoading ? (
-          <div className="flex items-center gap-2 px-1 py-3 text-sm">
-            <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
-            <ShimmeringText text="Loading saved sources." />
+      {savedPortals.length || isLoading ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-sm font-medium text-muted-foreground">
+              Your sources
+            </span>
+            {savedPortals.length ? (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {activePortalIds.length} active
+              </span>
+            ) : null}
           </div>
-        ) : (
-          <p className="px-1 py-3 text-sm text-muted-foreground">
-            Successful connections can be saved here.
-          </p>
-        )}
-      </div>
+          {savedPortals.length ? (
+            <div className="flex flex-col divide-y divide-border/60">
+              {savedPortals.map((portal) => {
+                const isActive = activePortalIds.includes(portal.id);
+
+                const isBusy =
+                  refetchingPortalId === portal.id ||
+                  copyingPortalId === portal.id ||
+                  deletingPortalId === portal.id ||
+                  enrichingPortalId === portal.id;
+
+                return (
+                  <div
+                    key={portal.id}
+                    className="group/source flex items-center gap-3 px-1 py-3"
+                  >
+                    <div
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-medium",
+                        isActive
+                          ? "bg-primary/15 text-primary brightness-85 dark:bg-primary/15 dark:brightness-100"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {portal.name.charAt(0).toUpperCase()}
+                    </div>
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
+                      onClick={() => handleCheckedChange(portal, !isActive)}
+                    >
+                      <span className="w-full truncate text-sm font-medium">
+                        {portal.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {sourceTypeLabel(portal.sourceType)} ·{" "}
+                        {portal.channelCount.toLocaleString()} channels
+                      </span>
+                    </button>
+                    <Switch
+                      checked={isActive}
+                      onCheckedChange={(checked) =>
+                        handleCheckedChange(portal, checked)
+                      }
+                      aria-label={`Toggle ${portal.name}`}
+                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={isBusy}
+                            aria-label={`More actions for ${portal.name}`}
+                          >
+                            {isBusy ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : (
+                              <MoreHorizontalIcon className="size-4" />
+                            )}
+                          </Button>
+                        }
+                      />
+                      <DropdownMenuContent align="end" className="w-52! shadow-2xl shadow-primary/15">
+                        {portal.sourceType === "stalker" ? (
+                          <DropdownMenuItem
+                            onClick={() => handleCopyPlaylist(portal)}
+                          >
+                            <CopyIcon className="size-4" />
+                            Copy M3U Plus URL
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem
+                          onClick={() => handleRefetchPortal(portal)}
+                        >
+                          <RefreshCwIcon className="size-4" />
+                          Refetch source
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleEnrichPortal(portal)}
+                        >
+                          <WaypointsIcon className="size-4" />
+                          Auto-match guide
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => setPortalPendingDelete(portal)}
+                        >
+                          <Trash2Icon className="size-4" />
+                          Delete source
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-1 py-3 text-sm">
+              <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
+              <ShimmeringText text="Loading saved sources." />
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

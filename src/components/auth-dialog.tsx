@@ -368,8 +368,18 @@ function AccountMenu({
   )
 }
 
-export function AuthDialog() {
-  const [open, setOpen] = React.useState(false)
+export function AuthDialog({
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+}: {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+} = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
+  const open = controlledOpen ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
   const isMobile = useIsMobile()
   const session = authClient.useSession()
   const user = session.data?.user
@@ -377,23 +387,27 @@ export function AuthDialog() {
   const handleSignedIn = React.useCallback(() => {
     setOpen(false)
     session.refetch()
-  }, [session])
+  }, [session, setOpen])
 
   if (user) {
-    return <AccountMenu user={user} onSignedOut={session.refetch} />
+    return hideTrigger ? null : (
+      <AccountMenu user={user} onSignedOut={session.refetch} />
+    )
   }
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8 cursor-pointer rounded-md text-muted-foreground hover:text-foreground"
-        onClick={() => setOpen(true)}
-        aria-label="Sign in"
-      >
-        <LogInIcon className="size-4" />
-      </Button>
+      {hideTrigger ? null : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 cursor-pointer rounded-md text-muted-foreground hover:text-foreground"
+          onClick={() => setOpen(true)}
+          aria-label="Sign in"
+        >
+          <LogInIcon className="size-4" />
+        </Button>
+      )}
 
       {isMobile ? (
         <Sheet open={open} onOpenChange={setOpen}>

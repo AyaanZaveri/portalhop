@@ -19,6 +19,8 @@
 // Many keywords intentionally point at one flag (Urdu + Pakistan + Pakistani → pk).
 // Keep each keyword unique across FLAG_ALIASES; the last write would otherwise win.
 
+import { COUNTRY_NAME_CODES } from "@/lib/country-codes"
+
 export type CategoryIcon =
   | "sports"
   | "movies"
@@ -32,6 +34,7 @@ export type CategoryIcon =
   | "adult"
   | "vip"
   | "region"
+  | "unknown"
 
 export type CategoryVisual =
   | { kind: "flag"; code: string }
@@ -265,6 +268,7 @@ const ICON_ALIASES: Record<CategoryIcon, string[]> = {
   adult: ["adult", "xxx", "porn"],
   vip: ["vip", "premium", "exclusive"],
   region: [
+    "international",
     "africa",
     "african",
     "caribbean",
@@ -279,6 +283,7 @@ const ICON_ALIASES: Record<CategoryIcon, string[]> = {
     "asia",
     "asian",
   ],
+  unknown: ["undefined", "uncategorized"],
 }
 
 const FLAG_CODES = new Set(Object.keys(FLAG_ALIASES))
@@ -325,6 +330,10 @@ export function resolveCategoryVisual(category: string): CategoryVisual | null {
 
   const spaced = raw.replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()
   const tokens = spaced.split(" ").filter(Boolean)
+
+  // 0. Exact country name (the iptv-org country playlist groups by these).
+  const exactCountry = COUNTRY_NAME_CODES[spaced]
+  if (exactCountry) return { kind: "flag", code: exactCountry }
 
   // 1. Leading country code before a delimiter: "gr | ...", "us: ...".
   const prefix = raw.match(/^([a-z]{2,4})\s*[|:/>•\-–—]/)?.[1]

@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { GlobeIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
+import { CalendarIcon, GlobeIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "next-themes";
 import type { EpgManifest } from "@/lib/epg-store";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { SettingsHeader } from "@/components/settings-header";
 
 export default function EpgAndLogosSettingsPage() {
   const { resolvedTheme } = useTheme();
@@ -79,6 +80,8 @@ export default function EpgAndLogosSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <SettingsHeader icon={CalendarIcon} title="EPG & Logos" />
+
       <div className="flex flex-col gap-1.5">
         <span className="text-base font-medium text-foreground">
           EPG Source
@@ -89,19 +92,35 @@ export default function EpgAndLogosSettingsPage() {
             handleLogoSourceChange(value as "provider" | "epg")
           }
         >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="provider">
-              <GlobeIcon className="size-3.5 shrink-0" />
-              Portal
+          <TabsList className="grid h-auto w-full grid-cols-2 items-stretch gap-1 p-1 group-data-horizontal/tabs:h-auto">
+            <TabsTrigger
+              value="provider"
+              className="h-auto min-w-0 flex-col items-start justify-center gap-1 px-2.5 py-2 text-left cursor-pointer active:scale-[0.985]"
+            >
+              <span className="flex items-center gap-1.5 font-medium">
+                <GlobeIcon className="size-3.5 shrink-0" />
+                Portal
+              </span>
+              <span className="w-full truncate text-xs font-normal text-muted-foreground">
+                Bundled with your portal
+              </span>
             </TabsTrigger>
-            <TabsTrigger value="epg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={epgLogoUrl}
-                alt=""
-                className="size-3.5 shrink-0 rounded-xs"
-              />
-              iptv-epg.org
+            <TabsTrigger
+              value="epg"
+              className="h-auto min-w-0 flex-col items-start justify-center gap-1 px-2.5 py-2 text-left cursor-pointer active:scale-[0.985]"
+            >
+              <span className="flex items-center gap-1.5 font-medium">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={epgLogoUrl}
+                  alt=""
+                  className="size-3.5 shrink-0 rounded-xs"
+                />
+                iptv-epg.org
+              </span>
+              <span className="w-full truncate text-xs font-normal text-muted-foreground">
+                A dedicated EPG service
+              </span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -112,7 +131,7 @@ export default function EpgAndLogosSettingsPage() {
           EPG Data Status
         </span>
         <div className="grid grid-cols-3 gap-3">
-          <div className="flex flex-col gap-1 rounded-lg bg-muted/30 p-4">
+          <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-4">
             <span className="text-xs text-muted-foreground">
               Last updated
             </span>
@@ -120,18 +139,18 @@ export default function EpgAndLogosSettingsPage() {
               {lastFetched.date}
             </span>
             {lastFetched.time ? (
-              <span className="font-mono text-sm tracking-tight text-primary">
+              <span className="font-mono text-sm tracking-tight text-primary brightness-75 dark:brightness-100">
                 @ {lastFetched.time}
               </span>
             ) : null}
           </div>
-          <div className="flex flex-col gap-1 rounded-lg bg-muted/30 p-4">
+          <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-4">
             <span className="text-xs text-muted-foreground">Countries</span>
             <span className="font-mono text-2xl font-medium tracking-tight text-foreground">
               {epgManifest?.countries.length ?? 0}
             </span>
           </div>
-          <div className="flex flex-col gap-1 rounded-lg bg-muted/30 p-4">
+          <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-4">
             <span className="text-xs text-muted-foreground">
               Total channels
             </span>

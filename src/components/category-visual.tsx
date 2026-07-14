@@ -1,5 +1,6 @@
 import {
   BabyIcon,
+  CircleSlash2Icon,
   ClapperboardIcon,
   CrownIcon,
   GlobeIcon,
@@ -35,6 +36,7 @@ const CATEGORY_ICONS: Record<CategoryIcon, LucideIcon> = {
   adult: LockIcon,
   vip: CrownIcon,
   region: GlobeIcon,
+  unknown: CircleSlash2Icon,
 }
 
 export function CategoryVisual({

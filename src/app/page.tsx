@@ -19,7 +19,6 @@ import {
   CopyIcon,
   LayoutGridIcon,
   Loader2Icon,
-  RabbitIcon,
   RotateCcwIcon,
   RotateCwIcon,
   SearchIcon,
@@ -75,7 +74,6 @@ import {
 import { AuthDialog } from "@/components/auth-dialog"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
-import { getFavorites } from "@/lib/favorites"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import {
   IPTV_ORG_SOURCE_ID,
@@ -83,6 +81,7 @@ import {
 } from "@/lib/iptv-org"
 import { SettingsLink } from "@/components/settings-link"
 import { CategoryVisual } from "@/components/category-visual"
+import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import type { EpgManifest } from "@/lib/epg-store"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
@@ -143,6 +142,7 @@ export default function Home() {
   const [iptvOrgChannels, setIptvOrgChannels] = useState<
     PortalChannelWithSource[]
   >([])
+  const [iptvOrgLoading, setIptvOrgLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [epgChannels, setEpgChannels] = useState<Record<string, { name: string; logoUrl?: string; countryCode?: string }>>({})
 
@@ -198,10 +198,12 @@ export default function Home() {
     if (!iptvOrgEnabled) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIptvOrgChannels([])
+      setIptvOrgLoading(false)
       return
     }
 
     let cancelled = false
+    setIptvOrgLoading(true)
 
     fetch("/api/iptv-org")
       .then((res) => (res.ok ? res.json() : null))
@@ -220,7 +222,10 @@ export default function Home() {
           }))
         )
       })
-      .catch(() => {})
+      .catch(() => { })
+      .finally(() => {
+        if (!cancelled) setIptvOrgLoading(false)
+      })
 
     return () => {
       cancelled = true
@@ -400,13 +405,12 @@ export default function Home() {
           </div>
         ) : null}
 
-        {isLoadingPortals ? (
+        {isLoadingPortals || iptvOrgLoading ? (
           <LoadingShell />
         ) : browserChannels.length ? (
           <ChannelBrowser
             channels={filteredChannels}
             allChannels={browserChannels}
-            channelCount={browserChannels.length}
             endpoint={result?.endpoint ?? ""}
             portalRequest={previewSourceRequest}
             logoSource={logoSource}
@@ -459,7 +463,7 @@ function NoPortalsSelected({
         </div>
         {onEnableFreeChannels ? (
           <Button variant="outline" size="sm" onClick={onEnableFreeChannels}>
-            <TvIcon className="size-4" />
+            <TvIcon className="size-3.5" />
             Show free channels
           </Button>
         ) : null}
@@ -500,7 +504,6 @@ function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
 function ChannelBrowser({
   channels,
   allChannels,
-  channelCount,
   endpoint,
   portalRequest,
   logoSource,
@@ -512,7 +515,6 @@ function ChannelBrowser({
 }: {
   channels: PortalChannelWithSource[]
   allChannels: PortalChannelWithSource[]
-  channelCount: number
   endpoint: string
   portalRequest: SourceRequest
   logoSource: "provider" | "epg"
@@ -525,20 +527,48 @@ function ChannelBrowser({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
   const { favorites, toggleFavorite } = useFavorites()
-  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(() =>
-    getFavorites().size > 0 ? { type: "favorites" } : { type: "all" }
-  )
+  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>({ type: "all" })
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
 
-  const categories = useMemo(() => {
-    const seen = new Set<string>()
+  // Number of favorites that actually exist in the currently loaded list.
+  const favoriteCount = useMemo(
+    () =>
+      allChannels.reduce(
+        (count, channel) =>
+          favorites.has(getChannelKey(channel)) ? count + 1 : count,
+        0
+      ),
+    [allChannels, favorites]
+  )
+
+  // Default the filter to Favorites only when the current list actually has
+  // some, otherwise fall back to All. Reacts as channels/favorites load, and
+  // stops once the user picks a filter themselves.
+  const userChoseFilter = useRef(false)
+  useEffect(() => {
+    if (userChoseFilter.current) return
+    setBrowseFilter(favoriteCount > 0 ? { type: "favorites" } : { type: "all" })
+  }, [favoriteCount])
+
+  const chooseFilter = useCallback((filter: BrowseFilter) => {
+    userChoseFilter.current = true
+    setBrowseFilter(filter)
+  }, [])
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
     for (const channel of allChannels) {
-      seen.add(channel.genre || "Uncategorized")
+      const genre = channel.genre || "Uncategorized"
+      counts.set(genre, (counts.get(genre) ?? 0) + 1)
     }
-    return [...seen].sort((a, b) =>
+    return counts
+  }, [allChannels])
+
+  const categories = useMemo(() => {
+    return [...categoryCounts.keys()].sort((a, b) =>
       a.localeCompare(b, undefined, { sensitivity: "base" })
     )
-  }, [allChannels])
+  }, [categoryCounts])
 
   const visibleChannels = useMemo(() => {
     if (browseFilter.type === "all") {
@@ -840,7 +870,7 @@ function ChannelBrowser({
             <SearchIcon />
           </InputGroupAddon>
           <InputGroupInput
-            placeholder={`Search ${channelCount.toLocaleString()} channels`}
+            placeholder={`Search ${visibleChannels.length.toLocaleString()} channels`}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
           />
@@ -848,14 +878,14 @@ function ChannelBrowser({
         <div className="flex items-center gap-1.5">
           <Button
             {...chipButtonProps(browseFilter.type === "favorites")}
-            onClick={() => setBrowseFilter({ type: "favorites" })}
+            onClick={() => chooseFilter({ type: "favorites" })}
           >
             <StarIcon className="size-3" />
             Favorites
           </Button>
           <Button
             {...chipButtonProps(browseFilter.type === "all")}
-            onClick={() => setBrowseFilter({ type: "all" })}
+            onClick={() => chooseFilter({ type: "all" })}
           >
             <LayoutGridIcon className="size-3" />
             All
@@ -864,7 +894,7 @@ function ChannelBrowser({
             items={categories}
             value={activeCategoryGenre}
             onValueChange={(genre) => {
-              setBrowseFilter(genre ? { type: "category", genre } : { type: "all" })
+              chooseFilter(genre ? { type: "category", genre } : { type: "all" })
             }}
             open={categoryMenuOpen}
             onOpenChange={setCategoryMenuOpen}
@@ -881,7 +911,7 @@ function ChannelBrowser({
                   {activeCategoryGenre ? (
                     <CategoryVisual
                       category={activeCategoryGenre}
-                      className="size-3.5"
+                      className="size-3.5 text-current"
                     />
                   ) : null}
                   <span className="min-w-0 truncate">
@@ -907,11 +937,17 @@ function ChannelBrowser({
               </ComboboxInput>
               <ComboboxList>
                 {(genre: string) => (
-                  <ComboboxItem key={genre} value={genre}>
+                  <ComboboxItem key={genre} value={genre} className="pr-2">
                     <CategoryVisual category={genre} />
-                    <span className="min-w-0 truncate font-mono font-medium tracking-tight">
+                    <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                       {genre}
                     </span>
+                    {browseFilter.type === "category" &&
+                      browseFilter.genre === genre ? null : (
+                      <span className="ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums text-muted-foreground">
+                        {(categoryCounts.get(genre) ?? 0).toLocaleString()}
+                      </span>
+                    )}
                   </ComboboxItem>
                 )}
               </ComboboxList>
@@ -1622,18 +1658,6 @@ function uniqueGenres(channels: PortalChannel[]) {
   }
 
   return [...genres.values()]
-}
-
-function PortalHopWordmark({ className }: { className?: string }) {
-  return (
-    <div className={cn("flex items-center gap-2 text-xl", className)}>
-      <span className="font-[family-name:var(--font-montserrat)] text-xl tracking-tight">
-        <span className="font-semibold">Portal</span>
-        <span className="font-light">Hop</span>
-      </span>
-      <RabbitIcon className="size-6 text-primary brightness-75 dark:brightness-100" />
-    </div>
-  )
 }
 
 function LoadingShell() {

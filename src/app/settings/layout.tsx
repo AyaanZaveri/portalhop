@@ -2,14 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftIcon } from "lucide-react";
+import { CalendarIcon, TvIcon, WaypointsIcon } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
+import { PortalHopWordmark } from "@/components/portal-hop-wordmark";
+import { Dock, DockIcon } from "@/components/ui/dock";
 import { cn } from "@/lib/utils";
-import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop";
 
 const sections = [
-  { href: "/settings/sources", label: "Sources" },
-  { href: "/settings/ai", label: "AI Provider" },
-  { href: "/settings/epg", label: "EPG & Logos" },
+  { href: "/settings/sources", label: "Sources", short: "Sources", icon: TvIcon },
+  {
+    href: "/settings/epg",
+    label: "EPG & Logos",
+    short: "EPG",
+    icon: CalendarIcon,
+  },
+  {
+    href: "/settings/llm",
+    label: "LLM Provider",
+    short: "LLM",
+    icon: WaypointsIcon,
+  },
 ];
 
 export default function SettingsLayout({
@@ -20,44 +43,88 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col gap-6 overflow-hidden p-4 sm:p-6 lg:p-8">
-      <PrimaryMeshGradientBackdrop />
+    <SidebarProvider className="h-svh overflow-hidden">
+      <Sidebar
+        collapsible="none"
+        className="m-2 hidden h-[calc(100svh---spacing(4))] rounded-xl md:flex"
+      >
+        <SidebarHeader className="p-3">
+          <Link
+            href="/"
+            aria-label="Back to Portal Hop"
+            className="flex items-center rounded-md px-1 py-1 transition-[opacity,transform] duration-[160ms] ease-out hover:opacity-80 active:scale-[0.985]"
+          >
+            <PortalHopWordmark />
+          </Link>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5">
+                {sections.map((section) => (
+                  <SidebarMenuItem key={section.href}>
+                    <SidebarMenuButton
+                      render={<Link href={section.href} />}
+                      isActive={pathname === section.href}
+                    >
+                      <section.icon />
+                      <span>{section.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
 
-      <div className="relative z-10 flex items-center gap-3">
-        <Link
-          href="/"
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Back"
+      <SidebarInset className="overflow-y-auto">
+        {/* Logo at the top on mobile (the sidebar is hidden there). */}
+        <div className="flex justify-center px-5 pt-8 pb-2 md:hidden">
+          <Link
+            href="/"
+            aria-label="Back to Portal Hop"
+            className="inline-flex transition-[opacity,transform] duration-[160ms] ease-out hover:opacity-80 active:scale-[0.985]"
+          >
+            <PortalHopWordmark className="scale-125" />
+          </Link>
+        </div>
+        <div className="min-w-0 max-w-3xl flex-1 p-5 pb-28 sm:p-6 md:pb-8 lg:p-8">
+          {children}
+        </div>
+      </SidebarInset>
+
+      {/* Floating dock nav (mobile only). */}
+      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center p-4 md:hidden">
+        <Dock
+          className="pointer-events-auto mt-0 h-auto gap-2 rounded-full border bg-background/70 p-2 shadow-lg backdrop-blur-xl"
+          iconSize={44}
+          disableMagnification
         >
-          <ArrowLeftIcon className="size-4" />
-        </Link>
-        <h1 className="text-lg font-semibold text-foreground">Settings</h1>
-      </div>
-
-      <div className="relative z-10 flex flex-1 flex-col gap-6 sm:flex-row sm:gap-10">
-        <nav className="flex shrink-0 flex-row gap-1 overflow-x-auto sm:w-44 sm:flex-col sm:overflow-visible">
           {sections.map((section) => {
             const isActive = pathname === section.href;
-
             return (
-              <Link
+              <DockIcon
                 key={section.href}
-                href={section.href}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+                  "relative transition-[color,background-color,filter]",
                   isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    ? "bg-primary text-primary-foreground hover:bg-primary hover:brightness-90"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                {section.label}
-              </Link>
+                <Link
+                  href={section.href}
+                  aria-label={section.label}
+                  className="absolute inset-0 flex items-center justify-center rounded-full"
+                >
+                  <section.icon className="size-5 shrink-0" />
+                </Link>
+              </DockIcon>
             );
           })}
-        </nav>
-
-        <div className="min-w-0 max-w-2xl flex-1 pb-8">{children}</div>
-      </div>
-    </div>
+        </Dock>
+      </nav>
+    </SidebarProvider>
   );
 }
