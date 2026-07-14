@@ -7,6 +7,7 @@ import {
   selectSavedChannelRows,
 } from "@/db/saved-channels"
 import { selectSavedSource } from "@/db/saved-sources"
+import { requireUser } from "@/lib/session"
 import {
   buildEpgIndex,
   classifyMatch,
@@ -74,6 +75,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser()
+  if (user instanceof NextResponse) {
+    return user
+  }
+
   const { id } = await context.params
   const sourceId = Number(id)
 
@@ -91,7 +97,7 @@ export async function POST(
   const db = getDb()
   const portal = await selectSavedSource(db, sourceId)
 
-  if (!portal) {
+  if (!portal || portal.userId !== user.id) {
     return NextResponse.json({ error: "Source not found." }, { status: 404 })
   }
 

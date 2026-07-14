@@ -74,7 +74,7 @@ import {
 } from "@/components/ui/combobox"
 import { AuthDialog } from "@/components/auth-dialog"
 import { copyTextToClipboard } from "@/lib/clipboard"
-import { useFavorites } from "@/hooks/use-favorites"
+import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { getFavorites } from "@/lib/favorites"
 import { SettingsLink } from "@/components/settings-link"
 import { CategoryVisual } from "@/components/category-visual"
@@ -133,6 +133,7 @@ const defaultSourceRequest: SourceRequest = {
 }
 
 export default function Home() {
+  useFavoritesSync()
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
@@ -1583,8 +1584,9 @@ function uniqueGenres(channels: PortalChannel[]) {
 function PortalHopWordmark({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2 text-xl", className)}>
-      <span className="font-[family-name:var(--font-montserrat)] text-lg font-semibold tracking-tight">
-        PortalHop
+      <span className="font-[family-name:var(--font-montserrat)] text-xl tracking-tight">
+        <span className="font-semibold">Portal</span>
+        <span className="font-light">Hop</span>
       </span>
       <RabbitIcon className="size-6 text-primary brightness-75 dark:brightness-100" />
     </div>

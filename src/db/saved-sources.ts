@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 
 import {
   savedM3uSources,
@@ -10,7 +10,10 @@ import type { SavedSourceRecord, SourceType } from "@/lib/source-types"
 
 type Db = ReturnType<typeof import("@/db/client").getDb>
 
-export async function selectSavedSources(db: Db): Promise<SavedSourceRecord[]> {
+export async function selectSavedSources(
+  db: Db,
+  userId: string
+): Promise<SavedSourceRecord[]> {
   const rows = await db
     .select()
     .from(savedSources)
@@ -20,6 +23,7 @@ export async function selectSavedSources(db: Db): Promise<SavedSourceRecord[]> {
     )
     .leftJoin(savedXtreamSources, eq(savedXtreamSources.sourceId, savedSources.id))
     .leftJoin(savedM3uSources, eq(savedM3uSources.sourceId, savedSources.id))
+    .where(eq(savedSources.userId, userId))
     .orderBy(desc(savedSources.updatedAt))
 
   return rows.map((row) =>
@@ -34,11 +38,12 @@ export async function selectSavedSources(db: Db): Promise<SavedSourceRecord[]> {
 
 export async function deleteSavedSource(
   db: Db,
-  sourceId: number
+  sourceId: number,
+  userId: string
 ): Promise<boolean> {
   const deleted = await db
     .delete(savedSources)
-    .where(eq(savedSources.id, sourceId))
+    .where(and(eq(savedSources.id, sourceId), eq(savedSources.userId, userId)))
     .returning({ id: savedSources.id })
 
   return deleted.length > 0
@@ -80,6 +85,7 @@ function flattenSavedSource(
 ): SavedSourceRecord {
   return {
     id: source.id,
+    userId: source.userId,
     name: source.name,
     sourceType: source.sourceType as SourceType,
     channelCount: source.channelCount,

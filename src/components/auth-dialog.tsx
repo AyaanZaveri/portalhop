@@ -18,6 +18,9 @@ import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,8 +77,13 @@ function GoogleIcon() {
   )
 }
 
-function SignInContent() {
+function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
   const [isSigningIn, setIsSigningIn] = React.useState(false)
+  const [mode, setMode] = React.useState<"signIn" | "signUp">("signIn")
+  const [name, setName] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [password, setPassword] = React.useState("")
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   async function signInWithGoogle() {
     setIsSigningIn(true)
@@ -91,16 +99,56 @@ function SignInContent() {
     }
   }
 
+  async function submitEmail(event: React.FormEvent) {
+    event.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const result =
+        mode === "signUp"
+          ? await authClient.signUp.email({
+              name: name.trim() || email.split("@")[0],
+              email: email.trim(),
+              password,
+            })
+          : await authClient.signIn.email({
+              email: email.trim(),
+              password,
+            })
+
+      if (result.error) {
+        toast.error(
+          result.error.message ??
+            (mode === "signUp"
+              ? "Could not create account."
+              : "Could not sign in.")
+        )
+        return
+      }
+
+      toast.success(mode === "signUp" ? "Account created" : "Signed in")
+      onSignedIn?.()
+    } catch (error) {
+      console.error(error)
+      toast.error("Something went wrong. Try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const busy = isSigningIn || isSubmitting
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-        Sign in to sync your Portal Hop data with your Google account.
+        Sign in to sync your Portal Hop data across devices.
       </div>
+
       <Button
         type="button"
         variant="outline"
         className="w-full justify-center gap-2"
-        disabled={isSigningIn}
+        disabled={busy}
         onClick={signInWithGoogle}
       >
         {isSigningIn ? (
@@ -110,6 +158,70 @@ function SignInContent() {
         )}
         Sign in with Google
       </Button>
+
+      <div className="flex items-center gap-3">
+        <Separator className="flex-1" />
+        <span className="text-xs text-muted-foreground">or</span>
+        <Separator className="flex-1" />
+      </div>
+
+      <form className="flex flex-col gap-3" onSubmit={submitEmail}>
+        {mode === "signUp" ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="auth-name">Name</Label>
+            <Input
+              id="auth-name"
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Jane Doe"
+            />
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="auth-email">Email</Label>
+          <Input
+            id="auth-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="auth-password">Password</Label>
+          <Input
+            id="auth-password"
+            type="password"
+            autoComplete={mode === "signUp" ? "new-password" : "current-password"}
+            required
+            minLength={8}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="At least 8 characters"
+          />
+        </div>
+        <Button type="submit" className="w-full justify-center gap-2" disabled={busy}>
+          {isSubmitting ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : null}
+          {mode === "signUp" ? "Create account" : "Sign in"}
+        </Button>
+      </form>
+
+      <p className="text-center text-sm text-muted-foreground">
+        {mode === "signUp" ? "Already have an account?" : "Don't have an account?"}{" "}
+        <button
+          type="button"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+          onClick={() => setMode(mode === "signUp" ? "signIn" : "signUp")}
+        >
+          {mode === "signUp" ? "Sign in" : "Sign up"}
+        </button>
+      </p>
     </div>
   )
 }
@@ -262,6 +374,11 @@ export function AuthDialog() {
   const session = authClient.useSession()
   const user = session.data?.user
 
+  const handleSignedIn = React.useCallback(() => {
+    setOpen(false)
+    session.refetch()
+  }, [session])
+
   if (user) {
     return <AccountMenu user={user} onSignedOut={session.refetch} />
   }
@@ -284,11 +401,11 @@ export function AuthDialog() {
             <SheetHeader>
               <SheetTitle>Sign in</SheetTitle>
               <SheetDescription>
-                Continue with Google to use your account.
+                Use Google or an email and password to continue.
               </SheetDescription>
             </SheetHeader>
             <div className="px-4 pb-4">
-              <SignInContent />
+              <SignInContent onSignedIn={handleSignedIn} />
             </div>
           </SheetContent>
         </Sheet>
@@ -298,10 +415,10 @@ export function AuthDialog() {
             <DialogHeader>
               <DialogTitle>Sign in</DialogTitle>
               <DialogDescription>
-                Continue with Google to use your account.
+                Use Google or an email and password to continue.
               </DialogDescription>
             </DialogHeader>
-            <SignInContent />
+            <SignInContent onSignedIn={handleSignedIn} />
           </DialogContent>
         </Dialog>
       )}

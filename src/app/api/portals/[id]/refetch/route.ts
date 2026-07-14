@@ -5,6 +5,7 @@ import { getDb } from "@/db/client"
 import { insertSavedChannels } from "@/db/saved-channels"
 import { selectSavedSource } from "@/db/saved-sources"
 import { savedChannels, savedSources, savedStalkerSources } from "@/db/schema"
+import { requireUser } from "@/lib/session"
 import { fetchM3uChannels } from "@/lib/m3u-client"
 import {
   fetchPortalChannels,
@@ -20,6 +21,11 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser()
+  if (user instanceof NextResponse) {
+    return user
+  }
+
   const { id } = await context.params
   const sourceId = Number(id)
 
@@ -30,7 +36,7 @@ export async function POST(
   const db = getDb()
   const portal = await selectSavedSource(db, sourceId)
 
-  if (!portal) {
+  if (!portal || portal.userId !== user.id) {
     return NextResponse.json({ error: "Source not found." }, { status: 404 })
   }
 

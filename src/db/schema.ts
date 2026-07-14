@@ -77,11 +77,23 @@ export const savedPortals = pgTable("saved_portals", {
 
 export const savedSources = pgTable("saved_sources", {
   id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   sourceType: text("source_type").notNull(),
   channelCount: integer("channel_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
+})
+
+export const favorites = pgTable("favorites", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  channelKey: text("channel_key").notNull(),
+  createdAt: timestamp("created_at").notNull(),
 })
 
 export const savedStalkerSources = pgTable("saved_stalker_sources", {
@@ -216,3 +228,5 @@ export type SavedSource = typeof savedSources.$inferSelect
 export type NewSavedSource = typeof savedSources.$inferInsert
 export type SavedChannel = typeof savedChannels.$inferSelect
 export type NewSavedChannel = typeof savedChannels.$inferInsert
+export type Favorite = typeof favorites.$inferSelect
+export type NewFavorite = typeof favorites.$inferInsert

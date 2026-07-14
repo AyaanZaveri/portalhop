@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { deleteSavedSource, selectSavedSource } from "@/db/saved-sources"
 import { savedChannels } from "@/db/schema"
+import { requireUser } from "@/lib/session"
 
 export const runtime = "nodejs"
 
@@ -11,6 +12,11 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser()
+  if (user instanceof NextResponse) {
+    return user
+  }
+
   const { id } = await context.params
   const sourceId = Number(id)
 
@@ -21,7 +27,7 @@ export async function GET(
   const db = getDb()
   const portal = await selectSavedSource(db, sourceId)
 
-  if (!portal) {
+  if (!portal || portal.userId !== user.id) {
     return NextResponse.json({ error: "Source not found." }, { status: 404 })
   }
 
@@ -50,6 +56,11 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser()
+  if (user instanceof NextResponse) {
+    return user
+  }
+
   const { id } = await context.params
   const sourceId = Number(id)
 
@@ -58,7 +69,7 @@ export async function DELETE(
   }
 
   const db = getDb()
-  const deleted = await deleteSavedSource(db, sourceId)
+  const deleted = await deleteSavedSource(db, sourceId, user.id)
 
   if (!deleted) {
     return NextResponse.json({ error: "Source not found." }, { status: 404 })

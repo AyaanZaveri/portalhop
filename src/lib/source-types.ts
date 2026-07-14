@@ -39,6 +39,7 @@ export type SourceResponse = {
 
 export type SavedSourceRecord = {
   id: number
+  userId: string
   name: string
   sourceType: SourceType
   channelCount: number

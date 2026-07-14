@@ -10,18 +10,29 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
+import { requireUser } from "@/lib/session"
 import type { SourceType } from "@/lib/source-types"
 import type { PortalChannel } from "@/lib/stalker-types"
 
 export const runtime = "nodejs"
 
 export async function GET() {
-  const portals = await selectSavedSources(getDb())
+  const user = await requireUser()
+  if (user instanceof NextResponse) {
+    return user
+  }
+
+  const portals = await selectSavedSources(getDb(), user.id)
 
   return NextResponse.json({ portals })
 }
 
 export async function POST(request: Request) {
+  const user = await requireUser()
+  if (user instanceof NextResponse) {
+    return user
+  }
+
   const body = await request.json().catch(() => null)
 
   if (!body || typeof body !== "object") {
@@ -77,6 +88,7 @@ export async function POST(request: Request) {
     const [source] = await tx
       .insert(savedSources)
       .values({
+        userId: user.id,
         name,
         sourceType,
         channelCount: channels.length || safeNumber(body.channelCount),
