@@ -604,6 +604,42 @@ function ChannelBrowser({
 
     let removeHlsListeners: (() => void) | undefined
     let intervalId: number | undefined
+    let rvfcId: number | undefined
+    let hasManifestFrameRate = false
+    let frameTimestamps: number[] = []
+
+    const estimateFrameRate: VideoFrameRequestCallback = (_now, metadata) => {
+      if (!hasManifestFrameRate) {
+        frameTimestamps.push(metadata.mediaTime)
+
+        const windowStart = metadata.mediaTime - 1.5
+        frameTimestamps = frameTimestamps.filter((time) => time >= windowStart)
+
+        if (frameTimestamps.length >= 20) {
+          const elapsed =
+            frameTimestamps[frameTimestamps.length - 1] - frameTimestamps[0]
+
+          if (elapsed > 0) {
+            const estimatedFrameRate = (frameTimestamps.length - 1) / elapsed
+
+            setStreamVariant((current) =>
+              current.frameRateLabel
+                ? current
+                : {
+                    ...current,
+                    frameRateLabel: formatFrameRateLabel(estimatedFrameRate),
+                  }
+            )
+          }
+        }
+      }
+
+      rvfcId = playerElement.requestVideoFrameCallback(estimateFrameRate)
+    }
+
+    if (typeof playerElement.requestVideoFrameCallback === "function") {
+      rvfcId = playerElement.requestVideoFrameCallback(estimateFrameRate)
+    }
 
     const updateFromNativeVideo = () => {
       setStreamVariant((current) => {
@@ -635,7 +671,16 @@ function ChannelBrowser({
           currentLevelIndex >= 0 ? hls.levels[currentLevelIndex] : undefined
 
         if (level) {
-          setStreamVariant(formatStreamVariant(level))
+          const next = formatStreamVariant(level)
+
+          if (next.frameRateLabel) {
+            hasManifestFrameRate = true
+          }
+
+          setStreamVariant((current) => ({
+            resolutionLabel: next.resolutionLabel || current.resolutionLabel,
+            frameRateLabel: next.frameRateLabel || current.frameRateLabel,
+          }))
         }
       }
 
@@ -678,6 +723,10 @@ function ChannelBrowser({
     return () => {
       if (intervalId) {
         window.clearInterval(intervalId)
+      }
+
+      if (rvfcId !== undefined) {
+        playerElement.cancelVideoFrameCallback(rvfcId)
       }
 
       playerElement.removeEventListener("loadedmetadata", updateFromNativeVideo)
