@@ -1,10 +1,11 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertCircleIcon,
   ArrowRightIcon,
+  CableIcon,
   ClipboardPasteIcon,
   Loader2Icon,
   SaveIcon,
@@ -24,7 +25,6 @@ import {
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -83,6 +83,25 @@ const initialConnectionForm: ConnectionFormState = {
   playlistUrl: "",
 }
 
+function formFromPortal(portal: SavedSourceRecord): ConnectionFormState {
+  return {
+    sourceType: portal.sourceType,
+    portalUrl: portal.portalUrl ?? "",
+    mac: portal.mac ?? "",
+    serial: portal.serial ?? "",
+    deviceId: portal.deviceId ?? "",
+    deviceId2: portal.deviceId2 ?? "",
+    signature: portal.signature ?? "",
+    timezone: portal.timezone || "America/Toronto",
+    stbType: portal.stbType || "MAG254",
+    serverUrl: portal.serverUrl ?? "",
+    username: portal.username ?? "",
+    password: portal.password ?? "",
+    outputFormat: portal.outputFormat || "m3u8",
+    playlistUrl: portal.playlistUrl ?? "",
+  }
+}
+
 function toSourceRequest(form: ConnectionFormState): SourceRequest {
   if (form.sourceType === "xtream") {
     return {
@@ -119,6 +138,8 @@ export function AddPortalSheet({
   onOpenChange,
   onSaved,
   onView,
+  editingPortal = null,
+  onUpdated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -128,6 +149,13 @@ export function AddPortalSheet({
     request: SourceRequest
   ) => void
   onView?: (result: PortalResponse, request: SourceRequest) => void
+  /** When set, the sheet edits this source in place instead of creating a new one. */
+  editingPortal?: SavedSourceRecord | null
+  onUpdated?: (
+    portal: SavedSourceRecord,
+    result: PortalResponse,
+    request: SourceRequest
+  ) => void
 }) {
   const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
     useAiSettings()
@@ -143,6 +171,17 @@ export function AddPortalSheet({
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importText, setImportText] = useState("")
   const [isImportingPortal, setIsImportingPortal] = useState(false)
+
+  // Seed the form from the source being edited each time the sheet opens, and
+  // clear any previous test result so Save always reflects a fresh Test.
+  useEffect(() => {
+    if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTestResult(null)
+    setError("")
+    setDetails([])
+    setForm(editingPortal ? formFromPortal(editingPortal) : initialConnectionForm)
+  }, [open, editingPortal])
 
   const portalRequest = toSourceRequest(form)
 
@@ -282,27 +321,40 @@ export function AddPortalSheet({
     setIsSavingPortal(true)
     setSaveError("")
 
-    const response = await fetch("/api/portals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...portalRequest,
-        name,
-        endpoint: testResult.endpoint,
-        channelCount: testResult.channels.length,
-        channels: testResult.channels,
-      }),
-    })
+    const response = await fetch(
+      editingPortal ? `/api/portals/${editingPortal.id}` : "/api/portals",
+      {
+        method: editingPortal ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...portalRequest,
+          name,
+          endpoint: testResult.endpoint,
+          channelCount: testResult.channels.length,
+          channels: testResult.channels,
+        }),
+      }
+    )
     const data = await response.json().catch(() => ({}))
     setIsSavingPortal(false)
 
     if (!response.ok) {
-      setSaveError(data.error || "Could not save this portal.")
+      setSaveError(
+        data.error ||
+          (editingPortal
+            ? "Could not update this source."
+            : "Could not save this portal.")
+      )
       return
     }
 
     if (data.portal) {
-      onSaved(data.portal as SavedSourceRecord, testResult, portalRequest)
+      const portal = data.portal as SavedSourceRecord
+      if (editingPortal) {
+        ;(onUpdated ?? onSaved)(portal, testResult, portalRequest)
+      } else {
+        onSaved(portal, testResult, portalRequest)
+      }
     }
 
     setPortalName("")
@@ -326,10 +378,10 @@ export function AddPortalSheet({
         <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
           <SheetHeader>
             <div className="flex min-w-0 flex-col gap-0.5 pr-8">
-              <SheetTitle>Connection</SheetTitle>
-              <SheetDescription>
-                Enter the Stalker portal URL and your device identity details below.
-              </SheetDescription>
+              <SheetTitle className="flex items-center gap-1.5">
+                <CableIcon className="size-4 text-primary brightness-75 dark:brightness-100" />
+                {editingPortal ? "Edit connection" : "Connection"}
+              </SheetTitle>
             </div>
           </SheetHeader>
 
@@ -475,13 +527,22 @@ export function AddPortalSheet({
                           value={form.password}
                           onChange={(value) => updateField("password", value)}
                         />
-                        <SimpleInput
-                          id="outputFormat"
-                          label="Output format"
-                          placeholder="m3u8"
-                          value={form.outputFormat}
-                          onChange={(value) => updateField("outputFormat", value)}
-                        />
+                        <Field>
+                          <FieldLabel htmlFor="outputFormat">
+                            Output format
+                          </FieldLabel>
+                          <Tabs
+                            value={form.outputFormat}
+                            onValueChange={(value) =>
+                              updateField("outputFormat", value)
+                            }
+                          >
+                            <TabsList id="outputFormat" className="grid w-full grid-cols-2">
+                              <TabsTrigger value="m3u8" className="font-mono">m3u8</TabsTrigger>
+                              <TabsTrigger value="ts" className="font-mono">ts</TabsTrigger>
+                            </TabsList>
+                          </Tabs>
+                        </Field>
                       </>
                     ) : null}
 
@@ -534,7 +595,9 @@ export function AddPortalSheet({
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      setPortalName(testResult.profile.login || "")
+                      setPortalName(
+                        editingPortal?.name || testResult.profile.login || ""
+                      )
                       setSaveError("")
                       setSaveDialogOpen(true)
                     }}
@@ -575,9 +638,13 @@ export function AddPortalSheet({
         <DialogContent>
           <div className="flex flex-col gap-4">
             <DialogHeader>
-              <DialogTitle>Save source</DialogTitle>
+              <DialogTitle>
+                {editingPortal ? "Save changes" : "Save source"}
+              </DialogTitle>
               <DialogDescription>
-                Add a nickname for this source so you can load it later.
+                {editingPortal
+                  ? "Confirm the nickname for this source."
+                  : "Add a nickname for this source so you can load it later."}
               </DialogDescription>
             </DialogHeader>
 

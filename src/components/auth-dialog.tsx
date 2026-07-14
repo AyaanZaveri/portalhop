@@ -156,7 +156,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
 
       <form className="flex flex-col gap-3" onSubmit={submitEmail}>
         {mode === "signUp" ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2.5">
             <Label htmlFor="auth-name">Name</Label>
             <Input
               id="auth-name"
@@ -168,7 +168,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
             />
           </div>
         ) : null}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2.5">
           <Label htmlFor="auth-email">Email</Label>
           <Input
             id="auth-email"
@@ -180,7 +180,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
             placeholder="you@example.com"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2.5">
           <Label htmlFor="auth-password">Password</Label>
           <Input
             id="auth-password"

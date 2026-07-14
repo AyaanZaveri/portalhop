@@ -10,9 +10,14 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
+import {
+  nullableString,
+  readChannels,
+  readSourceType,
+  safeNumber,
+  stringValue,
+} from "@/lib/portal-form-utils"
 import { requireUser } from "@/lib/session"
-import type { SourceType } from "@/lib/source-types"
-import type { PortalChannel } from "@/lib/stalker-types"
 
 export const runtime = "nodejs"
 
@@ -81,9 +86,7 @@ export async function POST(request: Request) {
 
   const now = new Date()
   const db = getDb()
-  const channels = Array.isArray(body.channels)
-    ? (body.channels as unknown[]).map(readChannel).filter(isPortalChannel)
-    : []
+  const channels = readChannels(body.channels)
   const portal = await db.transaction(async (tx) => {
     const [source] = await tx
       .insert(savedSources)
@@ -158,50 +161,4 @@ export async function POST(request: Request) {
   })
 
   return NextResponse.json({ portal }, { status: 201 })
-}
-
-function readSourceType(value: unknown): SourceType {
-  return value === "xtream" || value === "m3u" ? value : "stalker"
-}
-
-function stringValue(value: unknown) {
-  if (value === null || value === undefined) {
-    return ""
-  }
-
-  return String(value)
-}
-
-function nullableString(value: unknown) {
-  const text = stringValue(value).trim()
-  return text || null
-}
-
-function safeNumber(value: unknown) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : 0
-}
-
-function readChannel(value: unknown): PortalChannel | null {
-  if (!value || typeof value !== "object") {
-    return null
-  }
-
-  const channel = value as Record<string, unknown>
-
-  return {
-    id: stringValue(channel.id),
-    xmltvId: stringValue(channel.xmltvId),
-    number: stringValue(channel.number),
-    name: stringValue(channel.name),
-    genreId: stringValue(channel.genreId),
-    genre: stringValue(channel.genre),
-    cmd: stringValue(channel.cmd),
-    logo: stringValue(channel.logo),
-    logoUrl: stringValue(channel.logoUrl),
-  }
-}
-
-function isPortalChannel(value: PortalChannel | null): value is PortalChannel {
-  return Boolean(value)
 }

@@ -5,8 +5,10 @@ import {
   CopyIcon,
   Loader2Icon,
   MoreHorizontalIcon,
+  PencilIcon,
   PlusIcon,
   RefreshCwIcon,
+  SquarePenIcon,
   Trash2Icon,
   TvIcon,
   WaypointsIcon,
@@ -18,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -29,6 +32,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { copyTextToClipboard } from "@/lib/clipboard";
@@ -134,6 +151,13 @@ export default function SourcesSettingsPage() {
   >(null);
   const [portalPendingDelete, setPortalPendingDelete] =
     React.useState<SavedPortalRecord | null>(null);
+  const [editingPortal, setEditingPortal] =
+    React.useState<SavedPortalRecord | null>(null);
+  const [portalPendingRename, setPortalPendingRename] =
+    React.useState<SavedPortalRecord | null>(null);
+  const [renameValue, setRenameValue] = React.useState("");
+  const [renameError, setRenameError] = React.useState("");
+  const [isRenamingPortal, setIsRenamingPortal] = React.useState(false);
   const { settings: aiSettings } = useAiSettings();
 
   function handleUseProxyChange(nextUseProxy: boolean) {
@@ -422,17 +446,143 @@ export default function SourcesSettingsPage() {
     }
   }
 
+  async function handleRenamePortal() {
+    if (!portalPendingRename) return;
+
+    const name = renameValue.trim();
+
+    if (!name) {
+      setRenameError("Enter a nickname.");
+      return;
+    }
+
+    setIsRenamingPortal(true);
+    setRenameError("");
+
+    try {
+      const response = await fetch(
+        `/api/portals/${portalPendingRename.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setRenameError(data.error || "Could not rename this source.");
+        return;
+      }
+
+      if (data.portal) {
+        setSavedPortals((current) =>
+          current.map((item) =>
+            item.id === portalPendingRename.id
+              ? { ...item, name: data.portal.name }
+              : item
+          )
+        );
+      }
+
+      toast.success("Source renamed", { description: name });
+      setPortalPendingRename(null);
+    } catch {
+      setRenameError("Could not rename this source.");
+    } finally {
+      setIsRenamingPortal(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <AddPortalSheet
         open={addSourceOpen}
-        onOpenChange={setAddSourceOpen}
+        onOpenChange={(nextOpen) => {
+          setAddSourceOpen(nextOpen);
+          if (!nextOpen) setEditingPortal(null);
+        }}
+        editingPortal={editingPortal}
         onSaved={(portal) => {
           setSavedPortals((current) => [portal, ...current]);
+        }}
+        onUpdated={(portal) => {
+          setSavedPortals((current) =>
+            current.map((item) => (item.id === portal.id ? portal : item))
+          );
         }}
       />
 
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} hideTrigger />
+
+      <Dialog
+        open={portalPendingRename !== null}
+        onOpenChange={(open) => {
+          if (!open) setPortalPendingRename(null);
+        }}
+      >
+        <DialogContent>
+          <div className="flex flex-col gap-4">
+            <DialogHeader>
+              <DialogTitle>Rename source</DialogTitle>
+              <DialogDescription>
+                Choose a new nickname for &quot;{portalPendingRename?.name}
+                &quot;.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Field data-invalid={Boolean(renameError)}>
+              <FieldLabel htmlFor="renamePortal">Nickname</FieldLabel>
+              <InputGroup>
+                <InputGroupAddon align="inline-start">
+                  <TvIcon />
+                </InputGroupAddon>
+                <InputGroupInput
+                  id="renamePortal"
+                  placeholder="Living room IPTV"
+                  value={renameValue}
+                  aria-invalid={Boolean(renameError)}
+                  onChange={(event) => {
+                    setRenameValue(event.target.value);
+                    setRenameError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleRenamePortal();
+                    }
+                  }}
+                />
+              </InputGroup>
+              {renameError ? (
+                <FieldDescription>{renameError}</FieldDescription>
+              ) : null}
+            </Field>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPortalPendingRename(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={isRenamingPortal}
+                onClick={handleRenamePortal}
+              >
+                {isRenamingPortal ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PencilIcon className="size-4" />
+                )}
+                Rename
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={portalPendingDelete !== null}
@@ -473,9 +623,14 @@ export default function SourcesSettingsPage() {
           type="button"
           size="sm"
           className="flex items-center justify-center gap-1.5 rounded-md"
-          onClick={() =>
-            userId ? setAddSourceOpen(true) : setAuthOpen(true)
-          }
+          onClick={() => {
+            if (!userId) {
+              setAuthOpen(true);
+              return;
+            }
+            setEditingPortal(null);
+            setAddSourceOpen(true);
+          }}
         >
           <PlusIcon className="size-4" />
           Add Source
@@ -546,7 +701,7 @@ export default function SourcesSettingsPage() {
             ) : null}
           </div>
           {savedPortals.length ? (
-            <div className="flex flex-col divide-y divide-border/60">
+            <div className="flex flex-col">
               {savedPortals.map((portal) => {
                 const isActive = activePortalIds.includes(portal.id);
 
@@ -559,7 +714,16 @@ export default function SourcesSettingsPage() {
                 return (
                   <div
                     key={portal.id}
-                    className="group/source flex items-center gap-3 px-1 py-3"
+                    role="button"
+                    tabIndex={0}
+                    className="group/source -mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 outline-none hover:bg-accent/50 focus-visible:bg-accent/50"
+                    onClick={() => handleCheckedChange(portal, !isActive)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleCheckedChange(portal, !isActive);
+                      }
+                    }}
                   >
                     <div
                       className={cn(
@@ -571,11 +735,7 @@ export default function SourcesSettingsPage() {
                     >
                       {portal.name.charAt(0).toUpperCase()}
                     </div>
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
-                      onClick={() => handleCheckedChange(portal, !isActive)}
-                    >
+                    <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
                       <span className="w-full truncate text-sm font-medium">
                         {portal.name}
                       </span>
@@ -583,62 +743,86 @@ export default function SourcesSettingsPage() {
                         {sourceTypeLabel(portal.sourceType)} ·{" "}
                         {portal.channelCount.toLocaleString()} channels
                       </span>
-                    </button>
+                    </div>
                     <Switch
                       checked={isActive}
                       onCheckedChange={(checked) =>
                         handleCheckedChange(portal, checked)
                       }
+                      onClick={(event) => event.stopPropagation()}
                       aria-label={`Toggle ${portal.name}`}
                     />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled={isBusy}
-                            aria-label={`More actions for ${portal.name}`}
-                          >
-                            {isBusy ? (
-                              <Loader2Icon className="size-4 animate-spin" />
-                            ) : (
-                              <MoreHorizontalIcon className="size-4" />
-                            )}
-                          </Button>
-                        }
-                      />
-                      <DropdownMenuContent align="end" className="w-52! shadow-2xl shadow-primary/15">
-                        {portal.sourceType === "stalker" ? (
+                    <div onClick={(event) => event.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={isBusy}
+                              aria-label={`More actions for ${portal.name}`}
+                            >
+                              {isBusy ? (
+                                <Loader2Icon className="size-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontalIcon className="size-4" />
+                              )}
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end" className="w-52! shadow-2xl shadow-primary/15">
                           <DropdownMenuItem
-                            onClick={() => handleCopyPlaylist(portal)}
+                            onClick={() => {
+                              setEditingPortal(portal);
+                              setAddSourceOpen(true);
+                            }}
                           >
-                            <CopyIcon className="size-4" />
-                            Copy M3U Plus URL
+                            <SquarePenIcon className="size-4" />
+                            Edit connection
                           </DropdownMenuItem>
-                        ) : null}
-                        <DropdownMenuItem
-                          onClick={() => handleRefetchPortal(portal)}
-                        >
-                          <RefreshCwIcon className="size-4" />
-                          Refetch source
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleEnrichPortal(portal)}
-                        >
-                          <WaypointsIcon className="size-4" />
-                          Auto-match guide
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => setPortalPendingDelete(portal)}
-                        >
-                          <Trash2Icon className="size-4" />
-                          Delete source
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setRenameValue(portal.name);
+                              setRenameError("");
+                              setPortalPendingRename(portal);
+                            }}
+                          >
+                            <PencilIcon className="size-4" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {portal.sourceType === "stalker" ? (
+                            <DropdownMenuItem
+                              onClick={() => handleCopyPlaylist(portal)}
+                            >
+                              <CopyIcon className="size-4" />
+                              Copy <span className="font-mono font-medium tracking-tight">m3u_plus</span> URL
+                            </DropdownMenuItem>
+                          ) : null}
+                          <DropdownMenuItem
+                            onClick={() => handleRefetchPortal(portal)}
+                          >
+                            <RefreshCwIcon className="size-4" />
+                            Refetch source
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleEnrichPortal(portal)}
+                          >
+                            <WaypointsIcon className="size-4" />
+                            Auto-match guide
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setPortalPendingDelete(portal)}
+                          >
+                            <Trash2Icon className="size-4" />
+                            Delete source
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 );
               })}
