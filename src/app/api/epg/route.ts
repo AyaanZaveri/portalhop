@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { EPG_SOURCES } from "@/lib/epg-sources";
 import { fetchAndParseEpg } from "@/lib/epg-parser";
-import { saveEpgChannels, saveEpgManifest, getEpgManifest } from "@/lib/epg-store";
+import { saveEpgChannels, getEpgManifest } from "@/lib/epg-store";
+
+export const runtime = "nodejs";
 
 export async function GET() {
   try {
@@ -13,61 +15,55 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+/**
+ * Refreshes a single country, given `{ code: "US" }`.
+ *
+ * Deliberately scoped to one country per request: fetching and gunzipping all
+ * ~78 XMLTV feeds takes minutes and cannot fit in a serverless function's
+ * timeout. Callers drive the full refresh by looping over EPG_SOURCES, which
+ * also gives them real progress to display.
+ */
+export async function POST(request: Request) {
+  let code: string;
+
   try {
-    const activeCountries: { code: string; count: number }[] = [];
+    const body = await request.json();
+    code = String(body?.code ?? "").trim().toUpperCase();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
 
-    // Helper to process a source
-    const processSource = async (source: typeof EPG_SOURCES[0]) => {
-      console.log(`Fetching EPG for ${source.name} (${source.code})...`);
-      try {
-        const channels = await fetchAndParseEpg(source.url);
-        if (channels.length > 0) {
-          await saveEpgChannels(source.code, channels);
-          activeCountries.push({
-            code: source.code,
-            count: channels.length,
-          });
-        }
-        console.log(`Success ${source.name}: ${channels.length} channels`);
-      } catch (err) {
-        console.error(`Failed to fetch/parse EPG for ${source.name}:`, err);
-      }
-    };
+  if (!code) {
+    return NextResponse.json(
+      { error: "A country code is required." },
+      { status: 400 }
+    );
+  }
 
-    // Process sources 3-at-a-time
-    const limit = 3;
-    const items = [...EPG_SOURCES];
-    const promises: Promise<void>[] = [];
-    let index = 0;
+  const source = EPG_SOURCES.find((item) => item.code.toUpperCase() === code);
 
-    const runNext = async (): Promise<void> => {
-      if (index >= items.length) return;
-      const currentIndex = index++;
-      const item = items[currentIndex];
-      await processSource(item);
-      await runNext();
-    };
+  if (!source) {
+    return NextResponse.json(
+      { error: `Unknown EPG country code: ${code}` },
+      { status: 404 }
+    );
+  }
 
-    for (let i = 0; i < Math.min(limit, items.length); i++) {
-      promises.push(runNext());
+  try {
+    const channels = await fetchAndParseEpg(source.url);
+
+    if (!channels.length) {
+      return NextResponse.json(
+        { error: `${source.name} returned no channels.` },
+        { status: 502 }
+      );
     }
 
-    await Promise.all(promises);
+    const count = await saveEpgChannels(source.code, channels);
 
-    // Sort active countries by code alphabetically
-    activeCountries.sort((a, b) => a.code.localeCompare(b.code));
-
-    const manifest = {
-      lastFetchedAt: Date.now(),
-      countries: activeCountries,
-    };
-
-    await saveEpgManifest(manifest);
-
-    return NextResponse.json(manifest);
+    return NextResponse.json({ code: source.code, name: source.name, count });
   } catch (error: unknown) {
-    console.error("EPG Refetch failed:", error);
+    console.error(`EPG refresh failed for ${source.name}:`, error);
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
   }

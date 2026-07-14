@@ -1,8 +1,10 @@
-import fs from "fs/promises";
-import path from "path";
-import { EPG_SOURCES } from "@/lib/epg-sources";
+import { desc, eq, inArray, or } from "drizzle-orm";
 
-const DATA_DIR = path.join(process.cwd(), "data", "epg");
+import { getDb } from "@/db/client";
+import { epgChannels, epgCountries } from "@/db/schema";
+import type { NewEpgChannelRow } from "@/db/schema";
+import { EPG_SOURCES } from "@/lib/epg-sources";
+import type { EpgChannel } from "@/lib/epg-parser";
 
 export interface EpgManifest {
   lastFetchedAt: number | null;
@@ -12,53 +14,103 @@ export interface EpgManifest {
   }[];
 }
 
-export async function ensureEpgDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
+// Postgres caps a statement at 65535 bind params; each row binds 6 columns, so
+// stay well under that per insert.
+const INSERT_CHUNK_SIZE = 1000;
 
-export async function saveEpgChannels(countryCode: string, channels: import("./epg-parser").EpgChannel[]) {
-  await ensureEpgDir();
-  const filePath = path.join(DATA_DIR, `${countryCode.toLowerCase()}.json`);
-  await fs.writeFile(filePath, JSON.stringify(channels, null, 2), "utf-8");
-}
+export async function saveEpgChannels(
+  countryCode: string,
+  channels: EpgChannel[]
+) {
+  const db = getDb();
+  const code = countryCode.toUpperCase();
+  const fetchedAt = new Date();
 
-export async function saveEpgManifest(manifest: EpgManifest) {
-  await ensureEpgDir();
-  const filePath = path.join(DATA_DIR, "manifest.json");
-  await fs.writeFile(filePath, JSON.stringify(manifest, null, 2), "utf-8");
+  // A single XMLTV file can repeat a channel id; the composite primary key
+  // would reject the batch, so keep the first occurrence of each.
+  const deduped = new Map<string, EpgChannel>();
+  for (const channel of channels) {
+    if (channel.id && !deduped.has(channel.id)) {
+      deduped.set(channel.id, channel);
+    }
+  }
+
+  const rows: NewEpgChannelRow[] = [...deduped.values()].map((channel) => ({
+    countryCode: code,
+    channelId: channel.id,
+    name: channel.name,
+    logoUrl: channel.logoUrl ?? null,
+    channelIdLower: channel.id.trim().toLowerCase(),
+    nameNormalized: normalizeChannelName(channel.name),
+  }));
+
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(epgCountries)
+      .values({ code, channelCount: rows.length, fetchedAt })
+      .onConflictDoUpdate({
+        target: epgCountries.code,
+        set: { channelCount: rows.length, fetchedAt },
+      });
+
+    // Replace the country wholesale so channels dropped upstream disappear here.
+    await tx.delete(epgChannels).where(eq(epgChannels.countryCode, code));
+
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+      await tx.insert(epgChannels).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
+    }
+  });
+
+  return rows.length;
 }
 
 export async function getEpgManifest(): Promise<EpgManifest> {
-  await ensureEpgDir();
-  const filePath = path.join(DATA_DIR, "manifest.json");
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(epgCountries)
+    .orderBy(desc(epgCountries.fetchedAt));
+
+  if (!rows.length) {
     return { lastFetchedAt: null, countries: [] };
   }
+
+  // Countries refresh independently now, so "last updated" is the most recent
+  // country refresh rather than the end of one big all-countries run.
+  const lastFetchedAt = rows[0].fetchedAt.getTime();
+
+  return {
+    lastFetchedAt,
+    countries: rows
+      .map((row) => ({ code: row.code, count: row.channelCount }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
+  };
 }
 
-export async function getEpgChannels(): Promise<Record<string, { name: string; logoUrl?: string; countryCode: string }>> {
-  await ensureEpgDir();
-  const manifest = await getEpgManifest();
-  const merged: Record<string, { name: string; logoUrl?: string; countryCode: string }> = {};
+export async function getEpgChannels(): Promise<
+  Record<string, { name: string; logoUrl?: string; countryCode: string }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      channelIdLower: epgChannels.channelIdLower,
+      name: epgChannels.name,
+      logoUrl: epgChannels.logoUrl,
+      countryCode: epgChannels.countryCode,
+    })
+    .from(epgChannels);
 
-  for (const country of manifest.countries) {
-    const filePath = path.join(DATA_DIR, `${country.code.toLowerCase()}.json`);
-    try {
-      const data = await fs.readFile(filePath, "utf-8");
-      const channels = JSON.parse(data);
-      for (const ch of channels) {
-        merged[ch.id.toLowerCase()] = {
-          name: ch.name,
-          logoUrl: ch.logoUrl,
-          countryCode: country.code,
-        };
-      }
-    } catch (e: unknown) {
-      console.error(`Failed to read EPG file for ${country.code}:`, e instanceof Error ? e.message : String(e));
-    }
+  const merged: Record<
+    string,
+    { name: string; logoUrl?: string; countryCode: string }
+  > = {};
+
+  for (const row of rows) {
+    merged[row.channelIdLower] = {
+      name: row.name,
+      logoUrl: row.logoUrl ?? undefined,
+      countryCode: row.countryCode,
+    };
   }
 
   return merged;
@@ -67,60 +119,53 @@ export async function getEpgChannels(): Promise<Record<string, { name: string; l
 export async function findEpgSourceForChannel(
   candidates: { id?: string; name?: string }[]
 ) {
-  await ensureEpgDir();
-  const manifest = await getEpgManifest();
-  const normalizedCandidates = candidates
-    .map((candidate) => ({
-      id: candidate.id?.trim().toLowerCase() ?? "",
-      name: normalizeChannelName(candidate.name ?? ""),
-    }))
-    .filter((candidate) => candidate.id || candidate.name);
+  const ids = new Set<string>();
+  const names = new Set<string>();
 
-  for (const country of manifest.countries) {
-    const filePath = path.join(DATA_DIR, `${country.code.toLowerCase()}.json`);
-
-    try {
-      const data = await fs.readFile(filePath, "utf-8");
-      const channels = JSON.parse(data) as import("./epg-parser").EpgChannel[];
-
-      for (const channel of channels) {
-        const channelId = channel.id.toLowerCase();
-        const channelName = normalizeChannelName(channel.name);
-        const match = normalizedCandidates.find(
-          (candidate) =>
-            (candidate.id && candidate.id === channelId) ||
-            (candidate.name && candidate.name === channelName)
-        );
-
-        if (match) {
-          const source = EPG_SOURCES.find(
-            (item) => item.code.toLowerCase() === country.code.toLowerCase()
-          );
-
-          if (source) {
-            return {
-              source,
-              channelId: channel.id,
-            };
-          }
-        }
-      }
-    } catch (e: unknown) {
-      console.error(
-        `Failed to read EPG file for ${country.code}:`,
-        e instanceof Error ? e.message : String(e)
-      );
-    }
+  for (const candidate of candidates) {
+    const id = candidate.id?.trim().toLowerCase();
+    const name = normalizeChannelName(candidate.name ?? "");
+    if (id) ids.add(id);
+    if (name) names.add(name);
   }
 
-  return null;
-}
+  if (!ids.size && !names.size) {
+    return null;
+  }
 
-export async function isEpgStale(): Promise<boolean> {
-  const manifest = await getEpgManifest();
-  if (!manifest.lastFetchedAt) return true;
-  const sixHoursMs = 6 * 60 * 60 * 1000;
-  return Date.now() - manifest.lastFetchedAt > sixHoursMs;
+  const db = getDb();
+  const filters = [
+    ids.size ? inArray(epgChannels.channelIdLower, [...ids]) : undefined,
+    names.size ? inArray(epgChannels.nameNormalized, [...names]) : undefined,
+  ].filter((filter) => filter !== undefined);
+
+  const matches = await db
+    .select({
+      channelId: epgChannels.channelId,
+      channelIdLower: epgChannels.channelIdLower,
+      countryCode: epgChannels.countryCode,
+    })
+    .from(epgChannels)
+    .where(filters.length === 1 ? filters[0] : or(...filters))
+    .limit(50);
+
+  if (!matches.length) {
+    return null;
+  }
+
+  // An id match is exact; a name match is fuzzy. Prefer the former.
+  const best =
+    matches.find((match) => ids.has(match.channelIdLower)) ?? matches[0];
+
+  const source = EPG_SOURCES.find(
+    (item) => item.code.toLowerCase() === best.countryCode.toLowerCase()
+  );
+
+  if (!source) {
+    return null;
+  }
+
+  return { source, channelId: best.channelId };
 }
 
 function normalizeChannelName(value: string) {

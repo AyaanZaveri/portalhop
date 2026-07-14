@@ -1,9 +1,11 @@
 import { relations } from "drizzle-orm"
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -166,6 +168,36 @@ export const savedChannels = pgTable("saved_channels", {
   updatedAt: timestamp("updated_at").notNull(),
 })
 
+// The iptv-epg.org channel directory. Public, global, identical for every user —
+// a shared cache of a public dataset rather than user data. Refreshed one country
+// at a time so each write fits inside a serverless request.
+export const epgCountries = pgTable("epg_countries", {
+  code: text("code").primaryKey(),
+  channelCount: integer("channel_count").notNull().default(0),
+  fetchedAt: timestamp("fetched_at").notNull(),
+})
+
+export const epgChannels = pgTable(
+  "epg_channels",
+  {
+    countryCode: text("country_code")
+      .notNull()
+      .references(() => epgCountries.code, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    name: text("name").notNull(),
+    logoUrl: text("logo_url"),
+    // Precomputed match keys so channel lookups are an indexed equality probe
+    // instead of a full scan + normalize of every row.
+    channelIdLower: text("channel_id_lower").notNull(),
+    nameNormalized: text("name_normalized").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.countryCode, table.channelId] }),
+    index("epg_channels_channel_id_lower_idx").on(table.channelIdLower),
+    index("epg_channels_name_normalized_idx").on(table.nameNormalized),
+  ]
+)
+
 export const savedPortalsRelations = relations(savedPortals, ({ many }) => ({
   channels: many(savedChannels),
 }))
@@ -247,3 +279,7 @@ export type Favorite = typeof favorites.$inferSelect
 export type NewFavorite = typeof favorites.$inferInsert
 export type UserSettings = typeof userSettings.$inferSelect
 export type NewUserSettings = typeof userSettings.$inferInsert
+export type EpgCountry = typeof epgCountries.$inferSelect
+export type NewEpgCountry = typeof epgCountries.$inferInsert
+export type EpgChannelRow = typeof epgChannels.$inferSelect
+export type NewEpgChannelRow = typeof epgChannels.$inferInsert

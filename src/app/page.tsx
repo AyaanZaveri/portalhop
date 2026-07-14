@@ -82,7 +82,6 @@ import {
 import { SettingsLink } from "@/components/settings-link"
 import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
-import type { EpgManifest } from "@/lib/epg-store"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { cn } from "@/lib/utils"
@@ -113,9 +112,9 @@ type StreamVariant = {
   frameRateLabel: string
 }
 
-const proxyManifestUrl =
-  "https://nidhug95-mediaflow-proxy.hf.space/proxy/hls/manifest.m3u8"
-const proxyApiPassword = "Nidhugxd123."
+const proxyBaseUrl =
+  process.env.NEXT_PUBLIC_PROXY_URL
+const proxyManifestUrl = `${proxyBaseUrl}/proxy/hls/manifest.m3u8`
 
 const defaultSourceRequest: SourceRequest = {
   sourceType: "stalker",
@@ -159,33 +158,9 @@ export default function Home() {
 
 
 
+  // Refreshing the EPG directory is a batch job over ~78 country feeds, so it is
+  // driven from Settings → EPG rather than kicked off on page load.
   useEffect(() => {
-
-    async function initEpg() {
-      try {
-        const res = await fetch("/api/epg")
-        if (!res.ok) throw new Error("Failed to fetch manifest")
-        const manifest: EpgManifest = await res.json()
-
-        const isStale = !manifest.lastFetchedAt || (Date.now() - manifest.lastFetchedAt > 6 * 60 * 60 * 1000)
-        const isEmpty = manifest.countries.length === 0
-
-        if (isStale || isEmpty) {
-          console.log("EPG data is stale or empty. Triggering background refetch...")
-          fetch("/api/epg", { method: "POST" })
-            .then(async (postRes) => {
-              if (postRes.ok) {
-                fetchEpgChannels()
-              }
-            })
-            .catch((err) => console.error("Background EPG refetch failed:", err))
-        }
-      } catch (err) {
-        console.error("Failed to initialize EPG:", err)
-      }
-    }
-
-    initEpg()
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEpgChannels()
   }, [fetchEpgChannels])
@@ -1369,7 +1344,6 @@ function proxyStreamUrl(streamUrl: string) {
   const url = new URL(proxyManifestUrl)
 
   url.searchParams.set("d", streamUrl)
-  url.searchParams.set("api_password", proxyApiPassword)
 
   return url.href
 }

@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "next-themes";
 import type { EpgManifest } from "@/lib/epg-store";
+import { EPG_SOURCES } from "@/lib/epg-sources";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { SettingsHeader } from "@/components/settings-header";
+
+const REFRESH_CONCURRENCY = 3;
 
 export default function EpgAndLogosSettingsPage() {
   const { resolvedTheme } = useTheme();
@@ -23,6 +26,10 @@ export default function EpgAndLogosSettingsPage() {
     null
   );
   const [isRefetching, setIsRefetching] = React.useState(false);
+  const [progress, setProgress] = React.useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -47,20 +54,74 @@ export default function EpgAndLogosSettingsPage() {
     updateSettings({ logoSource: source });
   }
 
+  // The refresh is driven from the client, one country per request. Fetching all
+  // ~78 XMLTV feeds server-side takes minutes and would blow the serverless
+  // function timeout; looping here keeps every request small and gives us real
+  // progress to show.
   async function handleRefetch() {
     setIsRefetching(true);
-    const toastId = toast.loading("Refetching EPG data from iptv-epg.org...");
+    setProgress({ done: 0, total: EPG_SOURCES.length });
+
+    const toastId = toast.loading(
+      `Refreshing EPG from iptv-epg.org... 0/${EPG_SOURCES.length}`
+    );
+
+    let done = 0;
+    let failed = 0;
+
+    const queue = [...EPG_SOURCES];
+
+    const worker = async () => {
+      let source = queue.shift();
+
+      while (source) {
+        try {
+          const res = await fetch("/api/epg", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: source.code }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+        } catch (err) {
+          failed += 1;
+          console.error(`Failed to refresh EPG for ${source.name}:`, err);
+        }
+
+        done += 1;
+        setProgress({ done, total: EPG_SOURCES.length });
+        toast.loading(
+          `Refreshing EPG from iptv-epg.org... ${done}/${EPG_SOURCES.length}`,
+          { id: toastId }
+        );
+
+        source = queue.shift();
+      }
+    };
+
     try {
-      const res = await fetch("/api/epg", { method: "POST" });
-      if (!res.ok) throw new Error("Refetch failed");
-      const manifest: EpgManifest = await res.json();
-      setEpgManifest(manifest);
-      toast.success("EPG data updated successfully", { id: toastId });
+      await Promise.all(
+        Array.from({ length: REFRESH_CONCURRENCY }, () => worker())
+      );
+
+      const res = await fetch("/api/epg");
+      if (res.ok) setEpgManifest((await res.json()) as EpgManifest);
+
+      if (failed === EPG_SOURCES.length) {
+        toast.error("Failed to refresh EPG data", { id: toastId });
+      } else if (failed > 0) {
+        toast.warning(
+          `EPG updated, but ${failed} of ${EPG_SOURCES.length} countries failed`,
+          { id: toastId }
+        );
+      } else {
+        toast.success("EPG data updated successfully", { id: toastId });
+      }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to refetch EPG data", { id: toastId });
+      toast.error("Failed to refresh EPG data", { id: toastId });
     } finally {
       setIsRefetching(false);
+      setProgress(null);
     }
   }
 
@@ -169,7 +230,9 @@ export default function EpgAndLogosSettingsPage() {
             {isRefetching ? (
               <>
                 <Loader2Icon className="size-3.5 animate-spin" />
-                Refreshing...
+                {progress
+                  ? `Refreshing ${progress.done}/${progress.total}...`
+                  : "Refreshing..."}
               </>
             ) : (
               <>
