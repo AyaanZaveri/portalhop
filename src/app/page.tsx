@@ -463,8 +463,8 @@ function NoPortalsSelected({
         </div>
         {onEnableFreeChannels ? (
           <Button variant="outline" size="sm" onClick={onEnableFreeChannels}>
-            <TvIcon className="size-3.5" />
-            Show free channels
+            <TvIcon className="size-3.5 mr-0.5 mt-[-0.08rem]" />
+            Show public channels
           </Button>
         ) : null}
       </div>
