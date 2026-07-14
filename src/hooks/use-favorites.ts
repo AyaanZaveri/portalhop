@@ -19,16 +19,23 @@ import {
  * is opened. Safe to call from multiple places — loads are de-duped.
  */
 export function useFavoritesSync() {
-  const { data } = authClient.useSession()
+  const { data, isPending: sessionPending } = authClient.useSession()
   const userId = data?.user?.id ?? null
 
   React.useEffect(() => {
+    // A pending session reads as userId === null, which is not the same as being
+    // signed out. Loading device favorites here would only get replaced by the
+    // account's once the session lands.
+    if (sessionPending) {
+      return
+    }
+
     if (userId) {
       loadFavoritesForUser(userId)
     } else {
       loadLocalFavorites()
     }
-  }, [userId])
+  }, [userId, sessionPending])
 
   return userId
 }

@@ -19,7 +19,7 @@ type UseUserSettings = {
 }
 
 export function useUserSettings(): UseUserSettings {
-  const { data } = authClient.useSession()
+  const { data, isPending: sessionPending } = authClient.useSession()
   const userId = data?.user?.id ?? null
 
   const [settings, setSettings] =
@@ -28,6 +28,14 @@ export function useUserSettings(): UseUserSettings {
 
   React.useEffect(() => {
     let cancelled = false
+
+    // While the session is resolving, userId is null but we are not necessarily
+    // signed out. Committing to the defaults here would briefly render the
+    // signed-out view (iptv-org only) before the real sources arrive, so stay
+    // unloaded and let callers keep showing their loading state.
+    if (sessionPending) {
+      return
+    }
 
     if (!userId) {
       // Signed out: defaults (iptv-org on, no user sources).
@@ -54,7 +62,7 @@ export function useUserSettings(): UseUserSettings {
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, sessionPending])
 
   const updateSettings = React.useCallback(
     (patch: Partial<UserSettingsData>) => {

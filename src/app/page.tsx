@@ -502,7 +502,6 @@ function ChannelBrowser({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
   const { favorites, toggleFavorite } = useFavorites()
-  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>({ type: "all" })
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
 
   // Number of favorites that actually exist in the currently loaded list.
@@ -517,8 +516,16 @@ function ChannelBrowser({
   )
 
   // Default the filter to Favorites only when the current list actually has
-  // some, otherwise fall back to All. Reacts as channels/favorites load, and
-  // stops once the user picks a filter themselves.
+  // some, otherwise fall back to All. Seeded during the first render rather than
+  // in an effect: this component only mounts once channels have loaded, so the
+  // count is already known, and defaulting to All would paint a frame of every
+  // channel before the effect could swap it out.
+  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(() =>
+    favoriteCount > 0 ? { type: "favorites" } : { type: "all" }
+  )
+
+  // Keeps reacting if favorites or channels arrive after mount, and stops once
+  // the user picks a filter themselves.
   const userChoseFilter = useRef(false)
   useEffect(() => {
     if (userChoseFilter.current) return
@@ -604,41 +611,64 @@ function ChannelBrowser({
 
     let removeHlsListeners: (() => void) | undefined
     let intervalId: number | undefined
-    let rvfcId: number | undefined
+    let frameRateSampleIntervalId: number | undefined
     let hasManifestFrameRate = false
-    let frameTimestamps: number[] = []
+    let frameRateEstimated = false
+    let lastFrameSample: { frames: number; time: number } | null = null
+    const frameRateSamples: number[] = []
 
-    const estimateFrameRate: VideoFrameRequestCallback = (_now, metadata) => {
-      if (!hasManifestFrameRate) {
-        frameTimestamps.push(metadata.mediaTime)
+    const sampleFrameRate = () => {
+      if (hasManifestFrameRate || frameRateEstimated) {
+        return
+      }
 
-        const windowStart = metadata.mediaTime - 1.5
-        frameTimestamps = frameTimestamps.filter((time) => time >= windowStart)
+      // Skip samples while paused, seeking, or still buffering (playbackRate
+      // briefly changes during live catch-up), all of which skew the count.
+      if (
+        playerElement.paused ||
+        playerElement.seeking ||
+        playerElement.playbackRate !== 1
+      ) {
+        lastFrameSample = null
+        return
+      }
 
-        if (frameTimestamps.length >= 20) {
-          const elapsed =
-            frameTimestamps[frameTimestamps.length - 1] - frameTimestamps[0]
+      const quality = playerElement.getVideoPlaybackQuality()
+      const now = performance.now()
 
-          if (elapsed > 0) {
-            const estimatedFrameRate = (frameTimestamps.length - 1) / elapsed
+      if (lastFrameSample) {
+        const frameDelta = quality.totalVideoFrames - lastFrameSample.frames
+        const timeDelta = (now - lastFrameSample.time) / 1000
 
-            setStreamVariant((current) =>
-              current.frameRateLabel
-                ? current
-                : {
-                    ...current,
-                    frameRateLabel: formatFrameRateLabel(estimatedFrameRate),
-                  }
-            )
-          }
+        if (frameDelta > 0 && timeDelta > 0) {
+          frameRateSamples.push(frameDelta / timeDelta)
         }
       }
 
-      rvfcId = playerElement.requestVideoFrameCallback(estimateFrameRate)
+      lastFrameSample = { frames: quality.totalVideoFrames, time: now }
+
+      // Discard the first couple of samples (playback is still stabilizing
+      // right after a channel loads) and wait for a handful of consistent
+      // 1s samples before settling on an estimate, since any single sample
+      // can be thrown off by a stall or a burst of buffered frames.
+      const stableSamples = frameRateSamples.slice(2)
+
+      if (stableSamples.length >= 5) {
+        const sorted = [...stableSamples].sort((a, b) => a - b)
+        const median = sorted[Math.floor(sorted.length / 2)]
+        const snapped = snapToCommonFrameRate(median)
+
+        frameRateEstimated = true
+        setStreamVariant((current) =>
+          current.frameRateLabel
+            ? current
+            : { ...current, frameRateLabel: formatFrameRateLabel(snapped) }
+        )
+      }
     }
 
-    if (typeof playerElement.requestVideoFrameCallback === "function") {
-      rvfcId = playerElement.requestVideoFrameCallback(estimateFrameRate)
+    if (typeof playerElement.getVideoPlaybackQuality === "function") {
+      frameRateSampleIntervalId = window.setInterval(sampleFrameRate, 1000)
     }
 
     const updateFromNativeVideo = () => {
@@ -725,8 +755,8 @@ function ChannelBrowser({
         window.clearInterval(intervalId)
       }
 
-      if (rvfcId !== undefined) {
-        playerElement.cancelVideoFrameCallback(rvfcId)
+      if (frameRateSampleIntervalId) {
+        window.clearInterval(frameRateSampleIntervalId)
       }
 
       playerElement.removeEventListener("loadedmetadata", updateFromNativeVideo)
@@ -1461,6 +1491,24 @@ function formatFrameRateLabel(frameRate: number) {
       : String(Number(frameRate.toFixed(2)))
 
   return `${labelValue} fps`
+}
+
+const COMMON_FRAME_RATES = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60]
+
+function snapToCommonFrameRate(frameRate: number) {
+  let closest = COMMON_FRAME_RATES[0]
+  let smallestDiff = Infinity
+
+  for (const candidate of COMMON_FRAME_RATES) {
+    const diff = Math.abs(frameRate - candidate)
+
+    if (diff < smallestDiff) {
+      smallestDiff = diff
+      closest = candidate
+    }
+  }
+
+  return smallestDiff / closest < 0.04 ? closest : frameRate
 }
 
 function EpgSchedule({
