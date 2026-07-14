@@ -6,7 +6,8 @@ import type { PortalChannel } from "@/lib/stalker-types"
 // cached in memory here, exposed to every visitor (signed in or not).
 export const IPTV_ORG_SOURCE_ID = -1
 export const IPTV_ORG_SOURCE_NAME = "IPTV-org"
-export const IPTV_ORG_PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.m3u"
+export const IPTV_ORG_PLAYLIST_URL =
+  "https://iptv-org.github.io/iptv/index.country.m3u"
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
