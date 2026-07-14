@@ -32,8 +32,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import type { SavedSourceRecord } from "@/lib/source-types";
-import { readOpenedPortalIds, persistOpenedPortalIds } from "@/lib/opened-portals";
-import { loadPortalSettings, savePortalSettings } from "@/lib/portal-settings";
+import { useUserSettings } from "@/hooks/use-user-settings";
+import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org";
 import { AddPortalSheet } from "@/components/add-portal-sheet";
 import { ShimmeringText } from "@/components/ui/shimmering-text";
 import { useAiSettings } from "@/hooks/use-ai-settings";
@@ -107,7 +107,9 @@ export default function SourcesSettingsPage() {
     []
   );
   const [isLoading, setIsLoading] = React.useState(true);
-  const [activePortalIds, setActivePortalIds] = React.useState<number[]>([]);
+  const { settings, updateSettings } = useUserSettings();
+  const activePortalIds = settings.enabledSourceIds;
+  const useProxy = settings.useProxy;
   const [refetchingPortalId, setRefetchingPortalId] = React.useState<
     number | null
   >(null);
@@ -122,27 +124,18 @@ export default function SourcesSettingsPage() {
   >(null);
   const [portalPendingDelete, setPortalPendingDelete] =
     React.useState<SavedPortalRecord | null>(null);
-  const [useProxy, setUseProxy] = React.useState(false);
   const { settings: aiSettings } = useAiSettings();
 
   function handleUseProxyChange(nextUseProxy: boolean) {
-    setUseProxy(nextUseProxy);
-    const current = loadPortalSettings();
-    savePortalSettings({
-      logoSource: current.logoSource === "epg" ? "epg" : "provider",
-      useProxy: nextUseProxy,
-    });
+    updateSettings({ useProxy: nextUseProxy });
+  }
+
+  function handleIptvOrgChange(enabled: boolean) {
+    updateSettings({ iptvOrgEnabled: enabled });
   }
 
   React.useEffect(() => {
     let isMounted = true;
-
-    queueMicrotask(() => {
-      if (isMounted) {
-        setActivePortalIds(readOpenedPortalIds());
-        setUseProxy(loadPortalSettings().useProxy === true);
-      }
-    });
 
     (async () => {
       try {
@@ -165,14 +158,11 @@ export default function SourcesSettingsPage() {
   }, []);
 
   function handleCheckedChange(portal: SavedPortalRecord, checked: boolean) {
-    setActivePortalIds((current) => {
-      const next = checked
-        ? [...current, portal.id]
-        : current.filter((id) => id !== portal.id);
+    const next = checked
+      ? [...activePortalIds, portal.id]
+      : activePortalIds.filter((id) => id !== portal.id);
 
-      persistOpenedPortalIds(next);
-      return next;
-    });
+    updateSettings({ enabledSourceIds: next });
   }
 
   async function handleRefetchPortal(portal: SavedPortalRecord) {
@@ -386,11 +376,11 @@ export default function SourcesSettingsPage() {
       setSavedPortals((current) =>
         current.filter((item) => item.id !== portal.id)
       );
-      setActivePortalIds((current) => {
-        const next = current.filter((id) => id !== portal.id);
-        persistOpenedPortalIds(next);
-        return next;
-      });
+      if (activePortalIds.includes(portal.id)) {
+        updateSettings({
+          enabledSourceIds: activePortalIds.filter((id) => id !== portal.id),
+        });
+      }
       toast.success(`${portal.name} deleted`, { id: toastId });
     } catch {
       toast.error(`Failed to delete ${portal.name}`, { id: toastId });
@@ -490,6 +480,21 @@ export default function SourcesSettingsPage() {
           checked={useProxy}
           onCheckedChange={handleUseProxyChange}
           aria-label="Use proxy"
+        />
+      </div>
+
+      <div className="flex w-full items-center justify-between gap-4 rounded-md border bg-background/50 p-3">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <Label htmlFor="iptv-org">Free channels ({IPTV_ORG_SOURCE_NAME})</Label>
+          <span className="text-xs text-muted-foreground">
+            Thousands of free public channels, shown by default
+          </span>
+        </div>
+        <Switch
+          id="iptv-org"
+          checked={settings.iptvOrgEnabled}
+          onCheckedChange={handleIptvOrgChange}
+          aria-label="Show free IPTV-org channels"
         />
       </div>
 

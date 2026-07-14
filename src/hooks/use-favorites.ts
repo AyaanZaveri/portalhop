@@ -5,11 +5,12 @@ import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
 import {
-  clearFavorites,
   getFavorites,
   loadFavoritesForUser,
+  loadLocalFavorites,
   subscribeToFavorites,
   toggleFavorite as toggleFavoriteRemote,
+  toggleFavoriteLocal,
 } from "@/lib/favorites"
 
 /**
@@ -25,7 +26,7 @@ export function useFavoritesSync() {
     if (userId) {
       loadFavoritesForUser(userId)
     } else {
-      clearFavorites()
+      loadLocalFavorites()
     }
   }, [userId])
 
@@ -49,7 +50,9 @@ export function useFavorites() {
   const toggleFavorite = React.useCallback(
     (channelKey: string) => {
       if (!userId) {
-        toast.error("Sign in to save favorites.")
+        // Signed out: keep favorites on the device; they migrate to the
+        // account on the next sign-in.
+        toggleFavoriteLocal(channelKey)
         return
       }
 

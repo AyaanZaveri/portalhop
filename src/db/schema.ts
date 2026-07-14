@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm"
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -84,6 +85,20 @@ export const savedSources = pgTable("saved_sources", {
   sourceType: text("source_type").notNull(),
   channelCount: integer("channel_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+})
+
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  enabledSourceIds: jsonb("enabled_source_ids")
+    .notNull()
+    .$type<number[]>()
+    .default([]),
+  iptvOrgEnabled: boolean("iptv_org_enabled").notNull().default(true),
+  logoSource: text("logo_source").notNull().default("provider"),
+  useProxy: boolean("use_proxy").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull(),
 })
 
@@ -230,3 +245,5 @@ export type SavedChannel = typeof savedChannels.$inferSelect
 export type NewSavedChannel = typeof savedChannels.$inferInsert
 export type Favorite = typeof favorites.$inferSelect
 export type NewFavorite = typeof favorites.$inferInsert
+export type UserSettings = typeof userSettings.$inferSelect
+export type NewUserSettings = typeof userSettings.$inferInsert

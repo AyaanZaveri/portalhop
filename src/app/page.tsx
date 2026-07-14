@@ -76,6 +76,11 @@ import { AuthDialog } from "@/components/auth-dialog"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { getFavorites } from "@/lib/favorites"
+import { useUserSettings } from "@/hooks/use-user-settings"
+import {
+  IPTV_ORG_SOURCE_ID,
+  IPTV_ORG_SOURCE_NAME,
+} from "@/lib/iptv-org"
 import { SettingsLink } from "@/components/settings-link"
 import { CategoryVisual } from "@/components/category-visual"
 import type { EpgManifest } from "@/lib/epg-store"
@@ -84,13 +89,6 @@ import { Hls, getCoreReference } from "@mux/playback-core"
 import { cn } from "@/lib/utils"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
-import { loadPortalSettings } from "@/lib/portal-settings"
-import {
-  readOpenedPortalIds,
-  persistOpenedPortalIds,
-  getLastOpenedPortalId,
-  setLastOpenedPortalId,
-} from "@/lib/opened-portals"
 import { AddPortalSheet } from "@/components/add-portal-sheet"
 
 type SavedPortalRecord = SavedSourceRecord
@@ -134,33 +132,18 @@ const defaultSourceRequest: SourceRequest = {
 
 export default function Home() {
   useFavoritesSync()
+  const { settings, settingsLoaded, userId, updateSettings } = useUserSettings()
+  const { enabledSourceIds, iptvOrgEnabled, logoSource, useProxy } = settings
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
     useState<SourceRequest>(defaultSourceRequest)
   const [loadedPortals, setLoadedPortals] = useState<Record<number, LoadedPortal>>({})
   const [isLoadingPortals, setIsLoadingPortals] = useState(true)
+  const [iptvOrgChannels, setIptvOrgChannels] = useState<
+    PortalChannelWithSource[]
+  >([])
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [logoSource] = useState<"provider" | "epg">(() => {
-    if (typeof window !== "undefined") {
-      const savedSettings = loadPortalSettings()
-
-      if (
-        savedSettings.logoSource === "epg" ||
-        savedSettings.logoSource === "provider"
-      ) {
-        return savedSettings.logoSource
-      }
-    }
-    return "provider"
-  })
-  const [useProxy] = useState(() => {
-    if (typeof window !== "undefined") {
-      return loadPortalSettings().useProxy === true
-    }
-
-    return false
-  })
   const [epgChannels, setEpgChannels] = useState<Record<string, { name: string; logoUrl?: string; countryCode?: string }>>({})
 
   const fetchEpgChannels = useCallback(async () => {
@@ -209,6 +192,41 @@ export default function Home() {
 
   const deferredQuery = useDeferredValue(query)
 
+  // The built-in free iptv-org playlist. Fetched (and browser/CDN-cached) once
+  // when enabled; shown to everyone, signed in or not.
+  useEffect(() => {
+    if (!iptvOrgEnabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIptvOrgChannels([])
+      return
+    }
+
+    let cancelled = false
+
+    fetch("/api/iptv-org")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (cancelled || !Array.isArray(body?.channels)) return
+        const portalSource: PortalSource = {
+          id: IPTV_ORG_SOURCE_ID,
+          name: IPTV_ORG_SOURCE_NAME,
+          endpoint: "",
+          request: { sourceType: "m3u", playlistUrl: "" },
+        }
+        setIptvOrgChannels(
+          (body.channels as PortalChannel[]).map((channel) => ({
+            ...channel,
+            portalSource,
+          }))
+        )
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [iptvOrgEnabled])
+
   const loadedPortalChannels = useMemo<PortalChannelWithSource[]>(() => {
     return Object.values(loadedPortals).flatMap(({ portal, response }) => {
       const portalSource = getPortalSource(portal)
@@ -221,12 +239,16 @@ export default function Home() {
   }, [loadedPortals])
 
   const browserChannels = useMemo<PortalChannelWithSource[]>(() => {
-    if (loadedPortalChannels.length) {
-      return loadedPortalChannels
+    const userChannels = loadedPortalChannels.length
+      ? loadedPortalChannels
+      : (result?.channels ?? [])
+
+    if (!iptvOrgChannels.length) {
+      return userChannels
     }
 
-    return result?.channels ?? []
-  }, [loadedPortalChannels, result])
+    return [...userChannels, ...iptvOrgChannels]
+  }, [loadedPortalChannels, result, iptvOrgChannels])
 
   const searchableChannels = useMemo(() => {
     return browserChannels.map((channel) => ({
@@ -256,12 +278,24 @@ export default function Home() {
       .map((entry) => entry.channel)
   }, [browserChannels, deferredQuery, searchableChannels])
 
+  // Which saved sources appear on the home page is a per-user, DB-synced setting
+  // (settings.enabledSourceIds), so the same sources are active on every device.
+  const enabledKey = enabledSourceIds.join(",")
   useEffect(() => {
+    if (!settingsLoaded) {
+      return
+    }
+
     let isMounted = true
 
     async function loadSavedPortals() {
       setIsLoadingPortals(true)
       try {
+        if (!enabledSourceIds.length) {
+          if (isMounted) setLoadedPortals({})
+          return
+        }
+
         const response = await fetch("/api/portals", { cache: "no-store" })
         const data = await response.json().catch(() => ({ portals: [] }))
         const portals = Array.isArray(data.portals)
@@ -272,20 +306,11 @@ export default function Home() {
           return
         }
 
-        const openedPortalIds = readOpenedPortalIds()
-        const lastOpenedPortalId = getLastOpenedPortalId()
-        const portalIdsToOpen = openedPortalIds.length
-          ? openedPortalIds
-          : lastOpenedPortalId
-            ? [Number(lastOpenedPortalId)]
-            : []
         const portalsToOpen = portals.filter((portal) =>
-          portalIdsToOpen.includes(portal.id)
+          enabledSourceIds.includes(portal.id)
         )
 
-        if (!portalsToOpen.length) {
-          return
-        }
+        const loaded: Record<number, LoadedPortal> = {}
 
         for (const portal of portalsToOpen) {
           if (!isMounted) {
@@ -299,12 +324,10 @@ export default function Home() {
               return
             }
 
+            loaded[portal.id] = { portal, response: portalResult }
             setLoadedPortals((current) => ({
               ...current,
-              [portal.id]: {
-                portal,
-                response: portalResult,
-              },
+              [portal.id]: { portal, response: portalResult },
             }))
           } catch (error) {
             if (!isMounted) {
@@ -319,7 +342,10 @@ export default function Home() {
           }
         }
 
-        persistOpenedPortalIds(portalsToOpen.map((portal) => portal.id))
+        // Drop any sources that are no longer enabled.
+        if (isMounted) {
+          setLoadedPortals(loaded)
+        }
       } catch (error) {
         if (!isMounted) {
           return
@@ -342,7 +368,8 @@ export default function Home() {
     return () => {
       isMounted = false
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded, enabledKey])
 
   return (
     <main className="h-screen overflow-hidden bg-background text-foreground">
@@ -351,21 +378,16 @@ export default function Home() {
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           onSaved={(portal, activeResult) => {
-            setLoadedPortals((current) => {
-              const next = {
-                ...current,
-                [portal.id]: { portal, response: activeResult },
-              }
-              persistOpenedPortalIds(
-                Object.keys(next).map((id) => Number(id))
-              )
-              return next
+            setLoadedPortals((current) => ({
+              ...current,
+              [portal.id]: { portal, response: activeResult },
+            }))
+            updateSettings({
+              enabledSourceIds: [...enabledSourceIds, portal.id],
             })
-            setLastOpenedPortalId(portal.id)
           }}
           onView={(viewResult, request) => {
             setLoadedPortals({})
-            persistOpenedPortalIds([])
             setResult(viewResult)
             setPreviewSourceRequest(request)
           }}
@@ -400,26 +422,47 @@ export default function Home() {
             }
           />
         ) : (
-          <NoPortalsSelected />
+          <NoPortalsSelected
+            signedIn={Boolean(userId)}
+            onEnableFreeChannels={
+              iptvOrgEnabled
+                ? undefined
+                : () => updateSettings({ iptvOrgEnabled: true })
+            }
+          />
         )}
       </div>
     </main>
   )
 }
 
-function NoPortalsSelected() {
+function NoPortalsSelected({
+  signedIn,
+  onEnableFreeChannels,
+}: {
+  signedIn: boolean
+  onEnableFreeChannels?: () => void
+}) {
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden text-center">
       <PrimaryMeshGradientBackdrop />
 
-      <div className="relative z-10 flex flex-col items-center justify-center gap-4 px-4">
-        <TvIcon className="size-8 text-muted-foreground" />
-        <div className="flex flex-col gap-1">
-          <p className="font-medium">No channels loaded</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Add a portal to start browsing channels.
+      <div className="relative z-10 flex flex-col items-center justify-center gap-6 px-4">
+        <PortalHopWordmark />
+        <div className="flex max-w-sm flex-col gap-1.5">
+          <p className="font-medium">Nothing to browse yet</p>
+          <p className="text-sm text-muted-foreground">
+            {signedIn
+              ? "Add a portal, or turn the free IPTV-org channels back on to start browsing."
+              : "Sign in to load your portals, or turn on the free IPTV-org channels to start browsing."}
           </p>
         </div>
+        {onEnableFreeChannels ? (
+          <Button variant="outline" size="sm" onClick={onEnableFreeChannels}>
+            <TvIcon className="size-4" />
+            Show free channels
+          </Button>
+        ) : null}
       </div>
     </div>
   )

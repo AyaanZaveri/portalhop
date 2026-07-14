@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from "next-themes";
 import type { EpgManifest } from "@/lib/epg-store";
-import { loadPortalSettings, savePortalSettings } from "@/lib/portal-settings";
+import { useUserSettings } from "@/hooks/use-user-settings";
 
 export default function EpgAndLogosSettingsPage() {
   const { resolvedTheme } = useTheme();
@@ -16,9 +16,8 @@ export default function EpgAndLogosSettingsPage() {
     ? "https://img.logo.dev/iptv-epg.org?token=live_6a1a28fd-6420-4492-aeb0-b297461d9de2&size=128&retina=true&format=png"
     : "https://www.google.com/s2/favicons?sz=64&domain=iptv-epg.org";
 
-  const [logoSource, setLogoSource] = React.useState<"provider" | "epg">(
-    "provider"
-  );
+  const { settings, updateSettings } = useUserSettings();
+  const logoSource = settings.logoSource;
   const [epgManifest, setEpgManifest] = React.useState<EpgManifest | null>(
     null
   );
@@ -26,17 +25,6 @@ export default function EpgAndLogosSettingsPage() {
 
   React.useEffect(() => {
     let isMounted = true;
-
-    queueMicrotask(() => {
-      const saved = loadPortalSettings();
-      if (isMounted) {
-        setLogoSource(
-          saved.logoSource === "epg" || saved.logoSource === "provider"
-            ? saved.logoSource
-            : "provider"
-        );
-      }
-    });
 
     (async () => {
       try {
@@ -55,9 +43,7 @@ export default function EpgAndLogosSettingsPage() {
   }, []);
 
   function handleLogoSourceChange(source: "provider" | "epg") {
-    setLogoSource(source);
-    const current = loadPortalSettings();
-    savePortalSettings({ logoSource: source, useProxy: current.useProxy === true });
+    updateSettings({ logoSource: source });
   }
 
   async function handleRefetch() {

@@ -105,6 +105,31 @@ export function clearFavorites() {
   setCache(new Set())
 }
 
+/** Loads this device's local (signed-out) favorites from localStorage. */
+export function loadLocalFavorites() {
+  loadedUserId = null
+  setCache(new Set(readLegacyLocal()))
+}
+
+/** Toggles a favorite for signed-out users, persisting to localStorage only. */
+export function toggleFavoriteLocal(channelKey: string) {
+  const next = new Set(cache)
+
+  if (next.has(channelKey)) {
+    next.delete(channelKey)
+  } else {
+    next.add(channelKey)
+  }
+
+  setCache(next)
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(legacyStorageKey, JSON.stringify([...next]))
+    } catch {}
+  }
+}
+
 /** Optimistically toggles a favorite and persists it. Throws on failure. */
 export async function toggleFavorite(channelKey: string): Promise<void> {
   const wasFavorite = cache.has(channelKey)
