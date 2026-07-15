@@ -482,7 +482,6 @@ export function AddPortalSheet({
                             </Button>
                           </div>
                           <InputGroup>
-                            <InputGroupAddon align="inline-start">URL</InputGroupAddon>
                             <InputGroupInput
                               id="portalUrl"
                               required
@@ -493,13 +492,13 @@ export function AddPortalSheet({
                                 updateField("portalUrl", event.target.value)
                               }
                             />
+                            <InputGroupAddon align="inline-start">URL</InputGroupAddon>
                           </InputGroup>
                         </Field>
 
                         <Field>
                           <FieldLabel htmlFor="mac">MAC address</FieldLabel>
                           <InputGroup>
-                            <InputGroupAddon align="inline-start">MAC</InputGroupAddon>
                             <InputGroupInput
                               id="mac"
                               required
@@ -507,6 +506,7 @@ export function AddPortalSheet({
                               value={form.mac}
                               onChange={(event) => updateField("mac", event.target.value)}
                             />
+                            <InputGroupAddon align="inline-start">MAC</InputGroupAddon>
                           </InputGroup>
                         </Field>
 
@@ -515,7 +515,7 @@ export function AddPortalSheet({
                             <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-2">
                               Show advanced
                             </AccordionTrigger>
-                            <AccordionContent className="px-1 pt-2">
+                            <AccordionContent className="pt-2">
                               <div className="grid gap-4 pt-1 pb-1">
                                 <SimpleInput
                                   id="serial"
@@ -752,9 +752,6 @@ export function AddPortalSheet({
             <Field data-invalid={Boolean(saveError)}>
               <FieldLabel htmlFor="portalName">Nickname</FieldLabel>
               <InputGroup>
-                <InputGroupAddon align="inline-start">
-                  <TvIcon />
-                </InputGroupAddon>
                 <InputGroupInput
                   id="portalName"
                   placeholder="Living room IPTV"
@@ -762,6 +759,9 @@ export function AddPortalSheet({
                   aria-invalid={Boolean(saveError)}
                   onChange={(event) => setPortalName(event.target.value)}
                 />
+                <InputGroupAddon align="inline-start">
+                  <TvIcon />
+                </InputGroupAddon>
               </InputGroup>
               {saveError ? <FieldDescription>{saveError}</FieldDescription> : null}
             </Field>

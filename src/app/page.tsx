@@ -1076,14 +1076,14 @@ function ChannelBrowser({
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
-          <InputGroupAddon align="inline-start">
-            <SearchIcon />
-          </InputGroupAddon>
           <InputGroupInput
             placeholder={`Search ${visibleChannels.length.toLocaleString()} channels`}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
           />
+          <InputGroupAddon align="inline-start">
+            <SearchIcon />
+          </InputGroupAddon>
         </InputGroup>
         <div className="flex items-center gap-1.5">
           <Button
@@ -1993,10 +1993,10 @@ function LoadingShell() {
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
+          <InputGroupInput placeholder="Search channels" />
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
-          <InputGroupInput placeholder="Search channels" />
         </InputGroup>
       </div>
 

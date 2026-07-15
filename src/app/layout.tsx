@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter, Montserrat } from "next/font/google";
+import { Geist, Geist_Mono, Montserrat } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
-
 const geistSans = Geist({
-  variable: "--font-geist-sans",
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
@@ -38,7 +36,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, montserrat.variable, "font-sans", inter.variable)}
+      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, montserrat.variable, "font-sans")}
     >
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>

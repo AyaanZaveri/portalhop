@@ -535,9 +535,6 @@ export default function SourcesSettingsPage() {
             <Field data-invalid={Boolean(renameError)}>
               <FieldLabel htmlFor="renamePortal">Nickname</FieldLabel>
               <InputGroup>
-                <InputGroupAddon align="inline-start">
-                  <TvIcon />
-                </InputGroupAddon>
                 <InputGroupInput
                   id="renamePortal"
                   placeholder="Living room IPTV"
@@ -554,6 +551,9 @@ export default function SourcesSettingsPage() {
                     }
                   }}
                 />
+                <InputGroupAddon align="inline-start">
+                  <TvIcon />
+                </InputGroupAddon>
               </InputGroup>
               {renameError ? (
                 <FieldDescription>{renameError}</FieldDescription>
