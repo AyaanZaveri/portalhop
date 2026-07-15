@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
-import Avatar from "boring-avatars"
 import {
   CheckIcon,
+  DicesIcon,
   LaptopMinimalIcon,
   LogInIcon,
   Loader2Icon,
@@ -18,6 +18,8 @@ import { useTheme } from "next-themes"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
+import { generatedAvatarUrl, randomAvatarSeed } from "@/lib/avatar"
+import { proxyImageUrl } from "@/lib/image-proxy"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -224,10 +226,6 @@ type SessionUser = {
   image?: string | null
 }
 
-// Marble palette drawn from Tailwind hues adjacent to the app's lime accent —
-// a warm-to-cool sweep of amber, lime, emerald, cyan, and sky (all 400).
-const AVATAR_COLORS = ["#fbbf24", "#a3e635", "#34d399", "#22d3ee", "#38bdf8"]
-
 function UserAvatar({
   user,
   className = "size-6",
@@ -235,35 +233,21 @@ function UserAvatar({
   user: SessionUser
   className?: string
 }) {
-  if (user.image) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={user.image}
-        alt=""
-        className={`${className} rounded-full object-cover`}
-        referrerPolicy="no-referrer"
-      />
-    )
-  }
+  // Every avatar is a URL: a stored photo (Google, a shuffled DiceBear avatar,
+  // or a future upload) when present, otherwise a DiceBear avatar generated
+  // from the stable account id so it's consistent per user without any write.
+  // Route it through wsrv.nl for edge caching, like the channel logos.
+  const src =
+    user.image ||
+    generatedAvatarUrl(user.id || user.email || user.name || "portalhop")
 
-  // No profile photo: fall back to a marble avatar. Seeding by the stable
-  // account id (then email/name) keeps each user's avatar consistent — it's
-  // saved for the user by virtue of being deterministic from their account.
-  const seed = user.id || user.email || user.name || "portalhop"
-
-  // Size the SVG directly via className. Marble is already circular (its own
-  // mask), so no wrapper/overflow is needed — wrapping it and relying on the
-  // svg's 100% size let its intrinsic 80x80 viewBox win inside a flex parent,
-  // which cropped it to the top-left.
   return (
-    <Avatar
-      size="100%"
-      name={seed}
-      variant="marble"
-      colors={AVATAR_COLORS}
-      title={false}
-      className={`${className} block shrink-0 rounded-full`}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={proxyImageUrl(src)}
+      alt=""
+      className={`${className} shrink-0 rounded-full bg-muted object-cover`}
+      referrerPolicy="no-referrer"
     />
   )
 }
@@ -271,11 +255,14 @@ function UserAvatar({
 function AccountMenu({
   user,
   onSignedOut,
+  onProfileUpdated,
 }: {
   user: SessionUser
   onSignedOut: () => Promise<void>
+  onProfileUpdated: () => Promise<void>
 }) {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
+  const [isShuffling, setIsShuffling] = React.useState(false)
   const { theme, setTheme } = useTheme()
   const currentTheme = theme ?? "system"
 
@@ -291,6 +278,27 @@ function AccountMenu({
       toast.error("Could not sign out.")
     } finally {
       setIsSigningOut(false)
+    }
+  }
+
+  async function shuffleAvatar() {
+    setIsShuffling(true)
+
+    try {
+      const { error } = await authClient.updateUser({
+        image: generatedAvatarUrl(randomAvatarSeed()),
+      })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      await onProfileUpdated()
+    } catch (error) {
+      console.error(error)
+      toast.error("Could not update your avatar.")
+    } finally {
+      setIsShuffling(false)
     }
   }
 
@@ -324,6 +332,19 @@ function AccountMenu({
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            closeOnClick={false}
+            disabled={isShuffling}
+            onClick={shuffleAvatar}
+            className="py-1.5"
+          >
+            {isShuffling ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <DicesIcon />
+            )}
+            <span>Shuffle avatar</span>
+          </DropdownMenuItem>
           <DropdownMenuItem
             render={<Link href="/settings" />}
             className="py-1.5"
@@ -404,7 +425,11 @@ export function AuthDialog({
 
   if (user) {
     return hideTrigger ? null : (
-      <AccountMenu user={user} onSignedOut={session.refetch} />
+      <AccountMenu
+        user={user}
+        onSignedOut={session.refetch}
+        onProfileUpdated={session.refetch}
+      />
     )
   }
 
