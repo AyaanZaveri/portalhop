@@ -79,7 +79,7 @@ import {
   IPTV_ORG_SOURCE_ID,
   IPTV_ORG_SOURCE_NAME,
 } from "@/lib/iptv-org"
-import { SettingsLink } from "@/components/settings-link"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import MuxVideo from "@mux/mux-video-react"
@@ -386,7 +386,7 @@ export default function Home() {
 
         {isLoadingPortals || !browserChannels.length ? (
           <div className="absolute top-6 right-6 z-20 flex items-center gap-1">
-            <SettingsLink />
+            {settingsLoaded && !userId ? <ThemeToggle /> : null}
             <AuthDialog />
           </div>
         ) : null}
@@ -406,7 +406,7 @@ export default function Home() {
             onQueryChange={setQuery}
             utilityControls={
               <>
-                <SettingsLink />
+                {settingsLoaded && !userId ? <ThemeToggle /> : null}
                 <AuthDialog />
               </>
             }

@@ -1,8 +1,11 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { CalendarIcon, TvIcon, WaypointsIcon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { CalendarIcon, Loader2Icon, TvIcon, WaypointsIcon } from "lucide-react";
+
+import { authClient } from "@/lib/auth-client";
 import {
   Sidebar,
   SidebarContent,
@@ -41,6 +44,27 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+  const signedIn = Boolean(session?.user);
+
+  // Settings are entirely per-account (sources, LLM keys, EPG/logo prefs), so
+  // they're useless signed out. Bounce anyone who lands here without a session.
+  React.useEffect(() => {
+    if (!isPending && !signedIn) {
+      router.replace("/");
+    }
+  }, [isPending, signedIn, router]);
+
+  if (!signedIn) {
+    // Either the session is still resolving or we're about to redirect — avoid
+    // flashing the settings chrome in both cases.
+    return (
+      <div className="flex h-svh items-center justify-center">
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">

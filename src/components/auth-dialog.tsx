@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import Avatar from "boring-avatars"
 import {
   CheckIcon,
   LaptopMinimalIcon,
@@ -8,9 +10,9 @@ import {
   Loader2Icon,
   LogOutIcon,
   MoonIcon,
+  SettingsIcon,
   SunIcon,
   SunMoonIcon,
-  UserIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
@@ -216,10 +218,15 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
 }
 
 type SessionUser = {
+  id?: string | null
   name?: string | null
   email?: string | null
   image?: string | null
 }
+
+// Marble palette drawn from Tailwind hues adjacent to the app's lime accent —
+// a warm-to-cool sweep of amber, lime, emerald, cyan, and sky (all 400).
+const AVATAR_COLORS = ["#fbbf24", "#a3e635", "#34d399", "#22d3ee", "#38bdf8"]
 
 function UserAvatar({
   user,
@@ -228,8 +235,6 @@ function UserAvatar({
   user: SessionUser
   className?: string
 }) {
-  const fallback = (user.name || user.email || "User").trim().charAt(0).toUpperCase()
-
   if (user.image) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -242,11 +247,20 @@ function UserAvatar({
     )
   }
 
+  // No profile photo: fall back to a marble avatar. Seeding by the stable
+  // account id (then email/name) keeps each user's avatar consistent — it's
+  // saved for the user by virtue of being deterministic from their account.
+  const seed = user.id || user.email || user.name || "portalhop"
+
   return (
-    <span
-      className={`${className} flex items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground`}
-    >
-      {fallback || <UserIcon className="size-3.5" />}
+    <span className={`${className} inline-flex overflow-hidden rounded-full`}>
+      <Avatar
+        size="100%"
+        name={seed}
+        variant="marble"
+        colors={AVATAR_COLORS}
+        title={false}
+      />
     </span>
   )
 }
@@ -307,6 +321,13 @@ function AccountMenu({
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            render={<Link href="/settings" />}
+            className="py-1.5"
+          >
+            <SettingsIcon />
+            <span>Settings</span>
+          </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="py-1.5">
               <SunMoonIcon />
