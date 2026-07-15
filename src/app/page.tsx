@@ -1388,7 +1388,7 @@ function ChannelBrowser({
                           <img
                             src={logoUrl}
                             alt=""
-                            className="size-full rounded object-contain"
+                            className="size-full rounded-[6px] object-contain"
                             loading="lazy"
                             referrerPolicy="no-referrer"
                           />
@@ -1500,7 +1500,7 @@ function ChannelBrowser({
                 <img
                   src={playerStream.logoUrl}
                   alt=""
-                  className="size-full rounded object-contain"
+                  className="size-full rounded-[6px] object-contain"
                   referrerPolicy="no-referrer"
                 />
               </div>
@@ -1583,7 +1583,7 @@ function ChannelBrowser({
                       <img
                         src={playerStream.logoUrl}
                         alt=""
-                        className="size-full rounded object-contain"
+                        className="size-full rounded-[6px] object-contain"
                         referrerPolicy="no-referrer"
                       />
                     </div>
