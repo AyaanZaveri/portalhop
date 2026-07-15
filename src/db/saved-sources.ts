@@ -89,6 +89,8 @@ function flattenSavedSource(
     name: source.name,
     sourceType: source.sourceType as SourceType,
     channelCount: source.channelCount,
+    epgMode: source.epgMode === "custom" && !source.epgSourceId ? "none" : source.epgMode === "none" || source.epgMode === "iptv-org" || source.epgMode === "custom" ? source.epgMode : "portal",
+    epgSourceId: source.epgMode === "custom" ? source.epgSourceId : null,
     createdAt: source.createdAt,
     updatedAt: source.updatedAt,
     portalUrl: stalker?.portalUrl,
@@ -108,5 +110,5 @@ function flattenSavedSource(
     derivedXtreamServerUrl: m3u?.derivedXtreamServerUrl,
     derivedXtreamUsername: m3u?.derivedXtreamUsername,
     derivedXtreamPassword: m3u?.derivedXtreamPassword,
-  }
+  } as SavedSourceRecord
 }

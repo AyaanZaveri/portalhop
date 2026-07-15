@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { insertSavedChannels } from "@/db/saved-channels"
 import { selectSavedSources } from "@/db/saved-sources"
+import { selectUserEpgSource } from "@/db/user-epg-sources"
 import {
   savedM3uSources,
   savedSources,
@@ -13,6 +14,8 @@ import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
 import {
   nullableString,
   readChannels,
+  readEpgMode,
+  readEpgSourceId,
   readSourceType,
   safeNumber,
   stringValue,
@@ -55,6 +58,15 @@ export async function POST(request: Request) {
   const playlistUrl = stringValue(body.playlistUrl).trim()
   const timezone = stringValue(body.timezone).trim() || "America/Toronto"
   const stbType = stringValue(body.stbType).trim() || "MAG254"
+  const epgMode = readEpgMode(body.epgMode)
+  const requestedEpgSourceId = readEpgSourceId(body.epgSourceId)
+  const customEpg = epgMode === "custom" && requestedEpgSourceId
+    ? await selectUserEpgSource(getDb(), requestedEpgSourceId)
+    : null
+  if (epgMode === "custom" && (!customEpg || customEpg.userId !== user.id)) {
+    return NextResponse.json({ error: "Custom EPG source not found." }, { status: 400 })
+  }
+  const epgSourceId = epgMode === "custom" ? requestedEpgSourceId : null
 
   if (!name) {
     return NextResponse.json(
@@ -95,6 +107,8 @@ export async function POST(request: Request) {
         name,
         sourceType,
         channelCount: channels.length || safeNumber(body.channelCount),
+        epgMode,
+        epgSourceId,
         createdAt: now,
         updatedAt: now,
       })
@@ -141,6 +155,8 @@ export async function POST(request: Request) {
       name: source.name,
       sourceType,
       channelCount: source.channelCount,
+      epgMode,
+      epgSourceId,
       createdAt: source.createdAt,
       updatedAt: source.updatedAt,
       portalUrl,

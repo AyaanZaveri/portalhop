@@ -112,7 +112,11 @@ function readM3uChannel(entry: M3uEntry, index: number): PortalChannel {
     "Untitled channel"
 
   return {
-    id: tvgId || String(index + 1),
+    // `tvg-id` identifies guide metadata, not a unique playlist entry. A
+    // provider can legitimately publish multiple streams under one XMLTV ID.
+    // Keep the playlist position as the stream identity and retain `tvg-id`
+    // separately for guide and logo matching.
+    id: String(index + 1),
     xmltvId: tvgId,
     number: String(index + 1),
     name,

@@ -8,6 +8,7 @@ import {
   getFavorites,
   loadFavoritesForUser,
   loadLocalFavorites,
+  migrateFavoriteKeys as migrateFavoriteKeysRemote,
   subscribeToFavorites,
   toggleFavorite as toggleFavoriteRemote,
   toggleFavoriteLocal,
@@ -70,7 +71,12 @@ export function useFavorites() {
     [userId]
   )
 
-  return { favorites, isFavorite, toggleFavorite }
+  const migrateFavoriteKeys = React.useCallback(
+    (mappings: Map<string, string[]>) => migrateFavoriteKeysRemote(mappings),
+    []
+  )
+
+  return { favorites, isFavorite, toggleFavorite, migrateFavoriteKeys }
 }
 
 const EMPTY = new Set<string>()

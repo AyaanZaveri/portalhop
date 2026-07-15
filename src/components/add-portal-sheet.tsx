@@ -10,6 +10,8 @@ import {
   Loader2Icon,
   SaveIcon,
   TvIcon,
+  GlobeIcon,
+  PlusIcon,
 } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -48,14 +50,17 @@ import {
 } from "@/components/ui/input-group"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import type {
   SavedSourceRecord,
   SourceRequest,
   SourceType,
+  EpgMode,
 } from "@/lib/source-types"
 import { useAiSettings } from "@/hooks/use-ai-settings"
+import { useTheme } from "next-themes"
 
 type ConnectionFormState = PortalRequest & {
   sourceType: SourceType
@@ -64,7 +69,11 @@ type ConnectionFormState = PortalRequest & {
   password: string
   outputFormat: string
   playlistUrl: string
+  epgMode: EpgMode
+  epgSourceId: number | null
 }
+
+type UserEpgSource = { id: number; name: string; url: string; channelCount: number; refreshedAt: string | null }
 
 const initialConnectionForm: ConnectionFormState = {
   sourceType: "stalker",
@@ -81,6 +90,8 @@ const initialConnectionForm: ConnectionFormState = {
   password: "",
   outputFormat: "m3u8",
   playlistUrl: "",
+  epgMode: "portal",
+  epgSourceId: null,
 }
 
 function formFromPortal(portal: SavedSourceRecord): ConnectionFormState {
@@ -99,6 +110,8 @@ function formFromPortal(portal: SavedSourceRecord): ConnectionFormState {
     password: portal.password ?? "",
     outputFormat: portal.outputFormat || "m3u8",
     playlistUrl: portal.playlistUrl ?? "",
+    epgMode: portal.epgMode,
+    epgSourceId: portal.epgSourceId,
   }
 }
 
@@ -133,6 +146,27 @@ function toSourceRequest(form: ConnectionFormState): SourceRequest {
   }
 }
 
+function renderEpgSelection(
+  value: unknown,
+  sources: UserEpgSource[],
+  iptvEpgLogoUrl: string
+) {
+  const selected = typeof value === "string" ? value : "portal"
+  if (selected === "iptv-org") {
+    return <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={iptvEpgLogoUrl} alt="" className="size-4 rounded-xs object-contain" />
+      iptv-epg.org
+    </>
+  }
+  if (selected.startsWith("custom:")) {
+    const source = sources.find((item) => item.id === Number(selected.slice(7)))
+    return <><TvIcon />{source?.name ?? "Custom EPG"}</>
+  }
+  if (selected === "none") return "None"
+  return <><GlobeIcon />Portal&apos;s own EPG</>
+}
+
 export function AddPortalSheet({
   open,
   onOpenChange,
@@ -157,6 +191,10 @@ export function AddPortalSheet({
     request: SourceRequest
   ) => void
 }) {
+  const { resolvedTheme } = useTheme()
+  const iptvEpgLogoUrl = resolvedTheme === "dark"
+    ? "/epg/iptv-epg-dark.png"
+    : "/epg/iptv-epg-light.png"
   const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
     useAiSettings()
   const [form, setForm] = useState<ConnectionFormState>(initialConnectionForm)
@@ -171,6 +209,11 @@ export function AddPortalSheet({
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importText, setImportText] = useState("")
   const [isImportingPortal, setIsImportingPortal] = useState(false)
+  const [epgSources, setEpgSources] = useState<UserEpgSource[]>([])
+  const [newEpgOpen, setNewEpgOpen] = useState(false)
+  const [newEpgName, setNewEpgName] = useState("")
+  const [newEpgUrl, setNewEpgUrl] = useState("")
+  const [isCreatingEpg, setIsCreatingEpg] = useState(false)
 
   // Seed the form from the source being edited each time the sheet opens, and
   // clear any previous test result so Save always reflects a fresh Test.
@@ -181,6 +224,7 @@ export function AddPortalSheet({
     setError("")
     setDetails([])
     setForm(editingPortal ? formFromPortal(editingPortal) : initialConnectionForm)
+    fetch("/api/epg-sources").then((res) => res.ok ? res.json() : null).then((data) => setEpgSources(Array.isArray(data?.sources) ? data.sources : [])).catch(() => {})
   }, [open, editingPortal])
 
   const portalRequest = toSourceRequest(form)
@@ -191,6 +235,22 @@ export function AddPortalSheet({
   ) {
     setForm((current) => ({ ...current, [key]: value }))
     setTestResult(null)
+  }
+
+  async function createEpgSource() {
+    if (!newEpgName.trim() || !newEpgUrl.trim()) return
+    setIsCreatingEpg(true)
+    try {
+      const res = await fetch("/api/epg-sources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newEpgName, url: newEpgUrl }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Could not add EPG source.")
+      const source = data.source as UserEpgSource
+      setEpgSources((items) => [source, ...items])
+      updateField("epgMode", "custom")
+      updateField("epgSourceId", source.id)
+      setNewEpgName(""); setNewEpgUrl(""); setNewEpgOpen(false)
+      toast.success(data.refreshError ? "EPG source saved; refresh failed." : "EPG source added.")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add EPG source.") } finally { setIsCreatingEpg(false) }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -328,6 +388,8 @@ export function AddPortalSheet({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...portalRequest,
+          epgMode: form.epgMode,
+          epgSourceId: form.epgMode === "custom" ? form.epgSourceId : null,
           name,
           endpoint: testResult.endpoint,
           channelCount: testResult.channels.length,
@@ -555,6 +617,39 @@ export function AddPortalSheet({
                         onChange={(value) => updateField("playlistUrl", value)}
                       />
                     ) : null}
+
+                    <Field>
+                      <FieldLabel htmlFor="epg-source">EPG</FieldLabel>
+                      <Select
+                        value={form.epgMode === "custom" && form.epgSourceId ? `custom:${form.epgSourceId}` : form.epgMode}
+                        onValueChange={(value) => {
+                          if (!value) return
+                          if (value === "create") { setNewEpgOpen(true); return }
+                          if (value.startsWith("custom:")) { updateField("epgMode", "custom"); updateField("epgSourceId", Number(value.slice(7))) }
+                          else { updateField("epgMode", value as EpgMode); updateField("epgSourceId", null) }
+                        }}
+                      >
+                        <SelectTrigger id="epg-source" className="w-full">
+                          <SelectValue>
+                            {(value) => renderEpgSelection(value, epgSources, iptvEpgLogoUrl)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent side="bottom" align="start" alignItemWithTrigger={false}>
+                          <SelectGroup><SelectLabel>Guide & logos</SelectLabel>
+                            <SelectItem value="portal"><GlobeIcon />Portal&apos;s own EPG</SelectItem>
+                            <SelectItem value="iptv-org">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={iptvEpgLogoUrl} alt="" className="size-4 rounded-xs object-contain" />
+                              iptv-epg.org
+                            </SelectItem>
+                          </SelectGroup>
+                          {epgSources.length ? <><SelectSeparator /><SelectGroup><SelectLabel>Your EPG sources</SelectLabel>{epgSources.map((source) => <SelectItem key={source.id} value={`custom:${source.id}`}><TvIcon className="-mt-0.5" />{source.name}</SelectItem>)}</SelectGroup></> : null}
+                          <SelectSeparator />
+                          <SelectGroup><SelectItem value="none">None</SelectItem><SelectItem value="create"><PlusIcon />Create new EPG source…</SelectItem></SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>Choose the programme guide and channel-logo source for this portal.</FieldDescription>
+                    </Field>
                   </div>
                 </FieldGroup>
 
@@ -633,6 +728,12 @@ export function AddPortalSheet({
           </form>
         </SheetContent>
       </Sheet>
+      <Dialog open={newEpgOpen} onOpenChange={setNewEpgOpen}>
+        <DialogContent><DialogHeader><DialogTitle>Add EPG source</DialogTitle><DialogDescription>Add a reusable XMLTV URL for this and other portals.</DialogDescription></DialogHeader>
+          <div className="grid gap-4"><SimpleInput id="newEpgName" label="Name" placeholder="My provider EPG" value={newEpgName} onChange={setNewEpgName} /><SimpleInput id="newEpgUrl" label="XMLTV URL" placeholder="https://example.com/guide.xml.gz" value={newEpgUrl} onChange={setNewEpgUrl} /></div>
+          <DialogFooter><Button type="button" onClick={createEpgSource} disabled={isCreatingEpg}>{isCreatingEpg ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : null}{isCreatingEpg ? "Saving…" : "Save EPG source"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>

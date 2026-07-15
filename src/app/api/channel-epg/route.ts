@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 
 import { fetchAndParseEpgProgrammes } from "@/lib/epg-parser"
 import { findEpgSourceForChannel } from "@/lib/epg-store"
+import { selectUserEpgSource } from "@/db/user-epg-sources"
+import { findCustomEpgChannel } from "@/lib/user-epg-store"
+import { getDb } from "@/db/client"
+import { requireUser } from "@/lib/session"
 import {
   fetchPortalEpg,
   getEndpointCandidates,
@@ -12,7 +16,8 @@ import type { EpgProgramme, PortalRequest } from "@/lib/stalker-types"
 
 type EpgRequest = PortalRequest & {
   sourceType?: SourceType
-  source?: "provider" | "epg"
+  epgMode?: "none" | "portal" | "iptv-org" | "custom"
+  epgSourceId?: number | null
   endpoint?: string
   channelId?: string
   channelName?: string
@@ -30,7 +35,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 })
   }
 
-  const source = body.source === "epg" ? "epg" : "provider"
+  const epgMode = body.epgMode === "none" || body.epgMode === "iptv-org" || body.epgMode === "custom" ? body.epgMode : "portal"
   const channelId = body.channelId?.trim() || ""
   const channelName = body.channelName?.trim() || ""
   const xmltvId = body.xmltvId?.trim() || ""
@@ -42,7 +47,9 @@ export async function POST(request: Request) {
     )
   }
 
-  if (source === "epg") {
+  if (epgMode === "none") return NextResponse.json({ programmes: [] })
+
+  if (epgMode === "iptv-org") {
     const match = await findEpgSourceForChannel([
       { id: xmltvId },
       { id: channelId },
@@ -63,6 +70,19 @@ export async function POST(request: Request) {
         source: "epg",
       })),
     })
+  }
+
+  if (epgMode === "custom") {
+    const user = await requireUser()
+    if (user instanceof NextResponse) return user
+    const sourceId = Number(body.epgSourceId)
+    if (!Number.isInteger(sourceId)) return NextResponse.json({ programmes: [] })
+    const source = await selectUserEpgSource(getDb(), sourceId)
+    if (!source || source.userId !== user.id) return NextResponse.json({ programmes: [] })
+    const matchedChannelId = await findCustomEpgChannel(sourceId, [{ id: xmltvId }, { id: channelId }, { name: channelName }])
+    if (!matchedChannelId) return NextResponse.json({ programmes: [] })
+    const programmes = await fetchAndParseEpgProgrammes(source.url, [matchedChannelId])
+    return NextResponse.json({ programmes: programmes.map((programme): EpgProgramme => ({ ...programme, source: "epg" })) })
   }
 
   if (body.sourceType === "xtream" || body.sourceType === "m3u") {

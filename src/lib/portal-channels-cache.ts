@@ -6,7 +6,9 @@ import type { PortalChannel } from "@/lib/stalker-types"
 // source's own `updatedAt` (set whenever it's re-synced/edited), not a TTL.
 
 const DB_NAME = "portalhop"
-const DB_VERSION = 1
+// Version 2 clears legacy entries that lack the persisted saved-channel ID.
+// They previously could collide when an M3U provider reused an XMLTV ID.
+const DB_VERSION = 2
 const STORE_NAME = "portalChannels"
 
 type CachedPortalChannels = {
@@ -21,9 +23,8 @@ function openDb(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
-      }
+      if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME)
+      db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
     }
 
     request.onsuccess = () => resolve(request.result)

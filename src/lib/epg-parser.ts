@@ -18,27 +18,73 @@ type XmltvProgramme = Omit<EpgProgramme, "source">;
  * we can stop downloading and parsing as soon as we hit the first `<programme>`
  * tag. This saves massive amounts of memory and network bandwidth.
  */
-export async function fetchAndParseEpg(url: string): Promise<EpgChannel[]> {
+// Fetches an XMLTV file and returns a decompressed line source, auto-detecting
+// gzip vs plain XML. The iptv-epg.org files are raw `.xml.gz` (no
+// Content-Encoding, so `fetch` won't unzip them), while custom EPG endpoints
+// (e.g. xmltv.php) are usually plain XML — this handles both by peeking the
+// first bytes for the gzip magic number (0x1f 0x8b) without consuming them.
+async function fetchXmltvStream(
+  url: string
+): Promise<{ stream: Readable; cleanup: () => void }> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch EPG from ${url}: ${response.statusText}`);
   }
-
   if (!response.body) {
     throw new Error(`Empty response body from ${url}`);
   }
 
-  // Convert Web ReadableStream to Node Readable
-  const nodeReadable = Readable.fromWeb(response.body as unknown as import("stream/web").ReadableStream);
-  
-  // Gunzip the stream
+  const source = Readable.fromWeb(
+    response.body as unknown as import("stream/web").ReadableStream
+  );
+
+  const head = await new Promise<Buffer>((resolve, reject) => {
+    const onReadable = () => {
+      const chunk = source.read();
+      if (chunk === null) return;
+      source.off("readable", onReadable);
+      source.off("end", onEnd);
+      source.off("error", reject);
+      resolve(chunk as Buffer);
+    };
+    const onEnd = () => {
+      source.off("readable", onReadable);
+      resolve(Buffer.alloc(0));
+    };
+    source.on("readable", onReadable);
+    source.once("end", onEnd);
+    source.once("error", reject);
+  });
+
+  if (head.length) {
+    source.unshift(head);
+  }
+
+  const isGzip = head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b;
+
+  if (!isGzip) {
+    return { stream: source, cleanup: () => source.destroy() };
+  }
+
   const gunzip = zlib.createGunzip();
-  const unzippedStream = nodeReadable.pipe(gunzip);
+  source.on("error", (err) => gunzip.destroy(err));
+
+  return {
+    stream: source.pipe(gunzip),
+    cleanup: () => {
+      gunzip.destroy();
+      source.destroy();
+    },
+  };
+}
+
+export async function fetchAndParseEpg(url: string): Promise<EpgChannel[]> {
+  const { stream, cleanup: closeStream } = await fetchXmltvStream(url);
 
   return new Promise<EpgChannel[]>((resolve, reject) => {
     const channels: EpgChannel[] = [];
     const rl = readline.createInterface({
-      input: unzippedStream,
+      input: stream,
       crlfDelay: Infinity,
     });
 
@@ -49,8 +95,7 @@ export async function fetchAndParseEpg(url: string): Promise<EpgChannel[]> {
 
     const cleanup = () => {
       rl.close();
-      gunzip.destroy();
-      nodeReadable.destroy();
+      closeStream();
     };
 
     rl.on("line", (line) => {
@@ -112,12 +157,7 @@ export async function fetchAndParseEpg(url: string): Promise<EpgChannel[]> {
       reject(err);
     });
 
-    gunzip.on("error", (err) => {
-      cleanup();
-      reject(err);
-    });
-
-    nodeReadable.on("error", (err) => {
+    stream.on("error", (err) => {
       cleanup();
       reject(err);
     });
@@ -129,15 +169,6 @@ export async function fetchAndParseEpgProgrammes(
   channelIds: string[],
   options: { from?: Date; to?: Date; limit?: number } = {}
 ): Promise<XmltvProgramme[]> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch EPG from ${url}: ${response.statusText}`);
-  }
-
-  if (!response.body) {
-    throw new Error(`Empty response body from ${url}`);
-  }
-
   const wantedIds = new Set(channelIds.map((id) => id.trim()).filter(Boolean));
 
   if (!wantedIds.size) {
@@ -147,24 +178,19 @@ export async function fetchAndParseEpgProgrammes(
   const from = options.from ?? new Date(Date.now() - 30 * 60 * 1000);
   const to = options.to ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
   const limit = options.limit ?? 12;
-  const nodeReadable = Readable.fromWeb(
-    response.body as unknown as import("stream/web").ReadableStream
-  );
-  const gunzip = zlib.createGunzip();
-  const unzippedStream = nodeReadable.pipe(gunzip);
+  const { stream, cleanup: closeStream } = await fetchXmltvStream(url);
 
   return new Promise<XmltvProgramme[]>((resolve, reject) => {
     const programmes: XmltvProgramme[] = [];
     const rl = readline.createInterface({
-      input: unzippedStream,
+      input: stream,
       crlfDelay: Infinity,
     });
     let current: XmltvProgramme | null = null;
 
     const cleanup = () => {
       rl.close();
-      gunzip.destroy();
-      nodeReadable.destroy();
+      closeStream();
     };
 
     rl.on("line", (line) => {
@@ -241,12 +267,7 @@ export async function fetchAndParseEpgProgrammes(
       reject(err);
     });
 
-    gunzip.on("error", (err) => {
-      cleanup();
-      reject(err);
-    });
-
-    nodeReadable.on("error", (err) => {
+    stream.on("error", (err) => {
       cleanup();
       reject(err);
     });

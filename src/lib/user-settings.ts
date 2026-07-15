@@ -5,14 +5,12 @@ export type UserSettingsData = {
   enabledSourceIds: number[]
   /** whether the built-in iptv-org free playlist is shown. */
   iptvOrgEnabled: boolean
-  logoSource: "provider" | "epg"
   useProxy: boolean
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettingsData = {
   enabledSourceIds: [],
   iptvOrgEnabled: true,
-  logoSource: "provider",
   useProxy: false,
 }
 
@@ -39,10 +37,6 @@ export function sanitizeSettingsPatch(
 
   if (typeof input.iptvOrgEnabled === "boolean") {
     patch.iptvOrgEnabled = input.iptvOrgEnabled
-  }
-
-  if (input.logoSource === "provider" || input.logoSource === "epg") {
-    patch.logoSource = input.logoSource
   }
 
   if (typeof input.useProxy === "boolean") {

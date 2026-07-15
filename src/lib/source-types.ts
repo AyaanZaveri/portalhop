@@ -1,6 +1,7 @@
 import type { PortalChannel, PortalRequest } from "@/lib/stalker-types"
 
 export type SourceType = "stalker" | "xtream" | "m3u"
+export type EpgMode = "none" | "portal" | "iptv-org" | "custom"
 
 export type XtreamRequest = {
   sourceType: "xtream"
@@ -43,6 +44,8 @@ export type SavedSourceRecord = {
   name: string
   sourceType: SourceType
   channelCount: number
+  epgMode: EpgMode
+  epgSourceId: number | null
   createdAt: string | number | Date
   updatedAt: string | number | Date
   portalUrl?: string

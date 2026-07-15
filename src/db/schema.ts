@@ -106,6 +106,13 @@ export const savedSources = pgTable("saved_sources", {
   name: text("name").notNull(),
   sourceType: text("source_type").notNull(),
   channelCount: integer("channel_count").notNull().default(0),
+  // Which EPG this portal's channels use, for both guide and logos:
+  // 'portal' (provider's own), 'iptv-org' (built-in directory), 'custom'
+  // (epgSourceId → a user EPG source), or 'none'.
+  epgMode: text("epg_mode").notNull().default("portal"),
+  epgSourceId: integer("epg_source_id").references(() => userEpgSources.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 })
@@ -218,6 +225,47 @@ export const epgChannels = pgTable(
   ]
 )
 
+// A user's own custom EPG (XMLTV) sources — a reusable library. Many saved
+// sources can point at the same one via savedSources.epgSourceId. The URL is
+// encrypted at rest because XMLTV endpoints often embed credentials.
+export const userEpgSources = pgTable(
+  "user_epg_sources",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    url: encryptedText("url").notNull(),
+    channelCount: integer("channel_count").notNull().default(0),
+    refreshedAt: timestamp("refreshed_at"),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [index("user_epg_sources_user_id_idx").on(table.userId)]
+)
+
+// Parsed channel directory for a custom EPG source (mirrors epgChannels). Only
+// channel metadata is stored; programmes are fetched on demand from the URL.
+export const userEpgChannels = pgTable(
+  "user_epg_channels",
+  {
+    epgSourceId: integer("epg_source_id")
+      .notNull()
+      .references(() => userEpgSources.id, { onDelete: "cascade" }),
+    channelId: text("channel_id").notNull(),
+    name: text("name").notNull(),
+    logoUrl: text("logo_url"),
+    channelIdLower: text("channel_id_lower").notNull(),
+    nameNormalized: text("name_normalized").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.epgSourceId, table.channelId] }),
+    index("user_epg_channels_channel_id_lower_idx").on(table.channelIdLower),
+    index("user_epg_channels_name_normalized_idx").on(table.nameNormalized),
+  ]
+)
+
 export const savedPortalsRelations = relations(savedPortals, ({ many }) => ({
   channels: many(savedChannels),
 }))
@@ -227,7 +275,29 @@ export const savedSourcesRelations = relations(savedSources, ({ many, one }) => 
   stalker: one(savedStalkerSources),
   xtream: one(savedXtreamSources),
   m3u: one(savedM3uSources),
+  epgSource: one(userEpgSources, {
+    fields: [savedSources.epgSourceId],
+    references: [userEpgSources.id],
+  }),
 }))
+
+export const userEpgSourcesRelations = relations(
+  userEpgSources,
+  ({ many }) => ({
+    channels: many(userEpgChannels),
+    sources: many(savedSources),
+  })
+)
+
+export const userEpgChannelsRelations = relations(
+  userEpgChannels,
+  ({ one }) => ({
+    epgSource: one(userEpgSources, {
+      fields: [userEpgChannels.epgSourceId],
+      references: [userEpgSources.id],
+    }),
+  })
+)
 
 export const savedStalkerSourcesRelations = relations(
   savedStalkerSources,
@@ -303,3 +373,7 @@ export type EpgCountry = typeof epgCountries.$inferSelect
 export type NewEpgCountry = typeof epgCountries.$inferInsert
 export type EpgChannelRow = typeof epgChannels.$inferSelect
 export type NewEpgChannelRow = typeof epgChannels.$inferInsert
+export type UserEpgSource = typeof userEpgSources.$inferSelect
+export type NewUserEpgSource = typeof userEpgSources.$inferInsert
+export type UserEpgChannelRow = typeof userEpgChannels.$inferSelect
+export type NewUserEpgChannelRow = typeof userEpgChannels.$inferInsert

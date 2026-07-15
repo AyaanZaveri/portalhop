@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { insertSavedChannels } from "@/db/saved-channels"
 import { deleteSavedSource, selectSavedSource } from "@/db/saved-sources"
+import { selectUserEpgSource } from "@/db/user-epg-sources"
 import {
   savedChannels,
   savedM3uSources,
@@ -15,6 +16,8 @@ import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
 import {
   nullableString,
   readChannels,
+  readEpgMode,
+  readEpgSourceId,
   readSourceType,
   safeNumber,
   stringValue,
@@ -54,6 +57,7 @@ export async function GET(
   return NextResponse.json({
     portal,
     channels: channels.map((channel) => ({
+      savedChannelId: channel.id,
       id: channel.channelId,
       xmltvId: channel.xmltvId,
       number: channel.number,
@@ -134,6 +138,15 @@ export async function PATCH(
   const playlistUrl = stringValue(body.playlistUrl).trim()
   const timezone = stringValue(body.timezone).trim() || "America/Toronto"
   const stbType = stringValue(body.stbType).trim() || "MAG254"
+  const epgMode = readEpgMode(body.epgMode)
+  const requestedEpgSourceId = readEpgSourceId(body.epgSourceId)
+  const customEpg = epgMode === "custom" && requestedEpgSourceId
+    ? await selectUserEpgSource(db, requestedEpgSourceId)
+    : null
+  if (epgMode === "custom" && (!customEpg || customEpg.userId !== user.id)) {
+    return NextResponse.json({ error: "Custom EPG source not found." }, { status: 400 })
+  }
+  const epgSourceId = epgMode === "custom" ? requestedEpgSourceId : null
 
   if (sourceType === "stalker" && (!portalUrl || !mac)) {
     return NextResponse.json(
@@ -166,6 +179,8 @@ export async function PATCH(
         name,
         sourceType,
         channelCount: channels.length || safeNumber(body.channelCount),
+        epgMode,
+        epgSourceId,
         updatedAt: now,
       })
       .where(eq(savedSources.id, sourceId))
@@ -226,6 +241,8 @@ export async function PATCH(
       name,
       sourceType,
       channelCount: channels.length || safeNumber(body.channelCount),
+      epgMode,
+      epgSourceId,
       createdAt: existing.createdAt,
       updatedAt: now,
       portalUrl,

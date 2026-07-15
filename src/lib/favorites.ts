@@ -170,3 +170,41 @@ export async function toggleFavorite(channelKey: string): Promise<void> {
     throw error
   }
 }
+
+/**
+ * Replaces legacy channel keys with their current equivalents. A legacy key
+ * identified an M3U stream by its XMLTV id, which can describe more than one
+ * playlist entry. Keeping this here preserves existing server and local
+ * favorites when the client upgrades its channel identity format.
+ */
+export async function migrateFavoriteKeys(mappings: Map<string, string[]>) {
+  const oldKeys = [...mappings.keys()].filter((key) => cache.has(key))
+  if (!oldKeys.length) return
+
+  const next = new Set(cache)
+  const newKeys = oldKeys.flatMap((key) => mappings.get(key) ?? [])
+  for (const key of oldKeys) next.delete(key)
+  for (const key of newKeys) next.add(key)
+  setCache(next)
+
+  if (!loadedUserId) {
+    if (typeof window !== "undefined") {
+      try { localStorage.setItem(legacyStorageKey, JSON.stringify([...next])) } catch {}
+    }
+    return
+  }
+
+  try {
+    if (newKeys.length) {
+      await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelKeys: newKeys }),
+      })
+    }
+    await Promise.all(oldKeys.map((key) => fetch(`/api/favorites?channelKey=${encodeURIComponent(key)}`, { method: "DELETE" })))
+  } catch {
+    // Keep the migrated in-memory state. A later sync can retry the server
+    // update, and showing a favorite is preferable to silently losing it.
+  }
+}

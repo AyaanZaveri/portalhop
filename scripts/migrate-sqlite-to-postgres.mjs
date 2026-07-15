@@ -106,6 +106,28 @@ async function createSchema() {
       updated_at timestamp not null
     );
 
+    create table if not exists user_epg_sources (
+      id serial primary key,
+      user_id text not null references "user"(id) on delete cascade,
+      name text not null,
+      url text not null,
+      channel_count integer not null default 0,
+      refreshed_at timestamp,
+      created_at timestamp not null,
+      updated_at timestamp not null
+    );
+    create table if not exists user_epg_channels (
+      epg_source_id integer not null references user_epg_sources(id) on delete cascade,
+      channel_id text not null,
+      name text not null,
+      logo_url text,
+      channel_id_lower text not null,
+      name_normalized text not null,
+      primary key (epg_source_id, channel_id)
+    );
+    alter table saved_sources add column if not exists epg_mode text not null default 'portal';
+    alter table saved_sources add column if not exists epg_source_id integer references user_epg_sources(id) on delete set null;
+
     create table if not exists saved_stalker_sources (
       source_id integer primary key references saved_sources(id) on delete cascade,
       portal_url text not null,
@@ -158,6 +180,9 @@ async function createSchema() {
     create index if not exists saved_channels_portal_id_idx on saved_channels(portal_id);
     create index if not exists saved_channels_source_id_idx on saved_channels(source_id);
     create index if not exists saved_sources_updated_at_idx on saved_sources(updated_at);
+    create index if not exists user_epg_sources_user_id_idx on user_epg_sources(user_id);
+    create index if not exists user_epg_channels_channel_id_lower_idx on user_epg_channels(channel_id_lower);
+    create index if not exists user_epg_channels_name_normalized_idx on user_epg_channels(name_normalized);
 
     alter table "user" enable row level security;
     alter table session enable row level security;

@@ -10,6 +10,8 @@ export type PortalRequest = {
 }
 
 export type PortalChannel = {
+  /** Primary key of a persisted saved-channel row, when loaded from a portal. */
+  savedChannelId?: number
   id: string
   number: string
   name: string

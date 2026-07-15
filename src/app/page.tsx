@@ -117,6 +117,8 @@ type PortalSource = {
   name: string
   endpoint: string
   request: SourceRequest
+  epgMode: SavedSourceRecord["epgMode"]
+  epgSourceId: number | null
 }
 
 type PortalChannelWithSource = PortalChannel & {
@@ -221,7 +223,7 @@ const defaultSourceRequest: SourceRequest = {
 export default function Home() {
   useFavoritesSync()
   const { settings, settingsLoaded, userId, updateSettings } = useUserSettings()
-  const { enabledSourceIds, iptvOrgEnabled, logoSource, useProxy } = settings
+  const { enabledSourceIds, iptvOrgEnabled, useProxy } = settings
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
@@ -234,17 +236,20 @@ export default function Home() {
   const [iptvOrgLoading, setIptvOrgLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [epgChannels, setEpgChannels] = useState<Record<string, { name: string; logoUrl?: string; countryCode?: string }>>({})
+  const [customEpgChannels, setCustomEpgChannels] = useState<Record<number, Record<string, { logoUrl?: string }>>>({})
 
   const fetchEpgChannels = useCallback(async () => {
     try {
-      const res = await fetch("/api/epg/channels")
+      const customIds = Object.values(loadedPortals).map(({ portal }) => portal.epgMode === "custom" ? portal.epgSourceId : null).filter((id): id is number => Number.isInteger(id))
+      const res = await fetch(`/api/epg/channels${customIds.length ? `?sourceIds=${customIds.join(",")}` : ""}`)
       if (!res.ok) throw new Error("Failed to fetch EPG channels")
       const channels = await res.json()
-      setEpgChannels(channels)
+      setEpgChannels(channels.builtin ?? channels)
+      setCustomEpgChannels(channels.custom ?? {})
     } catch (err) {
       console.error("Failed to load EPG channels:", err)
     }
-  }, [])
+  }, [loadedPortals])
 
 
 
@@ -279,6 +284,8 @@ export default function Home() {
           name: IPTV_ORG_SOURCE_NAME,
           endpoint: "",
           request: { sourceType: "m3u", playlistUrl: "" },
+          epgMode: "none",
+          epgSourceId: null,
         }
         setIptvOrgChannels(
           (body.channels as PortalChannel[]).map((channel) => ({
@@ -483,9 +490,9 @@ export default function Home() {
             allChannels={browserChannels}
             endpoint={result?.endpoint ?? ""}
             portalRequest={previewSourceRequest}
-            logoSource={logoSource}
             useProxy={useProxy}
             epgChannels={epgChannels}
+            customEpgChannels={customEpgChannels}
             query={query}
             onQueryChange={setQuery}
             utilityControls={
@@ -576,9 +583,9 @@ function ChannelBrowser({
   allChannels,
   endpoint,
   portalRequest,
-  logoSource,
   useProxy,
   epgChannels,
+  customEpgChannels,
   query,
   onQueryChange,
   utilityControls,
@@ -587,16 +594,34 @@ function ChannelBrowser({
   allChannels: PortalChannelWithSource[]
   endpoint: string
   portalRequest: SourceRequest
-  logoSource: "provider" | "epg"
   useProxy: boolean
   epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>
+  customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>
   query: string
   onQueryChange: (value: string) => void
   utilityControls: ReactNode
 }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
-  const { favorites, toggleFavorite } = useFavorites()
+  const { favorites, toggleFavorite, migrateFavoriteKeys } = useFavorites()
+  const isChannelFavorited = useCallback(
+    (channel: PortalChannelWithSource) =>
+      favorites.has(getChannelKey(channel)) || favorites.has(getLegacyChannelKey(channel)),
+    [favorites]
+  )
+
+  useEffect(() => {
+    const mappings = new Map<string, string[]>()
+    for (const channel of allChannels) {
+      const legacyKey = getLegacyChannelKey(channel)
+      if (!favorites.has(legacyKey)) continue
+      const current = mappings.get(legacyKey) ?? []
+      current.push(getChannelKey(channel))
+      mappings.set(legacyKey, current)
+    }
+    if (mappings.size) migrateFavoriteKeys(mappings)
+  }, [allChannels, favorites, migrateFavoriteKeys])
+
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const prefersReducedMotion = useReducedMotion()
   const [clientPlatform, setClientPlatform] = useState<ClientPlatform>("other")
@@ -612,10 +637,10 @@ function ChannelBrowser({
     () =>
       allChannels.reduce(
         (count, channel) =>
-          favorites.has(getChannelKey(channel)) ? count + 1 : count,
+          isChannelFavorited(channel) ? count + 1 : count,
         0
       ),
-    [allChannels, favorites]
+    [allChannels, isChannelFavorited]
   )
 
   // Default the filter to Favorites only when the current list actually has
@@ -661,13 +686,13 @@ function ChannelBrowser({
     }
 
     if (browseFilter.type === "favorites") {
-      return channels.filter((channel) => favorites.has(getChannelKey(channel)))
+      return channels.filter(isChannelFavorited)
     }
 
     return channels.filter(
       (channel) => (channel.genre || "Uncategorized") === browseFilter.genre
     )
-  }, [browseFilter, channels, favorites])
+  }, [browseFilter, channels, isChannelFavorited])
   const [copiedChannel, setCopiedChannel] = useState("")
   const [resolvingChannel, setResolvingChannel] = useState("")
   const [failedChannel, setFailedChannel] = useState("")
@@ -895,7 +920,8 @@ function ChannelBrowser({
           signal: controller.signal,
           body: JSON.stringify({
             ...sourceRequest,
-            source: logoSource,
+            epgMode: selectedChannel?.portalSource?.epgMode ?? "portal",
+            epgSourceId: selectedChannel?.portalSource?.epgSourceId ?? null,
             endpoint: sourceEndpoint,
             channelId: selectedChannel?.id,
             channelName: selectedChannel?.name,
@@ -930,7 +956,7 @@ function ChannelBrowser({
     return () => {
       controller.abort()
     }
-  }, [endpoint, logoSource, playerStream, portalRequest, selectedChannel])
+  }, [endpoint, playerStream, portalRequest, selectedChannel])
 
   async function pullChannelStream(
     channel: PortalChannelWithSource,
@@ -1007,7 +1033,7 @@ function ChannelBrowser({
           channelKey,
           channelName: channel.name || "Live stream",
           genre: channel.genre,
-          logoUrl: getChannelLogoUrl(channel, logoSource, epgChannels),
+          logoUrl: getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels),
           number: channel.number,
           portalName: channel.portalSource?.name ?? "",
           url: streamLink,
@@ -1157,8 +1183,8 @@ function ChannelBrowser({
               const isResolving = resolvingChannel === channelKey
               const isSelected =
                 selectedChannel && getChannelKey(selectedChannel) === channelKey
-              const isFavorited = favorites.has(channelKey)
-              const logoUrl = getChannelLogoUrl(channel, logoSource, epgChannels)
+              const isFavorited = isChannelFavorited(channel)
+              const logoUrl = getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels)
               const channelBadgeId = channel.xmltvId ?? ""
 
               return (
@@ -1788,10 +1814,21 @@ function EpgSchedule({
 }
 
 function getChannelKey(channel: PortalChannelWithSource) {
-  return [
+  // Channel IDs from older saved M3U sources can be XMLTV `tvg-id` values,
+  // which are not necessarily unique. Include the stream URL and playlist
+  // number so selection, favourites, and player state identify the actual
+  // stream rather than its guide metadata.
+  return JSON.stringify([
     channel.portalSource?.id ?? "manual",
-    channel.id || channel.number || channel.name,
-  ].join(":")
+    channel.savedChannelId ?? null,
+    channel.id,
+    channel.number,
+    channel.cmd,
+  ])
+}
+
+function getLegacyChannelKey(channel: PortalChannelWithSource) {
+  return [channel.portalSource?.id ?? "manual", channel.id || channel.number || channel.name].join(":")
 }
 
 function getPortalSource(portal: SavedPortalRecord): PortalSource {
@@ -1807,6 +1844,8 @@ function getPortalSource(portal: SavedPortalRecord): PortalSource {
         password: portal.password ?? "",
         outputFormat: portal.outputFormat ?? "m3u8",
       },
+      epgMode: portal.epgMode,
+      epgSourceId: portal.epgSourceId,
     }
   }
 
@@ -1819,6 +1858,8 @@ function getPortalSource(portal: SavedPortalRecord): PortalSource {
         sourceType: "m3u",
         playlistUrl: portal.playlistUrl ?? "",
       },
+      epgMode: portal.epgMode,
+      epgSourceId: portal.epgSourceId,
     }
   }
 
@@ -1837,6 +1878,8 @@ function getPortalSource(portal: SavedPortalRecord): PortalSource {
       timezone: portal.timezone,
       stbType: portal.stbType,
     },
+    epgMode: portal.epgMode,
+    epgSourceId: portal.epgSourceId,
   }
 }
 
@@ -1895,17 +1938,12 @@ async function loadPortalChannels(
   return result
 }
 
-function getChannelLogoUrl(
-  channel: PortalChannel,
-  logoSource: "provider" | "epg",
-  epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>
-) {
+function getChannelLogoUrl(channel: PortalChannel, portalSource: PortalSource | undefined, epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>, customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>) {
   const lookupId = channel.xmltvId || channel.id
 
   const logoUrl =
-    (logoSource === "epg" && lookupId
-      ? epgChannels[lookupId.toLowerCase()]?.logoUrl
-      : null) ||
+    (portalSource?.epgMode === "iptv-org" && lookupId ? epgChannels[lookupId.toLowerCase()]?.logoUrl : null) ||
+    (portalSource?.epgMode === "custom" && portalSource.epgSourceId && lookupId ? customEpgChannels[portalSource.epgSourceId]?.[lookupId.toLowerCase()]?.logoUrl : null) ||
     channel.logoUrl ||
     ""
 

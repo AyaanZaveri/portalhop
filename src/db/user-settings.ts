@@ -27,7 +27,6 @@ export async function getUserSettings(
       ? row.enabledSourceIds
       : [],
     iptvOrgEnabled: row.iptvOrgEnabled,
-    logoSource: row.logoSource === "epg" ? "epg" : "provider",
     useProxy: row.useProxy,
   }
 }
