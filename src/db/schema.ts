@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm"
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -10,6 +11,25 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
+
+import { decryptSecret, encryptSecret } from "@/lib/source-encryption"
+
+// A text column whose value is encrypted on the way to Postgres and decrypted
+// on the way back, so saved-source credentials are never stored as plaintext.
+// The stored SQL type is still plain `text`; only the contents differ, so no
+// column-type migration is required. Drizzle skips these mappers for null
+// values, so nullable credential columns are unaffected.
+const encryptedText = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "text"
+  },
+  toDriver(value) {
+    return encryptSecret(value)
+  },
+  fromDriver(value) {
+    return decryptSecret(value)
+  },
+})
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -117,24 +137,24 @@ export const savedStalkerSources = pgTable("saved_stalker_sources", {
   sourceId: integer("source_id")
     .primaryKey()
     .references(() => savedSources.id, { onDelete: "cascade" }),
-  portalUrl: text("portal_url").notNull(),
-  mac: text("mac").notNull(),
-  serial: text("serial"),
-  deviceId: text("device_id"),
-  deviceId2: text("device_id_2"),
-  signature: text("signature"),
+  portalUrl: encryptedText("portal_url").notNull(),
+  mac: encryptedText("mac").notNull(),
+  serial: encryptedText("serial"),
+  deviceId: encryptedText("device_id"),
+  deviceId2: encryptedText("device_id_2"),
+  signature: encryptedText("signature"),
   timezone: text("timezone").notNull(),
   stbType: text("stb_type").notNull(),
-  endpoint: text("endpoint"),
+  endpoint: encryptedText("endpoint"),
 })
 
 export const savedXtreamSources = pgTable("saved_xtream_sources", {
   sourceId: integer("source_id")
     .primaryKey()
     .references(() => savedSources.id, { onDelete: "cascade" }),
-  serverUrl: text("server_url").notNull(),
-  username: text("username").notNull(),
-  password: text("password").notNull(),
+  serverUrl: encryptedText("server_url").notNull(),
+  username: encryptedText("username").notNull(),
+  password: encryptedText("password").notNull(),
   outputFormat: text("output_format").notNull(),
 })
 
@@ -142,10 +162,10 @@ export const savedM3uSources = pgTable("saved_m3u_sources", {
   sourceId: integer("source_id")
     .primaryKey()
     .references(() => savedSources.id, { onDelete: "cascade" }),
-  playlistUrl: text("playlist_url").notNull(),
-  derivedXtreamServerUrl: text("derived_xtream_server_url"),
-  derivedXtreamUsername: text("derived_xtream_username"),
-  derivedXtreamPassword: text("derived_xtream_password"),
+  playlistUrl: encryptedText("playlist_url").notNull(),
+  derivedXtreamServerUrl: encryptedText("derived_xtream_server_url"),
+  derivedXtreamUsername: encryptedText("derived_xtream_username"),
+  derivedXtreamPassword: encryptedText("derived_xtream_password"),
 })
 
 export const savedChannels = pgTable("saved_channels", {
