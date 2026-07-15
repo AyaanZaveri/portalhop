@@ -252,16 +252,19 @@ function UserAvatar({
   // saved for the user by virtue of being deterministic from their account.
   const seed = user.id || user.email || user.name || "portalhop"
 
+  // Size the SVG directly via className. Marble is already circular (its own
+  // mask), so no wrapper/overflow is needed — wrapping it and relying on the
+  // svg's 100% size let its intrinsic 80x80 viewBox win inside a flex parent,
+  // which cropped it to the top-left.
   return (
-    <span className={`${className} inline-flex overflow-hidden rounded-full`}>
-      <Avatar
-        size="100%"
-        name={seed}
-        variant="marble"
-        colors={AVATAR_COLORS}
-        title={false}
-      />
-    </span>
+    <Avatar
+      size="100%"
+      name={seed}
+      variant="marble"
+      colors={AVATAR_COLORS}
+      title={false}
+      className={`${className} block shrink-0 rounded-full`}
+    />
   )
 }
 
