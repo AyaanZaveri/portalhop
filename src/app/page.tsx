@@ -130,6 +130,13 @@ type StreamVariant = {
   frameRateLabel: string
 }
 
+type CaptionCue = {
+  startTime: number
+  endTime: number
+  line: number
+  text: string
+}
+
 type ExternalPlayer = "iina" | "vlc" | "mpv" | "outplayer"
 type ClientPlatform = "android" | "ios" | "linux" | "macos" | "windows" | "other"
 
@@ -715,6 +722,9 @@ function ChannelBrowser({
     url: string
   } | null>(null)
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(null)
+  const captionCuesRef = useRef<Map<string, CaptionCue[]>>(new Map())
+  const captionDebugStateRef = useRef("")
+  const [activeCaption, setActiveCaption] = useState<string | null>(null)
   const [streamVariant, setStreamVariant] = useState<StreamVariant>({
     resolutionLabel: "",
     frameRateLabel: "",
@@ -736,10 +746,17 @@ function ChannelBrowser({
 
   useEffect(() => {
     setStreamVariant({ resolutionLabel: "", frameRateLabel: "" })
+    captionCuesRef.current.clear()
+    captionDebugStateRef.current = ""
+    setActiveCaption(null)
 
     if (!playerStream || !playerElement) {
       return
     }
+
+    console.log("[Portal Hop captions] diagnostics attached", {
+      streamUrl: playerStream.url,
+    })
 
     let removeHlsListeners: (() => void) | undefined
     let intervalId: number | undefined
@@ -748,6 +765,86 @@ function ChannelBrowser({
     let frameRateEstimated = false
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
+
+    const logCaptionState = (state: string, detail: Record<string, unknown>) => {
+      if (captionDebugStateRef.current === state) return
+      captionDebugStateRef.current = state
+      console.log("[Portal Hop captions]", detail)
+    }
+
+    const getTextTrackDebugInfo = () =>
+      Array.from(playerElement.querySelectorAll("track")).map((track) => ({
+        id: track.id,
+        kind: track.track.kind,
+        label: track.track.label,
+        mode: track.track.mode,
+      }))
+
+    const updateActiveCaption = () => {
+      const selectedTrack = Array.from(playerElement.querySelectorAll("track")).find(
+        (track) =>
+          (track.track.kind === "captions" || track.track.kind === "subtitles") &&
+          track.track.mode === "showing"
+      )
+
+      if (!selectedTrack) {
+        logCaptionState("no-selected-track", {
+          event: "overlay-cleared",
+          reason: "No caption track is currently showing",
+          tracks: getTextTrackDebugInfo(),
+        })
+        setActiveCaption(null)
+        return
+      }
+
+      const cueTrackId = captionCuesRef.current.has(selectedTrack.id)
+        ? selectedTrack.id
+        : selectedTrack.id === "default" && captionCuesRef.current.size === 1
+          ? [...captionCuesRef.current.keys()][0]
+          : undefined
+      const now = playerElement.currentTime
+      const activeCues = (cueTrackId
+        ? captionCuesRef.current.get(cueTrackId) ?? []
+        : []
+      ).filter(
+        (cue) => cue.startTime <= now && cue.endTime >= now
+      )
+
+      if (!activeCues.length) {
+        logCaptionState(`no-active-cue:${selectedTrack.id}`, {
+          event: "overlay-cleared",
+          reason: "Selected track has no cue at the current video timestamp",
+          currentTime: now,
+          trackId: selectedTrack.id,
+          cueTrackId,
+          knownCueCount: cueTrackId
+            ? captionCuesRef.current.get(cueTrackId)?.length ?? 0
+            : 0,
+        })
+        setActiveCaption(null)
+        return
+      }
+
+      // CEA captions emit one cue per screen row. Render the most recent
+      // screen as one subtitle block so live updates never stack over each other.
+      const latestStartTime = Math.max(...activeCues.map((cue) => cue.startTime))
+      const lines = activeCues
+        .filter((cue) => Math.abs(cue.startTime - latestStartTime) < 0.05)
+        .sort((a, b) => a.line - b.line)
+        .map((cue) => cue.text)
+        .filter((text, index, values) => text && values.indexOf(text) === index)
+
+      const text = lines.length ? lines.join("\n") : null
+      logCaptionState(`${selectedTrack.id}:${text ?? ""}`, {
+        event: "overlay-updated",
+        currentTime: now,
+        trackId: selectedTrack.id,
+        cueTrackId,
+        text,
+        activeCueCount: activeCues.length,
+      })
+      setActiveCaption(text)
+    }
 
     const sampleFrameRate = () => {
       if (hasManifestFrameRate || frameRateEstimated) {
@@ -823,8 +920,11 @@ function ChannelBrowser({
       const hls = getCoreReference(playerElement)?.engine
 
       if (!hls) {
+        console.log("[Portal Hop captions] waiting for HLS engine")
         return false
       }
+
+      console.log("[Portal Hop captions] HLS engine connected")
 
       const updateFromLevel = (levelIndex?: number) => {
         const currentLevelIndex =
@@ -846,7 +946,68 @@ function ChannelBrowser({
         }
       }
 
-      const handleManifestParsed = () => updateFromLevel()
+      const allowEmbeddedCaptions = () => {
+        // Some IPTV manifests declare CLOSED-CAPTIONS=NONE even when their
+        // transport-stream video frames carry CEA-608/708 caption data. HLS.js
+        // otherwise skips decoding those embedded captions entirely.
+        for (const level of hls.levels) {
+          if (level.attrs["CLOSED-CAPTIONS"] === "NONE") {
+            delete level.attrs["CLOSED-CAPTIONS"]
+          }
+        }
+      }
+
+      const handleManifestParsed = () => {
+        allowEmbeddedCaptions()
+        updateFromLevel()
+      }
+      const handleCuesParsed = (
+        _event: typeof Hls.Events.CUES_PARSED,
+        data: { type: string; track: string; cues: VTTCue[] }
+      ) => {
+        if (data.type !== "captions") return
+
+        const existing = captionCuesRef.current.get(data.track) ?? []
+        const next = [...existing]
+
+        for (const cue of data.cues) {
+          const text = cue.text.replace(/<[^>]+>/g, "").trim()
+          if (!text) continue
+
+          const captionCue: CaptionCue = {
+            startTime: cue.startTime,
+            endTime: cue.endTime,
+            line: typeof cue.line === "number" ? cue.line : 0,
+            text,
+          }
+          const alreadyKnown = next.some(
+            (existingCue) =>
+              existingCue.startTime === captionCue.startTime &&
+              existingCue.endTime === captionCue.endTime &&
+              existingCue.line === captionCue.line &&
+              existingCue.text === captionCue.text
+          )
+
+          if (!alreadyKnown) next.push(captionCue)
+        }
+
+        captionCuesRef.current.set(
+          data.track,
+          next.filter((cue) => cue.endTime >= playerElement.currentTime - 5).slice(-300)
+        )
+        console.log("[Portal Hop captions]", {
+          event: "hls-cues-parsed",
+          trackId: data.track,
+          cueCount: data.cues.length,
+          cues: data.cues.map((cue) => ({
+            startTime: cue.startTime,
+            endTime: cue.endTime,
+            text: cue.text,
+          })),
+          tracks: getTextTrackDebugInfo(),
+        })
+        updateActiveCaption()
+      }
       const handleLevelSwitching = (
         _event: typeof Hls.Events.LEVEL_SWITCHING,
         data: { level: number }
@@ -857,12 +1018,15 @@ function ChannelBrowser({
       ) => updateFromLevel(data.level)
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
+      hls.on(Hls.Events.CUES_PARSED, handleCuesParsed)
       hls.on(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
       hls.on(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
+      allowEmbeddedCaptions()
       updateFromLevel()
 
       removeHlsListeners = () => {
         hls.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
+        hls.off(Hls.Events.CUES_PARSED, handleCuesParsed)
         hls.off(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
         hls.off(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
       }
@@ -880,7 +1044,11 @@ function ChannelBrowser({
     }
 
     playerElement.addEventListener("loadedmetadata", updateFromNativeVideo)
+    playerElement.addEventListener("timeupdate", updateActiveCaption)
+    playerElement.textTracks.addEventListener("change", updateActiveCaption)
+    playerElement.textTracks.addEventListener("addtrack", updateActiveCaption)
     updateFromNativeVideo()
+    updateActiveCaption()
 
     return () => {
       if (intervalId) {
@@ -892,6 +1060,9 @@ function ChannelBrowser({
       }
 
       playerElement.removeEventListener("loadedmetadata", updateFromNativeVideo)
+      playerElement.removeEventListener("timeupdate", updateActiveCaption)
+      playerElement.textTracks.removeEventListener("change", updateActiveCaption)
+      playerElement.textTracks.removeEventListener("addtrack", updateActiveCaption)
       removeHlsListeners?.()
     }
   }, [playerElement, playerStream])
@@ -1365,7 +1536,7 @@ function ChannelBrowser({
             <MediaPlayer
               key={`${playerStream.channelKey}-${playerStream.url}`}
               autoHide
-              className="aspect-video w-full overflow-hidden rounded-lg bg-black"
+              className="group/player aspect-video w-full overflow-hidden rounded-lg bg-black"
             >
               <MediaPlayerVideo
                 render={
@@ -1375,6 +1546,10 @@ function ChannelBrowser({
                     type="hls"
                     streamType="live"
                     preferPlayback="mse"
+                    _hlsConfig={{
+                      enableCEA708Captions: true,
+                      renderTextTracksNatively: false,
+                    }}
                     preload="auto"
                     targetLiveWindow={30}
                     autoPlay
@@ -1389,6 +1564,13 @@ function ChannelBrowser({
                   />
                 }
               />
+              {activeCaption ? (
+                <div className="pointer-events-none absolute inset-x-0 bottom-[10%] z-20 flex justify-center px-8">
+                  <p className="max-w-[85%] rounded-xl bg-black/70 px-4 py-2 text-center text-[clamp(0.875rem,1.4vw,1.125rem)] font-medium leading-tight whitespace-pre-line text-white shadow-xl backdrop-blur-md group-data-[state=fullscreen]/player:text-[clamp(1rem,2.2vw,1.875rem)]">
+                    {activeCaption}
+                  </p>
+                </div>
+              ) : null}
               <MediaPlayerLoading />
               <MediaPlayerError />
               <MediaPlayerVolumeIndicator />
