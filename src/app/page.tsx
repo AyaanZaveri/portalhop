@@ -11,6 +11,7 @@ import {
   useState,
 } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { motion, useReducedMotion } from "motion/react"
 import { toast } from "sonner"
 import {
   AlertCircleIcon,
@@ -28,6 +29,15 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   InputGroup,
   InputGroupAddon,
@@ -116,6 +126,80 @@ type PortalChannelWithSource = PortalChannel & {
 type StreamVariant = {
   resolutionLabel: string
   frameRateLabel: string
+}
+
+type ExternalPlayer = "iina" | "vlc" | "mpv" | "outplayer"
+type ClientPlatform = "android" | "ios" | "linux" | "macos" | "windows" | "other"
+
+const externalPlayers: Array<{
+  id: ExternalPlayer
+  label: string
+  platforms: ClientPlatform[]
+}> = [
+    { id: "iina", label: "IINA", platforms: ["macos"] },
+    {
+      id: "vlc",
+      label: "VLC",
+      platforms: ["android", "ios", "linux", "macos", "windows"],
+    },
+    {
+      id: "mpv",
+      label: "mpv",
+      platforms: ["android", "linux", "macos", "windows"],
+    },
+    { id: "outplayer", label: "Outplayer", platforms: ["ios"] },
+  ]
+
+function getExternalPlayerLabel(player: ExternalPlayer) {
+  return externalPlayers.find(({ id }) => id === player)?.label ?? "player"
+}
+
+function getClientPlatform(userAgent: string, maxTouchPoints = 0): ClientPlatform {
+  if (/Android/i.test(userAgent)) return "android"
+  if (/iPad|iPhone|iPod/i.test(userAgent)) return "ios"
+  if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) return "ios"
+  if (/Macintosh/i.test(userAgent)) return "macos"
+  if (/Windows/i.test(userAgent)) return "windows"
+  if (/Linux/i.test(userAgent)) return "linux"
+  return "other"
+}
+
+function PlayerLogo({ player }: { player: ExternalPlayer }) {
+  const extension = player === "vlc" ? "svg" : "png"
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- Player logos are local static assets; image optimization is not useful for 16px menu icons.
+    <img
+      src={`/players/${player}/logo.${extension}`}
+      alt=""
+      className="size-4 shrink-0 rounded-[3px] object-contain"
+    />
+  )
+}
+
+function androidIntentUrl(streamUrl: string, packageName: string) {
+  const url = new URL(streamUrl)
+  const path = `${url.host}${url.pathname}${url.search}${url.hash}`
+  return `intent://${path}#Intent;scheme=${url.protocol.slice(0, -1)};action=android.intent.action.VIEW;type=video/*;package=${packageName};end`
+}
+
+function getExternalPlayerUrl(player: ExternalPlayer, streamUrl: string) {
+  const encodedStreamUrl = encodeURIComponent(streamUrl)
+
+  switch (player) {
+    case "iina":
+      return `iina://weblink?url=${encodedStreamUrl}`
+    case "vlc":
+      return /Android/i.test(navigator.userAgent)
+        ? androidIntentUrl(streamUrl, "org.videolan.vlc")
+        : `vlc-x-callback://x-callback-url/stream?url=${encodedStreamUrl}`
+    case "mpv":
+      return /Android/i.test(navigator.userAgent)
+        ? androidIntentUrl(streamUrl, "is.xyz.mpv")
+        : `mpv://open?url=${encodedStreamUrl}`
+    case "outplayer":
+      return `outplayer://x-callback-url/open?url=${encodedStreamUrl}`
+  }
 }
 
 const proxyBaseUrl =
@@ -514,6 +598,14 @@ function ChannelBrowser({
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
   const { favorites, toggleFavorite } = useFavorites()
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const prefersReducedMotion = useReducedMotion()
+  const [clientPlatform, setClientPlatform] = useState<ClientPlatform>("other")
+
+  useEffect(() => {
+    setClientPlatform(
+      getClientPlatform(navigator.userAgent, navigator.maxTouchPoints)
+    )
+  }, [])
 
   // Number of favorites that actually exist in the currently loaded list.
   const favoriteCount = useMemo(
@@ -579,6 +671,10 @@ function ChannelBrowser({
   const [copiedChannel, setCopiedChannel] = useState("")
   const [resolvingChannel, setResolvingChannel] = useState("")
   const [failedChannel, setFailedChannel] = useState("")
+  // Lets a click on another channel supersede an in-flight resolve: the old
+  // request is aborted and only the most recent one (by sequence) updates state.
+  const pullControllerRef = useRef<AbortController | null>(null)
+  const pullSeqRef = useRef(0)
   const [selectedChannel, setSelectedChannel] =
     useState<PortalChannelWithSource | null>(null)
   const [epgProgrammes, setEpgProgrammes] = useState<EpgProgramme[]>([])
@@ -838,7 +934,7 @@ function ChannelBrowser({
 
   async function pullChannelStream(
     channel: PortalChannelWithSource,
-    action: "copy" | "open" | "play" = "play"
+    action: "copy" | ExternalPlayer | "play" = "play"
   ) {
     const channelKey = getChannelKey(channel)
     const sourceRequest = channel.portalSource?.request ?? portalRequest
@@ -847,6 +943,12 @@ function ChannelBrowser({
     if (!canResolveChannel(channel)) {
       return
     }
+
+    // Supersede any in-flight resolve so clicking another channel is instant.
+    const seq = ++pullSeqRef.current
+    const controller = new AbortController()
+    pullControllerRef.current?.abort()
+    pullControllerRef.current = controller
 
     setResolvingChannel(channelKey)
     setFailedChannel("")
@@ -859,6 +961,7 @@ function ChannelBrowser({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
+        signal: controller.signal,
         body: JSON.stringify({
           ...sourceRequest,
           endpoint: sourceEndpoint,
@@ -885,16 +988,20 @@ function ChannelBrowser({
           description: channel.name,
           icon: <CheckIcon className="size-4 text-foreground" />,
         })
-      } else if (action === "open") {
-        window.location.href = `iina://weblink?url=${encodeURIComponent(
-          streamLink
-        )}`
+      } else if (action !== "play") {
+        const playerUrl = getExternalPlayerUrl(action, streamLink)
+        window.location.href = playerUrl
         toast.dismiss(toastId)
-        toast.success("Opening in IINA", {
+        toast.success(`Opening in ${getExternalPlayerLabel(action)}`, {
           description: channel.name,
           icon: <CheckIcon className="size-4 text-foreground" />,
         })
       } else {
+        // A newer click already superseded this one — don't swap the player.
+        if (pullSeqRef.current !== seq) {
+          toast.dismiss(toastId)
+          return
+        }
         setSelectedChannel(channel)
         setPlayerStream({
           channelKey,
@@ -908,6 +1015,12 @@ function ChannelBrowser({
         toast.dismiss(toastId)
       }
     } catch (error) {
+      // Superseded by a newer channel click — stay silent, its request owns
+      // the UI now.
+      if (controller.signal.aborted) {
+        toast.dismiss(toastId)
+        return
+      }
       setFailedChannel(channelKey)
       window.setTimeout(() => setFailedChannel(""), 1800)
       toast.dismiss(toastId)
@@ -915,19 +1028,25 @@ function ChannelBrowser({
         description: error instanceof Error ? error.message : channel.name,
       })
     } finally {
-      setResolvingChannel("")
+      // Only the most recent request clears the shared resolving/spinner state.
+      if (pullSeqRef.current === seq) {
+        setResolvingChannel("")
+      }
     }
   }
 
-  const isMobileLayout = useMediaQuery("(max-width: 767px)", true)
+  const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
   const resizableOrientation = isMobileLayout ? "vertical" : "horizontal"
   const isResponsiveLayoutReady = useHydratedLayout()
+  const availableExternalPlayers = externalPlayers.filter(({ platforms }) =>
+    platforms.includes(clientPlatform)
+  )
 
   const activeCategoryGenre =
     browseFilter.type === "category" ? browseFilter.genre : null
 
   const renderChannelContent = () => (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm min-[940px]:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
@@ -1045,100 +1164,107 @@ function ChannelBrowser({
               return (
                 <div
                   key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                  className={cn(
-                    "group absolute inset-x-0 flex items-center gap-1 rounded-xl pr-1 pl-2 transition-colors hover:bg-accent/80",
-                    isSelected && "bg-accent shadow-xs"
-                  )}
+                  className="absolute inset-x-0"
                   style={{
                     height: `${virtualRow.size - 6}px`,
                     transform: `translateY(${virtualRow.start + 3}px)`,
                   }}
                 >
-                  <button
-                    type="button"
-                    disabled={!canResolve || Boolean(resolvingChannel)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
-                    onClick={() => pullChannelStream(channel)}
+                  {/* Positioning (translateY) lives on the wrapper above; the
+                      visible row scales as one unit on press so the whole
+                      thing — background, content, and star — responds. */}
+                  <div
+                    className={cn(
+                      "group flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out hover:bg-accent/80 active:scale-[0.99]",
+                      isSelected && "bg-accent shadow-xs"
+                    )}
                   >
-                    <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
-                      {logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                        <img
-                          src={logoUrl}
-                          alt=""
-                          className="size-full rounded object-contain"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <TvIcon className="text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="truncate font-medium">
-                        {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
-                      </span>
-                      <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                        <CategoryVisual
-                          category={channel.genre || "Uncategorized"}
-                          className="size-3 shrink-0"
-                        />
-                        <span className="truncate">
-                          {channel.genre || "Uncategorized"}
+                    <button
+                      type="button"
+                      disabled={!canResolve}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
+                      onClick={() => pullChannelStream(channel)}
+                    >
+                      <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
+                        {logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                          <img
+                            src={logoUrl}
+                            alt=""
+                            className="size-full rounded object-contain"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <TvIcon className="text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate font-medium">
+                          {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
-                      </span>
-                      {channel.portalSource || channelBadgeId ? (
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          {channel.portalSource ? (
-                            <Badge
-                              variant="outline"
-                              className="h-4 max-w-28 rounded px-1.5 text-[10px]"
-                            >
-                              <span className="truncate">
-                                {channel.portalSource.name}
-                              </span>
-                            </Badge>
-                          ) : null}
-                          {channelBadgeId ? (
-                            <Badge
-                              variant="secondary"
-                              className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
-                            >
-                              <span className="truncate">{channelBadgeId}</span>
-                            </Badge>
-                          ) : null}
+                        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                          <CategoryVisual
+                            category={channel.genre || "Uncategorized"}
+                            className="size-3 shrink-0"
+                          />
+                          <span className="truncate">
+                            {channel.genre || "Uncategorized"}
+                          </span>
+                        </span>
+                        {channel.portalSource || channelBadgeId ? (
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {channel.portalSource ? (
+                              <Badge
+                                variant="outline"
+                                className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                              >
+                                <span className="truncate">
+                                  {channel.portalSource.name}
+                                </span>
+                              </Badge>
+                            ) : null}
+                            {channelBadgeId ? (
+                              <Badge
+                                variant="secondary"
+                                className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                              >
+                                <span className="truncate">{channelBadgeId}</span>
+                              </Badge>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                    <div className="relative flex size-8 shrink-0 items-center justify-center">
+                      <button
+                        type="button"
+                        aria-label={
+                          isFavorited
+                            ? `Remove ${channel.name || "channel"} from favorites`
+                            : `Add ${channel.name || "channel"} to favorites`
+                        }
+                        aria-pressed={isFavorited}
+                        onClick={() => toggleFavorite(channelKey)}
+                        className={cn(
+                          "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[color,opacity,transform] duration-[160ms] ease-out hover:text-foreground active:scale-95",
+                          isResolving
+                            ? "opacity-0"
+                            : isFavorited
+                              ? "text-amber-500 opacity-100 hover:text-amber-500"
+                              : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                        )}
+                      >
+                        <StarIcon
+                          className={cn("size-4", isFavorited && "fill-current")}
+                        />
+                      </button>
+                      {isResolving ? (
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                          <Spinner />
                         </span>
                       ) : null}
                     </div>
-                  </button>
-                  <div className="relative flex size-8 shrink-0 items-center justify-center">
-                    <button
-                      type="button"
-                      aria-label={
-                        isFavorited
-                          ? `Remove ${channel.name || "channel"} from favorites`
-                          : `Add ${channel.name || "channel"} to favorites`
-                      }
-                      aria-pressed={isFavorited}
-                      onClick={() => toggleFavorite(channelKey)}
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[color,opacity,transform] duration-[160ms] ease-out hover:text-foreground active:scale-95",
-                        isResolving
-                          ? "opacity-0"
-                          : isFavorited
-                            ? "text-amber-500 opacity-100 hover:text-amber-500"
-                            : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-                      )}
-                    >
-                      <StarIcon
-                        className={cn("size-4", isFavorited && "fill-current")}
-                      />
-                    </button>
-                    {isResolving ? (
-                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                        <Spinner />
-                      </span>
-                    ) : null}
                   </div>
                 </div>
               )
@@ -1158,9 +1284,19 @@ function ChannelBrowser({
   const renderPlayerContent = () => (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-background">
       {!playerStream ? <PrimaryMeshGradientBackdrop /> : null}
-      <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
+      <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
         {playerStream ? (
-          <div className="flex min-w-0 items-center gap-3">
+          // Keyed by channel so switching channels replays the arrival: the
+          // header fades and rises in, so the swap reads as content arriving
+          // rather than teleporting. Critically damped (no overshoot); reduced
+          // motion keeps the fade but drops the movement.
+          <motion.div
+            key={playerStream.channelKey}
+            className="flex min-w-0 items-center gap-3"
+            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+          >
             {playerStream.logoUrl ? (
               <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
@@ -1187,7 +1323,7 @@ function ChannelBrowser({
                 ) : null}
               </div>
             </div>
-          </div>
+          </motion.div>
         ) : (
           <div className="flex flex-col">
             <p className="font-semibold">Select a channel</p>
@@ -1335,37 +1471,57 @@ function ChannelBrowser({
     <>
       <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
         {playerStream && selectedChannel ? (
-          <>
-            {!isMobileLayout && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={Boolean(resolvingChannel)}
-                onClick={() => pullChannelStream(selectedChannel, "open")}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- IINA icon is a local public asset */}
-                <img src="/iina.png" alt="" className="size-4 scale-125 object-contain" />
-                Open in IINA
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size={isMobileLayout ? "icon" : "default"}
-              disabled={Boolean(resolvingChannel)}
-              onClick={() => pullChannelStream(selectedChannel, "copy")}
-              title={isMobileLayout ? "Copy stream" : undefined}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  className={isMobileLayout ? "px-2" : undefined}
+                  disabled={Boolean(resolvingChannel)}
+                  aria-label="Open stream actions"
+                />
+              }
             >
-              {copiedChannel === getChannelKey(selectedChannel) ? (
-                <CheckIcon data-icon={isMobileLayout ? undefined : "inline-start"} />
-              ) : failedChannel === getChannelKey(selectedChannel) ? (
-                <AlertCircleIcon data-icon={isMobileLayout ? undefined : "inline-start"} />
-              ) : (
-                <CopyIcon data-icon={isMobileLayout ? undefined : "inline-start"} />
-              )}
-              {!isMobileLayout && "Copy stream"}
-            </Button>
-          </>
+              <TvIcon className="size-4 -mt-px" />
+              {!isMobileLayout && "Open in player"}
+              <ChevronDownIcon className="size-4 opacity-70" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {availableExternalPlayers.length > 0 ? (
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Open stream in</DropdownMenuLabel>
+                  {availableExternalPlayers.map((player) => (
+                    <DropdownMenuItem
+                      key={player.id}
+                      disabled={Boolean(resolvingChannel)}
+                      onClick={() => pullChannelStream(selectedChannel, player.id)}
+                      className="py-1.5"
+                    >
+                      <PlayerLogo player={player.id} />
+                      <span>{player.label}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
+              ) : null}
+              {availableExternalPlayers.length > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                disabled={Boolean(resolvingChannel)}
+                onClick={() => pullChannelStream(selectedChannel, "copy")}
+                className="py-1.5"
+              >
+                {copiedChannel === getChannelKey(selectedChannel) ? (
+                  <CheckIcon />
+                ) : failedChannel === getChannelKey(selectedChannel) ? (
+                  <AlertCircleIcon />
+                ) : (
+                  <CopyIcon />
+                )}
+                Copy stream
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
         <div className="flex items-center gap-1">{utilityControls}</div>
       </div>
@@ -1391,12 +1547,12 @@ function ChannelBrowser({
           )}
         </ResizablePanelGroup>
       ) : (
-        <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 md:flex-row">
-          <div className="order-3 min-h-0 basis-[46%] shrink md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:basis-auto md:shrink-0">
+        <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 min-[940px]:flex-row">
+          <div className="order-3 min-h-0 basis-[46%] shrink min-[940px]:order-1 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:basis-auto min-[940px]:shrink-0">
             {renderChannelContent()}
           </div>
-          <div className="order-2 w-px h-px bg-transparent shrink-0 md:order-2" />
-          <div className="order-1 min-h-0 basis-[54%] shrink md:order-3 md:flex-1 md:basis-auto">
+          <div className="order-2 w-px h-px bg-transparent shrink-0 min-[940px]:order-2" />
+          <div className="order-1 min-h-0 basis-[54%] shrink min-[940px]:order-3 min-[940px]:flex-1 min-[940px]:basis-auto">
             {renderPlayerContent()}
           </div>
         </div>
@@ -1455,7 +1611,13 @@ function StreamInfoBadges({
   }
 
   return (
-    <Badge variant="outline" className={cn("h-5", className)}>
+    <Badge
+      variant="outline"
+      className={cn(
+        "h-5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ease-out",
+        className
+      )}
+    >
       {label}
     </Badge>
   )
@@ -1785,11 +1947,11 @@ function uniqueGenres(channels: PortalChannel[]) {
 }
 
 function LoadingShell() {
-  const isMobileLayout = useMediaQuery("(max-width: 767px)", true)
+  const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
   const isResponsiveLayoutReady = useHydratedLayout()
 
   const channelContent = (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm md:min-w-80">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm min-[940px]:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
@@ -1820,7 +1982,7 @@ function LoadingShell() {
   const playerContent = (
     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-background">
       <PrimaryMeshGradientBackdrop />
-      <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 md:pr-[28rem]">
+      <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex min-w-0 flex-col">
             <p className="font-semibold">Select a channel</p>
@@ -1855,12 +2017,12 @@ function LoadingShell() {
 
   if (!isResponsiveLayoutReady) {
     return (
-      <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 md:flex-row">
-        <div className="order-3 min-h-0 basis-[46%] shrink md:order-1 md:w-[360px] md:max-w-[520px] md:min-w-80 md:basis-auto md:shrink-0">
+      <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 min-[940px]:flex-row">
+        <div className="order-3 min-h-0 basis-[46%] shrink min-[940px]:order-1 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:basis-auto min-[940px]:shrink-0">
           {channelContent}
         </div>
-        <div className="order-2 w-px h-px bg-transparent shrink-0 md:order-2" />
-        <div className="order-1 min-h-0 basis-[54%] shrink md:order-3 md:flex-1 md:basis-auto">
+        <div className="order-2 w-px h-px bg-transparent shrink-0 min-[940px]:order-2" />
+        <div className="order-1 min-h-0 basis-[54%] shrink min-[940px]:order-3 min-[940px]:flex-1 min-[940px]:basis-auto">
           {playerContent}
         </div>
       </div>
