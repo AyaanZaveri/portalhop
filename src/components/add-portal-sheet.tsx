@@ -334,7 +334,16 @@ export function AddPortalSheet({
         throw new Error(data.error || "Could not import portal text.")
       }
 
-      const portal = data.portal as Partial<PortalRequest> | undefined
+      const portal = data.portal as
+        | Partial<
+            PortalRequest & {
+              serverUrl: string
+              username: string
+              password: string
+            }
+          >
+        | undefined
+      const detectedType = data.sourceType as SourceType | null | undefined
 
       if (!portal) {
         throw new Error("No portal fields were found.")
@@ -342,6 +351,7 @@ export function AddPortalSheet({
 
       setForm((current) => ({
         ...current,
+        sourceType: detectedType || current.sourceType,
         portalUrl: portal.portalUrl || current.portalUrl,
         mac: portal.mac || current.mac,
         serial: portal.serial ?? current.serial,
@@ -350,11 +360,20 @@ export function AddPortalSheet({
         signature: portal.signature ?? current.signature,
         timezone: portal.timezone || current.timezone,
         stbType: portal.stbType || current.stbType,
+        serverUrl: portal.serverUrl || current.serverUrl,
+        username: portal.username || current.username,
+        password: portal.password || current.password,
       }))
       setTestResult(null)
       setImportDialogOpen(false)
       setImportText("")
-      toast.success("Portal fields imported.")
+      toast.success(
+        detectedType === "xtream"
+          ? "Xtream connection fields imported."
+          : detectedType === "stalker"
+            ? "Stalker connection fields imported."
+            : "Connection fields imported."
+      )
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -452,35 +471,35 @@ export function AddPortalSheet({
               <div className="px-4 pt-0 pb-4">
                 <FieldGroup>
                   <div className="grid gap-4">
-                    <Tabs
-                      value={form.sourceType}
-                      onValueChange={(value) =>
-                        updateField("sourceType", value as SourceType)
-                      }
-                    >
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="stalker">Stalker</TabsTrigger>
-                        <TabsTrigger value="xtream">Xtream</TabsTrigger>
-                        <TabsTrigger value="m3u">M3U</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
+                    <div className="flex items-center gap-2">
+                      <Tabs
+                        value={form.sourceType}
+                        onValueChange={(value) =>
+                          updateField("sourceType", value as SourceType)
+                        }
+                        className="min-w-0 flex-1"
+                      >
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="stalker">Stalker</TabsTrigger>
+                          <TabsTrigger value="xtream">Xtream</TabsTrigger>
+                          <TabsTrigger value="m3u">M3U</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="shrink-0"
+                        onClick={() => setImportDialogOpen(true)}
+                      >
+                        <ClipboardPasteIcon data-icon="inline-start" />
+                        Import text
+                      </Button>
+                    </div>
 
                     {form.sourceType === "stalker" ? (
                       <>
                         <Field>
-                          <div className="flex items-center justify-between gap-3">
-                            <FieldLabel htmlFor="portalUrl">Portal URL</FieldLabel>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="shrink-0"
-                              onClick={() => setImportDialogOpen(true)}
-                            >
-                              <ClipboardPasteIcon data-icon="inline-start" />
-                              Import text
-                            </Button>
-                          </div>
+                          <FieldLabel htmlFor="portalUrl">Portal URL</FieldLabel>
                           <InputGroup>
                             <InputGroupInput
                               id="portalUrl"
@@ -512,7 +531,7 @@ export function AddPortalSheet({
 
                         <Accordion className="w-full">
                           <AccordionItem value="advanced" className="border-none">
-                            <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-2">
+                            <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-1">
                               Show advanced
                             </AccordionTrigger>
                             <AccordionContent className="pt-2">
@@ -795,9 +814,9 @@ export function AddPortalSheet({
         <DialogContent className="overflow-hidden sm:max-w-lg">
           <div className="flex min-w-0 flex-col gap-4">
             <DialogHeader>
-              <DialogTitle>Import portal text</DialogTitle>
+              <DialogTitle>Import connection text</DialogTitle>
               <DialogDescription>
-                Paste a portal dump and Portal Hop will fill the connection fields it can find.
+                Paste a Stalker portal dump or an Xtream link/credentials and Portal Hop will fill the connection fields and switch to the right tab automatically.
               </DialogDescription>
             </DialogHeader>
 
@@ -805,7 +824,7 @@ export function AddPortalSheet({
               <Textarea
                 value={importText}
                 onChange={(event) => setImportText(event.target.value)}
-                placeholder="Paste portal, MAC, serial, device IDs, and signature text..."
+                placeholder="Paste portal/MAC text, or an Xtream URL/username/password..."
                 wrap="soft"
                 className="min-h-full min-w-0 resize-none overflow-hidden break-all whitespace-pre-wrap border-0 bg-transparent shadow-none ring-0 field-sizing-content focus-visible:ring-0 dark:bg-transparent [overflow-wrap:anywhere]"
               />

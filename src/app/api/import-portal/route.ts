@@ -12,6 +12,9 @@ const importedPortalSchema = z.object({
   signature: z.string().optional().default(""),
   timezone: z.string().optional().default(""),
   stbType: z.string().optional().default(""),
+  serverUrl: z.string().optional().default(""),
+  username: z.string().optional().default(""),
+  password: z.string().optional().default(""),
 })
 
 type ImportedPortal = z.infer<typeof importedPortalSchema>
@@ -26,25 +29,30 @@ interface ImportPortalRequest {
   }
 }
 
-const SYSTEM_PROMPT = `You are a strict field extraction engine for Stalker portal connection data.
+const SYSTEM_PROMPT = `You are a strict field extraction engine for IPTV portal connection data. The pasted text may describe a Stalker/MAG portal (portal URL + MAC address, optionally serial/device IDs/signature) or an Xtream Codes connection (server URL + username + password). An Xtream connection may appear as a playlist link such as http://host:port/get.php?username=...&password=...&type=m3u_plus, a player_api.php link with the same query params, or a direct stream link such as http://host:port/live/USERNAME/PASSWORD/12345.m3u8 or /movie/USERNAME/PASSWORD/12345.mp4 or /series/USERNAME/PASSWORD/12345.mp4 — in that path form, the two path segments between live|movie|series and the numeric stream id ARE the username and password, even though nothing labels them as such.
+
+A single pasted URL is either a Stalker portal or an Xtream link, never both — fill only the fields for the type the text actually shows, and leave every field for the other type blank.
 
 Do not think out loud. Do not explain. Do not summarize. Do not include reasoning, notes, markdown, code fences, labels, or commentary. Return only the JSON object requested by the schema.
 
-Copy values verbatim from the pasted text except for portalUrl normalization described below. Preserve casing for serial, DeviceID1, DeviceID2, and signature. Do not invent or rewrite missing values. Fill every schema field that is available in the text.
+Copy values verbatim from the pasted text except for portalUrl normalization described below. Preserve casing for serial, DeviceID1, DeviceID2, signature, username, and password. Do not invent or rewrite missing values. Fill every schema field that is available in the text, and leave the fields for whichever connection type is NOT present blank.
 
 You will receive:
 1. A normalized candidate-lines section produced by preprocessing. Prefer this section when it clearly contains field labels and values.
 2. The original pasted text. Use it to resolve ambiguity and copy exact values.
 
 Field rules:
-- portalUrl: use the value labeled Portal, PortalUrl, Panel, or Panel URL when available. Prefer those over Real/RealUrl. Preserve /stalker_portal/c/ or /c/ when present. If only a host:port portal is available, output http://host:port/c/.
-- mac: use the MAC address exactly as shown.
+- portalUrl: only set this for a Stalker/MAG portal. Use the value labeled Portal, PortalUrl, Panel, or Panel URL when available. Prefer those over Real/RealUrl. Preserve /stalker_portal/c/ or /c/ when present. If only a host:port portal is available, output http://host:port/c/. Never put an Xtream get.php/player_api.php/live/movie/series link here, even if it is the only URL in the text.
+- mac: use the MAC address exactly as shown. Only present for Stalker/MAG portals.
 - serial: prefer SerialCut, Serial_cut, SN Cut, Serial Cut, or any serial cut label over the full Serial/SN whenever a cut value is present. Only use the full Serial/SN if no cut value exists.
 - deviceId: use DeviceID1, Device ID 1, DEVICEID1, Dev_ID_1, Dev ID 1, or the first device id value. If there is only one generic Device ID with no 1/2 suffix, put it here.
 - deviceId2: use DeviceID2, Device ID 2, DEVICEID2, Dev_ID_2, Dev ID 2, or the second device id value. If there is only one generic Device ID with no 1/2 suffix, copy the same value here too.
 - signature: use the Signature value exactly as shown.
 - timezone: use only an explicit timezone field.
 - stbType: use only an explicit STB/model field.
+- serverUrl: only set this for an Xtream connection. The scheme+host+port of the Xtream server, with no path, query string, or trailing slash (e.g. http://example.com:8080). If given a get.php, player_api.php, or live/movie/series stream link, strip everything after the host:port.
+- username: the Xtream username, whether labeled explicitly (Username, User, Login), present as a username= query parameter, or the first path segment after live/movie/series in a direct stream link.
+- password: the Xtream password, whether labeled explicitly (Password, Pass), present as a password= query parameter, or the second path segment after live/movie/series in a direct stream link.
 
 Ignore scan metadata, dates, expiration, VPN location, m3u lines, hits/by lines, markdown links, emoji, decorative box drawing, and labels after extracting their values.`
 
@@ -58,7 +66,22 @@ function emptyPortal(): ImportedPortal {
     signature: "",
     timezone: "",
     stbType: "",
+    serverUrl: "",
+    username: "",
+    password: "",
   }
+}
+
+function detectSourceType(portal: ImportedPortal): "stalker" | "xtream" | null {
+  if (portal.mac || portal.portalUrl) {
+    return "stalker"
+  }
+
+  if (portal.serverUrl && portal.username && portal.password) {
+    return "xtream"
+  }
+
+  return null
 }
 
 function normalizeText(text: string) {
@@ -83,7 +106,7 @@ function preprocessForAi(text: string) {
       }
 
       return (
-        /portal|real|mac|serial|sn|device|signature|timezone|stb|model/i.test(
+        /portal|real|mac|serial|sn|device|signature|timezone|stb|model|server|host|user|login|pass/i.test(
           line
         ) ||
         /https?:\/\/\S+/i.test(line) ||
@@ -138,14 +161,87 @@ function firstToken(value: string, minLength: number) {
   return value.match(new RegExp(`[a-z0-9]{${minLength},}`, "i"))?.[0] ?? ""
 }
 
+function extractXtreamFromUrl(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl)
+    const queryUsername = url.searchParams.get("username")?.trim()
+    const queryPassword = url.searchParams.get("password")?.trim()
+
+    if (queryUsername && queryPassword) {
+      return {
+        serverUrl: `${url.protocol}//${url.host}`,
+        username: queryUsername,
+        password: queryPassword,
+      }
+    }
+
+    // Direct stream links: /live|movie|series/{username}/{password}/{streamId}.{ext}
+    const pathMatch = url.pathname.match(
+      /^\/(?:live|movie|series)\/([^/]+)\/([^/]+)\/[^/]+$/i
+    )
+
+    if (pathMatch) {
+      const username = decodeURIComponent(pathMatch[1])
+      const password = decodeURIComponent(pathMatch[2])
+
+      if (username && password) {
+        return {
+          serverUrl: `${url.protocol}//${url.host}`,
+          username,
+          password,
+        }
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
 function parsePortalText(text: string): ImportedPortal {
   const parsed = emptyPortal()
   const normalized = normalizeText(text)
   const lines = normalized.split(/\r?\n/)
 
+  for (const url of normalized.matchAll(/https?:\/\/[^\s)\]]+/gi)) {
+    const xtream = extractXtreamFromUrl(url[0])
+
+    if (xtream) {
+      parsed.serverUrl ||= xtream.serverUrl
+      parsed.username ||= xtream.username
+      parsed.password ||= xtream.password
+      break
+    }
+  }
+
   for (const line of lines) {
     const lower = line.toLowerCase()
     const value = lineValue(line) || cleanValue(line)
+
+    if (
+      /\bserver\b|\bhost\b/.test(lower) &&
+      !/\bportal\b|\bpanel\b/.test(lower) &&
+      !parsed.serverUrl
+    ) {
+      const url =
+        line.match(/https?:\/\/[^\s)\]]+/i)?.[0] ??
+        value.match(/[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?/i)?.[0]
+
+      if (url) {
+        const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`
+        parsed.serverUrl = withScheme.replace(/\/+$/, "")
+      }
+    }
+
+    if (/\busername\b|\buser\b|\blogin\b/.test(lower) && !parsed.username) {
+      parsed.username =
+        valueAfterLabel(line, /username|user|login/i) || value
+    }
+
+    if (/\bpassword\b|\bpass\b/.test(lower) && !parsed.password) {
+      parsed.password = valueAfterLabel(line, /password|pass/i) || value
+    }
 
     if (/\bportal\b|\bpanel\b/.test(lower) && !parsed.portalUrl) {
       const url =
@@ -213,15 +309,19 @@ function parsePortalText(text: string): ImportedPortal {
     }
   }
 
-  if (!parsed.portalUrl) {
+  if (!parsed.mac) {
+    parsed.mac = normalized.match(/[0-9a-f]{2}(?::[0-9a-f]{2}){5}/i)?.[0] ?? ""
+  }
+
+  const isXtreamLink = Boolean(
+    parsed.serverUrl && parsed.username && parsed.password
+  )
+
+  if (!parsed.portalUrl && (parsed.mac || !isXtreamLink)) {
     const url = normalized.match(/https?:\/\/[^\s)\]]+/i)?.[0]
     if (url) {
       parsed.portalUrl = normalizePortalUrl(url)
     }
-  }
-
-  if (!parsed.mac) {
-    parsed.mac = normalized.match(/[0-9a-f]{2}(?::[0-9a-f]{2}){5}/i)?.[0] ?? ""
   }
 
   return parsed
@@ -245,6 +345,10 @@ function mergeImportedFields(
     signature: normalizedAi.signature || fallback.signature,
     timezone: normalizedAi.timezone || fallback.timezone,
     stbType: normalizedAi.stbType || fallback.stbType,
+    serverUrl:
+      normalizedAi.serverUrl.replace(/\/+$/, "") || fallback.serverUrl,
+    username: normalizedAi.username || fallback.username,
+    password: normalizedAi.password || fallback.password,
   }
 }
 
@@ -270,7 +374,11 @@ export async function POST(request: Request) {
 
   if (!baseUrl || !model) {
     if (hasAnyField(fallback)) {
-      return NextResponse.json({ portal: fallback, source: "fallback" })
+      return NextResponse.json({
+        portal: fallback,
+        sourceType: detectSourceType(fallback),
+        source: "fallback",
+      })
     }
 
     return NextResponse.json(
@@ -308,13 +416,20 @@ ${text}`,
       },
     })
 
+    const merged = mergeImportedFields(fallback, output)
+
     return NextResponse.json({
-      portal: mergeImportedFields(fallback, output),
+      portal: merged,
+      sourceType: detectSourceType(merged),
       source: "ai",
     })
   } catch (err) {
     if (hasAnyField(fallback)) {
-      return NextResponse.json({ portal: fallback, source: "fallback" })
+      return NextResponse.json({
+        portal: fallback,
+        sourceType: detectSourceType(fallback),
+        source: "fallback",
+      })
     }
 
     const message =
