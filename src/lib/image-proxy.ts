@@ -11,6 +11,17 @@ export function proxyImageUrl(url: string) {
     return trimmed
   }
 
+  // Imgur rejects/restricts many proxy-originated image requests. Keep these
+  // URLs direct instead of routing them through wsrv.nl.
+  try {
+    const hostname = new URL(trimmed).hostname.toLowerCase()
+    if (hostname === "imgur.com" || hostname.endsWith(".imgur.com")) {
+      return trimmed
+    }
+  } catch {
+    // Preserve the existing proxy behavior for non-standard logo strings.
+  }
+
   const proxied = new URL(WSRV_BASE_URL)
   proxied.searchParams.set("url", trimmed)
 
