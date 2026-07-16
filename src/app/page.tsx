@@ -580,7 +580,7 @@ function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
     size: "sm" as const,
     className: cn(
       "rounded-full",
-      options?.wide ? "min-w-0 max-w-56 shrink!" : "max-w-40",
+      options?.wide ? "min-w-0 max-w-full shrink!" : "max-w-40 shrink-0",
       !active && "text-muted-foreground"
     ),
   }
@@ -1330,7 +1330,7 @@ function ChannelBrowser({
                 </span>
                 <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64 p-2">
+              <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuGroup>
                   <DropdownMenuItem
                     onClick={() => {
@@ -1414,20 +1414,27 @@ function ChannelBrowser({
                 </InputGroupAddon>
               </ComboboxInput>
               <ComboboxList>
-                {(genre: string) => (
-                  <ComboboxItem key={genre} value={genre} className="pr-2">
-                    <CategoryVisual category={genre} />
-                    <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
-                      {genre}
-                    </span>
-                    {browseFilter.type === "category" &&
-                      browseFilter.genre === genre ? null : (
-                      <span className="ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums text-muted-foreground">
-                        {(categoryCounts.get(genre) ?? 0).toLocaleString()}
+                {(genre: string) => {
+                  const isActiveGenre =
+                    browseFilter.type === "category" && browseFilter.genre === genre
+                  return (
+                    <ComboboxItem
+                      key={genre}
+                      value={genre}
+                      className={isActiveGenre ? undefined : "pr-2"}
+                    >
+                      <CategoryVisual category={genre} />
+                      <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                        {genre}
                       </span>
-                    )}
-                  </ComboboxItem>
-                )}
+                      {isActiveGenre ? null : (
+                        <span className="ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums text-muted-foreground">
+                          {(categoryCounts.get(genre) ?? 0).toLocaleString()}
+                        </span>
+                      )}
+                    </ComboboxItem>
+                  )
+                }}
               </ComboboxList>
               <ComboboxEmpty>No categories match.</ComboboxEmpty>
             </ComboboxContent>
