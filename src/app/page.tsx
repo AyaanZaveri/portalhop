@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -630,6 +631,9 @@ function ChannelBrowser({
   }, [allChannels, favorites, migrateFavoriteKeys])
 
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const [selectedPortalIds, setSelectedPortalIds] = useState<Set<number>>(
+    () => new Set()
+  )
   const prefersReducedMotion = useReducedMotion()
   const [clientPlatform, setClientPlatform] = useState<ClientPlatform>("other")
 
@@ -687,19 +691,51 @@ function ChannelBrowser({
     )
   }, [categoryCounts])
 
+  const portals = useMemo(() => {
+    const uniquePortals = new Map<number, PortalSource>()
+    for (const channel of allChannels) {
+      if (channel.portalSource) {
+        uniquePortals.set(channel.portalSource.id, channel.portalSource)
+      }
+    }
+
+    return [...uniquePortals.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    )
+  }, [allChannels])
+
+  const togglePortal = useCallback((portalId: number, checked: boolean) => {
+    chooseFilter({ type: "all" })
+    setSelectedPortalIds((current) => {
+      const next = new Set(current)
+      if (checked) {
+        next.add(portalId)
+      } else {
+        next.delete(portalId)
+      }
+      return next
+    })
+  }, [chooseFilter])
+
   const visibleChannels = useMemo(() => {
+    const channelsForSelectedPortals = selectedPortalIds.size
+      ? channels.filter((channel) =>
+        channel.portalSource && selectedPortalIds.has(channel.portalSource.id)
+      )
+      : channels
+
     if (browseFilter.type === "all") {
-      return channels
+      return channelsForSelectedPortals
     }
 
     if (browseFilter.type === "favorites") {
-      return channels.filter(isChannelFavorited)
+      return channelsForSelectedPortals.filter(isChannelFavorited)
     }
 
-    return channels.filter(
+    return channelsForSelectedPortals.filter(
       (channel) => (channel.genre || "Uncategorized") === browseFilter.genre
     )
-  }, [browseFilter, channels, isChannelFavorited])
+  }, [browseFilter, channels, isChannelFavorited, selectedPortalIds])
   const [copiedChannel, setCopiedChannel] = useState("")
   const [resolvingChannel, setResolvingChannel] = useState("")
   const [failedChannel, setFailedChannel] = useState("")
@@ -1256,26 +1292,87 @@ function ChannelBrowser({
             <SearchIcon />
           </InputGroupAddon>
         </InputGroup>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button
             {...chipButtonProps(browseFilter.type === "favorites")}
-            onClick={() => chooseFilter({ type: "favorites" })}
+            onClick={() => {
+              chooseFilter({ type: "favorites" })
+              setSelectedPortalIds(new Set())
+            }}
           >
             <StarIcon className="size-3" />
             Favorites
           </Button>
-          <Button
-            {...chipButtonProps(browseFilter.type === "all")}
-            onClick={() => chooseFilter({ type: "all" })}
-          >
-            <LayoutGridIcon className="size-3" />
-            All
-          </Button>
+          {portals.length > 1 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    {...chipButtonProps(
+                      selectedPortalIds.size > 0 || browseFilter.type === "all",
+                      { wide: true }
+                    )}
+                    aria-label="Filter channels by portal"
+                  />
+                }
+              >
+                {selectedPortalIds.size ? (
+                  <TvIcon className="size-3.5" />
+                ) : (
+                  <LayoutGridIcon className="size-3" />
+                )}
+                <span className="min-w-0 truncate">
+                  {selectedPortalIds.size === 1
+                    ? portals.find((portal) => selectedPortalIds.has(portal.id))?.name
+                    : selectedPortalIds.size > 1
+                      ? `${selectedPortalIds.size} portals`
+                      : "All"}
+                </span>
+                <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64 p-2">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      chooseFilter({ type: "all" })
+                      setSelectedPortalIds(new Set())
+                    }}
+                  >
+                    <LayoutGridIcon />
+                    All
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Show portals</DropdownMenuLabel>
+                  {portals.map((portal) => (
+                    <DropdownMenuCheckboxItem
+                      key={portal.id}
+                      checked={selectedPortalIds.has(portal.id)}
+                      onCheckedChange={(checked) => togglePortal(portal.id, checked)}
+                    >
+                      <TvIcon />
+                      <span className="min-w-0 flex-1 truncate">{portal.name}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              {...chipButtonProps(browseFilter.type === "all")}
+              onClick={() => chooseFilter({ type: "all" })}
+            >
+              <LayoutGridIcon className="size-3" />
+              All
+            </Button>
+          )}
           <Combobox
             items={categories}
             value={activeCategoryGenre}
             onValueChange={(genre) => {
               chooseFilter(genre ? { type: "category", genre } : { type: "all" })
+              setSelectedPortalIds(new Set())
             }}
             open={categoryMenuOpen}
             onOpenChange={setCategoryMenuOpen}
