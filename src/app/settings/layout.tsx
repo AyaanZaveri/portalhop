@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarIcon, Loader2Icon, TvIcon, WaypointsIcon } from "lucide-react";
+import { CalendarIcon, TvIcon, WaypointsIcon } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import {
@@ -56,14 +56,10 @@ export default function SettingsLayout({
     }
   }, [isPending, signedIn, router]);
 
-  if (!signedIn) {
-    // Either the session is still resolving or we're about to redirect — avoid
-    // flashing the settings chrome in both cases.
-    return (
-      <div className="flex h-svh items-center justify-center">
-        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    );
+  if (!isPending && !signedIn) {
+    // Definitely signed out — we're about to redirect, so render nothing
+    // rather than flashing the settings chrome.
+    return null;
   }
 
   return (
