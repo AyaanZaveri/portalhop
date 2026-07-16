@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm"
 import { getDb } from "@/db/client"
 import { savedChannels } from "@/db/schema"
 import type { PortalChannel } from "@/lib/stalker-types"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
 
 const CHANNEL_INSERT_BATCH_SIZE = 100
 const CHANNEL_UPDATE_BATCH_SIZE = 100
@@ -29,7 +30,7 @@ export async function insertSavedChannels(
       batch.map((channel) => ({
         sourceId,
         channelId: channel.id,
-        xmltvId: channel.xmltvId ?? "",
+        xmltvId: normalizeXmltvId(channel.xmltvId),
         number: channel.number,
         name: channel.name,
         genreId: channel.genreId,

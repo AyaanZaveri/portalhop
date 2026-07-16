@@ -1,5 +1,6 @@
 import { fetchM3uChannels } from "@/lib/m3u-client"
 import type { PortalChannel } from "@/lib/stalker-types"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
 
 // A built-in, free playlist from the iptv-org project. It's the same public data
 // for everyone, so it lives outside the per-user portals model: fetched once and
@@ -35,7 +36,14 @@ export async function getIptvOrgChannels(): Promise<PortalChannel[]> {
       const result = await fetchM3uChannels(IPTV_ORG_PLAYLIST_URL)
       const channels = result.channels.map((channel) => {
         const category = normalizeCategory(channel.genre)
-        return { ...channel, genre: category, genreId: category }
+        return {
+          ...channel,
+          // IPTV-org's playlist may add a stream-quality suffix (for example
+          // `TSN1.ca@SD`) which is not part of IPTV-EPG's XMLTV channel ID.
+          xmltvId: normalizeXmltvId(channel.xmltvId),
+          genre: category,
+          genreId: category,
+        }
       })
       cache = { channels, fetchedAt: Date.now() }
       return channels

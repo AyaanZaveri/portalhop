@@ -293,12 +293,16 @@ export default function Home() {
           name: IPTV_ORG_SOURCE_NAME,
           endpoint: "",
           request: { sourceType: "m3u", playlistUrl: "" },
-          epgMode: "none",
+          // Use IPTV-EPG's matching channel logo instead of IPTV-org's
+          // playlist logo, which is frequently an Imgur URL.
+          epgMode: "iptv-org",
           epgSourceId: null,
         }
         setIptvOrgChannels(
           (body.channels as PortalChannel[]).map((channel) => ({
             ...channel,
+            // The API may be CDN-cached from before server-side normalization.
+            xmltvId: normalizeXmltvId(channel.xmltvId),
             portalSource,
           }))
         )

@@ -5,5 +5,9 @@
  * it first or it silently misses (no logo, no programme guide).
  */
 export function normalizeXmltvId(id: string | undefined | null): string {
-  return (id ?? "").trim().replace(/@[^@\s]+$/, "").toLowerCase()
+  return (id ?? "")
+    .trim()
+    .replace(/\s*@[^@\s]+$/, "")
+    .trim()
+    .toLowerCase()
 }
