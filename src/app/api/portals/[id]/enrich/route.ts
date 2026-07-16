@@ -23,6 +23,7 @@ import {
   type RerankItem,
 } from "@/lib/channel-enrich-ai"
 import { getEpgChannels } from "@/lib/epg-store"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -156,9 +157,12 @@ export async function POST(
         >()
 
         for (const row of rows) {
-          const hasValidId =
-            row.xmltvId.trim().length > 0 &&
-            index.knownIds.has(row.xmltvId.toLowerCase())
+          // Some portals append a quality/language tag to their xmltv ids
+          // (e.g. "TSN1.ca@SD") that never appears in real EPG data — strip
+          // it before checking validity so these rows aren't needlessly
+          // re-matched, and so the clean id gets written back below.
+          const normalizedId = normalizeXmltvId(row.xmltvId)
+          const hasValidId = normalizedId.length > 0 && index.knownIds.has(normalizedId)
 
           if (hasValidId && !body.force) {
             continue
@@ -168,11 +172,7 @@ export async function POST(
           // A nameless row cannot be matched, but is still included so a
           // full reconciliation never drops an existing valid XMLTV id.
           const groupKey = key || `row-${row.id}`
-          const existingXmltvId = index.knownIds.has(
-            row.xmltvId.toLowerCase()
-          )
-            ? row.xmltvId
-            : ""
+          const existingXmltvId = hasValidId ? normalizedId : ""
 
           const group = groups.get(groupKey)
           if (group) {

@@ -4,6 +4,7 @@ import { getDb } from "@/db/client"
 import { userEpgChannels, userEpgSources } from "@/db/schema"
 import type { NewUserEpgChannelRow } from "@/db/schema"
 import { fetchAndParseEpg, type EpgChannel } from "@/lib/epg-parser"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
 
 const INSERT_CHUNK_SIZE = 1000
 
@@ -40,7 +41,7 @@ export async function refreshUserEpgSource(sourceId: number) {
 }
 
 export async function findCustomEpgChannel(sourceId: number, candidates: { id?: string; name?: string }[]) {
-  const ids = new Set(candidates.map((item) => item.id?.trim().toLowerCase()).filter(Boolean) as string[])
+  const ids = new Set(candidates.map((item) => normalizeXmltvId(item.id)).filter(Boolean))
   const names = new Set(candidates.map((item) => normalizeChannelName(item.name ?? "")).filter(Boolean))
   if (!ids.size && !names.size) return null
   const filters = [ids.size ? inArray(userEpgChannels.channelIdLower, [...ids]) : undefined, names.size ? inArray(userEpgChannels.nameNormalized, [...names]) : undefined].filter(Boolean)

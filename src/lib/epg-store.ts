@@ -5,6 +5,7 @@ import { epgChannels, epgCountries } from "@/db/schema";
 import type { NewEpgChannelRow } from "@/db/schema";
 import { EPG_SOURCES } from "@/lib/epg-sources";
 import type { EpgChannel } from "@/lib/epg-parser";
+import { normalizeXmltvId } from "@/lib/xmltv-id";
 
 export interface EpgManifest {
   lastFetchedAt: number | null;
@@ -123,7 +124,7 @@ export async function findEpgSourceForChannel(
   const names = new Set<string>();
 
   for (const candidate of candidates) {
-    const id = candidate.id?.trim().toLowerCase();
+    const id = normalizeXmltvId(candidate.id);
     const name = normalizeChannelName(candidate.name ?? "");
     if (id) ids.add(id);
     if (name) names.add(name);

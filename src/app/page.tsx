@@ -84,6 +84,7 @@ import {
 } from "@/components/ui/combobox"
 import { AuthDialog } from "@/components/auth-dialog"
 import { copyTextToClipboard } from "@/lib/clipboard"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import {
@@ -2225,7 +2226,7 @@ async function loadPortalChannels(
 }
 
 function getChannelLogoUrl(channel: PortalChannel, portalSource: PortalSource | undefined, epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>, customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>) {
-  const lookupId = channel.xmltvId || channel.id
+  const lookupId = normalizeXmltvId(channel.xmltvId) || channel.id
 
   const logoUrl =
     (portalSource?.epgMode === "iptv-org" && lookupId ? epgChannels[lookupId.toLowerCase()]?.logoUrl : null) ||
