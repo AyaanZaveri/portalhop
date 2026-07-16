@@ -11,7 +11,7 @@ export type UserSettingsData = {
 export const DEFAULT_USER_SETTINGS: UserSettingsData = {
   enabledSourceIds: [],
   iptvOrgEnabled: true,
-  useProxy: false,
+  useProxy: true,
 }
 
 /** Coerces an unknown value (e.g. a JSON patch body) into a partial settings. */

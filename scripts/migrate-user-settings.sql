@@ -8,7 +8,7 @@ create table if not exists user_settings (
   enabled_source_ids jsonb not null default '[]'::jsonb,
   iptv_org_enabled boolean not null default true,
   logo_source text not null default 'provider',
-  use_proxy boolean not null default false,
+  use_proxy boolean not null default true,
   updated_at timestamp not null
 );
 

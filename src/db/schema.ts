@@ -127,7 +127,7 @@ export const userSettings = pgTable("user_settings", {
     .default([]),
   iptvOrgEnabled: boolean("iptv_org_enabled").notNull().default(true),
   logoSource: text("logo_source").notNull().default("provider"),
-  useProxy: boolean("use_proxy").notNull().default(false),
+  useProxy: boolean("use_proxy").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull(),
 })
 
