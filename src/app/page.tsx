@@ -683,12 +683,19 @@ function ChannelBrowser({
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const channel of allChannels) {
+    const channelsForCategories = selectedPortalIds.size
+      ? allChannels.filter(
+          (channel) =>
+            channel.portalSource && selectedPortalIds.has(channel.portalSource.id)
+        )
+      : allChannels
+
+    for (const channel of channelsForCategories) {
       const genre = channel.genre || "Uncategorized"
       counts.set(genre, (counts.get(genre) ?? 0) + 1)
     }
     return counts
-  }, [allChannels])
+  }, [allChannels, selectedPortalIds])
 
   const categories = useMemo(() => {
     return [...categoryCounts.keys()].sort((a, b) =>
