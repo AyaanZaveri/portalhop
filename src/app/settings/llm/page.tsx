@@ -167,9 +167,10 @@ export default function LlmProviderSettingsPage() {
         <p className="mt-1.5 text-sm text-muted-foreground">
           Powers{" "}
           <span className="font-medium text-foreground">Auto-match guide</span>,
-          which pairs your channels with the right guide data. It only steps in
-          on the tricky names, so most of the matching is free. Any
-          OpenAI-compatible endpoint works.
+          which pairs your channels with the right guide data, and reading
+          connection details out of text you paste into Add Portal. Auto-match
+          only steps in on the tricky names, so most of the matching is free.
+          Any OpenAI-compatible endpoint works.
         </p>
       </div>
 

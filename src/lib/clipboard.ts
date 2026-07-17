@@ -1,3 +1,11 @@
+export async function readTextFromClipboard(): Promise<string> {
+  if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+    throw new Error("Clipboard reading isn't supported in this browser.")
+  }
+
+  return navigator.clipboard.readText()
+}
+
 export async function copyTextToClipboard(text: string) {
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     try {

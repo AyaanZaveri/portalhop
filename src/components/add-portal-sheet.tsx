@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertCircleIcon,
@@ -52,6 +52,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { ShimmeringText } from "@/components/ui/shimmering-text"
 import type { PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import type {
   SavedSourceRecord,
@@ -61,6 +68,7 @@ import type {
 } from "@/lib/source-types"
 import { useAiSettings } from "@/hooks/use-ai-settings"
 import { useTheme } from "next-themes"
+import { readTextFromClipboard } from "@/lib/clipboard"
 
 type ConnectionFormState = PortalRequest & {
   sourceType: SourceType
@@ -197,6 +205,7 @@ export function AddPortalSheet({
     : "/epg/iptv-epg-light.png"
   const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
     useAiSettings()
+  const formRef = useRef<HTMLFormElement>(null)
   const [form, setForm] = useState<ConnectionFormState>(initialConnectionForm)
   const [testResult, setTestResult] = useState<PortalResponse | null>(null)
   const [error, setError] = useState("")
@@ -224,10 +233,12 @@ export function AddPortalSheet({
     setError("")
     setDetails([])
     setForm(editingPortal ? formFromPortal(editingPortal) : initialConnectionForm)
-    fetch("/api/epg-sources").then((res) => res.ok ? res.json() : null).then((data) => setEpgSources(Array.isArray(data?.sources) ? data.sources : [])).catch(() => {})
+    fetch("/api/epg-sources").then((res) => res.ok ? res.json() : null).then((data) => setEpgSources(Array.isArray(data?.sources) ? data.sources : [])).catch(() => { })
   }, [open, editingPortal])
 
   const portalRequest = toSourceRequest(form)
+  const isMac =
+    typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
 
   function updateField<K extends keyof ConnectionFormState>(
     key: K,
@@ -249,8 +260,8 @@ export function AddPortalSheet({
       updateField("epgMode", "custom")
       updateField("epgSourceId", source.id)
       setNewEpgName(""); setNewEpgUrl(""); setNewEpgOpen(false)
-      toast.success(data.refreshError ? "EPG source saved; refresh failed." : "EPG source added.")
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add EPG source.") } finally { setIsCreatingEpg(false) }
+      toast.success(data.refreshError ? "EPG source saved; refresh failed." : "EPG source added.", { position: "top-center" })
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add EPG source.", { position: "top-center" }) } finally { setIsCreatingEpg(false) }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -289,26 +300,26 @@ export function AddPortalSheet({
         const errMsg = data.error || "The portal request failed."
         setError(errMsg)
         setDetails(Array.isArray(data.details) ? data.details : [])
-        toast.error(`Connection failed: ${errMsg}`)
+        toast.error(`Connection failed: ${errMsg}`, { position: "top-center" })
         return
       }
 
       setTestResult(data)
-      toast.success("Connection test successful!")
+      toast.success("Connection test successful!", { position: "top-center" })
     } catch (err) {
       setIsLoading(false)
       const errMsg =
         err instanceof Error ? err.message : "An unexpected error occurred."
       setError(errMsg)
-      toast.error(`Connection failed: ${errMsg}`)
+      toast.error(`Connection failed: ${errMsg}`, { position: "top-center" })
     }
   }
 
-  async function importPortalText() {
-    const text = importText.trim()
+  async function importPortalText(overrideText?: string) {
+    const text = (overrideText ?? importText).trim()
 
     if (!text) {
-      toast.error("Paste portal text to import.")
+      toast.error("Paste portal text to import.", { position: "top-center" })
       return
     }
 
@@ -336,12 +347,12 @@ export function AddPortalSheet({
 
       const portal = data.portal as
         | Partial<
-            PortalRequest & {
-              serverUrl: string
-              username: string
-              password: string
-            }
-          >
+          PortalRequest & {
+            serverUrl: string
+            username: string
+            password: string
+          }
+        >
         | undefined
       const detectedType = data.sourceType as SourceType | null | undefined
 
@@ -372,18 +383,77 @@ export function AddPortalSheet({
           ? "Xtream connection fields imported."
           : detectedType === "stalker"
             ? "Stalker connection fields imported."
-            : "Connection fields imported."
+            : "Connection fields imported.",
+        { position: "top-center" }
       )
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Could not import portal text."
+          : "Could not import portal text.",
+        { position: "top-center" }
       )
     } finally {
       setIsImportingPortal(false)
     }
   }
+
+  async function importFromClipboard() {
+    let clipboardText: string
+
+    try {
+      clipboardText = await readTextFromClipboard()
+    } catch {
+      toast.error("Could not read the clipboard. Check your browser's clipboard permission.", { position: "top-center" })
+      return
+    }
+
+    if (!clipboardText.trim()) {
+      toast.error("Clipboard is empty.", { position: "top-center" })
+      return
+    }
+
+    setImportText(clipboardText)
+    await importPortalText(clipboardText)
+  }
+
+  function openSaveDialog() {
+    if (!testResult) return
+    setPortalName(editingPortal?.name || testResult.profile.login || "")
+    setSaveError("")
+    setSaveDialogOpen(true)
+  }
+
+  // Cmd/Ctrl+Shift+V imports the clipboard directly, skipping the manual
+  // open-dialog-then-paste steps. Cmd/Ctrl+Enter activates whichever primary
+  // action the footer is currently showing (Test, or Save once tested). Both
+  // are only active while the sheet itself is open.
+  useEffect(() => {
+    if (!open) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey)) return
+
+      if (event.key.toLowerCase() === "v" && event.shiftKey) {
+        event.preventDefault()
+        importFromClipboard()
+        return
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault()
+        if (testResult) {
+          openSaveDialog()
+        } else if (!isLoading) {
+          formRef.current?.requestSubmit()
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, testResult, isLoading])
 
   async function saveCurrentPortal() {
     if (!testResult) {
@@ -422,9 +492,9 @@ export function AddPortalSheet({
     if (!response.ok) {
       setSaveError(
         data.error ||
-          (editingPortal
-            ? "Could not update this source."
-            : "Could not save this portal.")
+        (editingPortal
+          ? "Could not update this source."
+          : "Could not save this portal.")
       )
       return
     }
@@ -432,7 +502,7 @@ export function AddPortalSheet({
     if (data.portal) {
       const portal = data.portal as SavedSourceRecord
       if (editingPortal) {
-        ;(onUpdated ?? onSaved)(portal, testResult, portalRequest)
+        ; (onUpdated ?? onSaved)(portal, testResult, portalRequest)
       } else {
         onSaved(portal, testResult, portalRequest)
       }
@@ -457,7 +527,7 @@ export function AddPortalSheet({
         }}
       >
         <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
-          <SheetHeader>
+          <SheetHeader className="pb-2">
             <div className="flex min-w-0 flex-col gap-0.5 pr-8">
               <SheetTitle className="flex items-center gap-1.5">
                 <CableIcon className="size-4 text-primary brightness-75 dark:brightness-100" />
@@ -466,9 +536,9 @@ export function AddPortalSheet({
             </div>
           </SheetHeader>
 
-          <form onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
+          <form ref={formRef} onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 pt-0 pb-4">
+              <div className="px-4 pt-2 pb-4">
                 <FieldGroup>
                   <div className="grid gap-4">
                     <div className="flex items-center gap-2">
@@ -485,15 +555,40 @@ export function AddPortalSheet({
                           <TabsTrigger value="m3u">M3U</TabsTrigger>
                         </TabsList>
                       </Tabs>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="shrink-0"
-                        onClick={() => setImportDialogOpen(true)}
-                      >
-                        <ClipboardPasteIcon data-icon="inline-start" />
-                        Import text
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="shrink-0"
+                              disabled={isImportingPortal}
+                              onClick={() => setImportDialogOpen(true)}
+                            >
+                              {isImportingPortal ? (
+                                <>
+                                  <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                                  <ShimmeringText text="Importing" />
+                                </>
+                              ) : (
+                                <>
+                                  <ClipboardPasteIcon data-icon="inline-start" />
+                                  Import text
+                                </>
+                              )}
+                            </Button>
+                          }
+                        />
+                        <TooltipContent align="center" className="px-1.5!">
+                          <KbdGroup>
+                            <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
+                            <span>+</span>
+                            <Kbd>Shift</Kbd>
+                            <span>+</span>
+                            <Kbd>V</Kbd>
+                          </KbdGroup>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
 
                     {form.sourceType === "stalker" ? (
@@ -530,11 +625,11 @@ export function AddPortalSheet({
                         </Field>
 
                         <Accordion className="w-full">
-                          <AccordionItem value="advanced" className="border-none">
-                            <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground p-0 py-1">
+                          <AccordionItem value="advanced" className="border-none -mx-1">
+                            <AccordionTrigger className="hover:no-underline text-xs text-muted-foreground px-1 py-1">
                               Show advanced
                             </AccordionTrigger>
-                            <AccordionContent className="pt-2">
+                            <AccordionContent className="px-1 pt-2">
                               <div className="grid gap-4 pt-1 pb-1">
                                 <SimpleInput
                                   id="serial"
@@ -705,20 +800,27 @@ export function AddPortalSheet({
             <SheetFooter className="border-t pt-4 flex-row! justify-end gap-2">
               {testResult ? (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setPortalName(
-                        editingPortal?.name || testResult.profile.login || ""
-                      )
-                      setSaveError("")
-                      setSaveDialogOpen(true)
-                    }}
-                  >
-                    <SaveIcon data-icon="inline-start" />
-                    Save
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={openSaveDialog}
+                        >
+                          <SaveIcon data-icon="inline-start" />
+                          Save
+                        </Button>
+                      }
+                    />
+                    <TooltipContent align="center" className="px-1.5!">
+                      <KbdGroup>
+                        <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
+                        <span>+</span>
+                        <Kbd>Enter</Kbd>
+                      </KbdGroup>
+                    </TooltipContent>
+                  </Tooltip>
                   {onView ? (
                     <Button
                       type="button"
@@ -734,14 +836,27 @@ export function AddPortalSheet({
                   ) : null}
                 </>
               ) : (
-                <Button type="submit" disabled={isLoading} className="cursor-pointer">
-                  {isLoading ? (
-                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
-                  ) : (
-                    <ArrowRightIcon data-icon="inline-start" />
-                  )}
-                  Test
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button type="submit" disabled={isLoading} className="cursor-pointer">
+                        {isLoading ? (
+                          <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                        ) : (
+                          <ArrowRightIcon data-icon="inline-start" />
+                        )}
+                        Test
+                      </Button>
+                    }
+                  />
+                  <TooltipContent align="center" className="px-1.5!">
+                    <KbdGroup>
+                      <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
+                      <span>+</span>
+                      <Kbd>Enter</Kbd>
+                    </KbdGroup>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </SheetFooter>
           </form>
@@ -777,6 +892,12 @@ export function AddPortalSheet({
                   value={portalName}
                   aria-invalid={Boolean(saveError)}
                   onChange={(event) => setPortalName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      saveCurrentPortal()
+                    }
+                  }}
                 />
                 <InputGroupAddon align="inline-start">
                   <TvIcon />
@@ -841,7 +962,7 @@ export function AddPortalSheet({
               <Button
                 type="button"
                 disabled={isImportingPortal || !importText.trim()}
-                onClick={importPortalText}
+                onClick={() => importPortalText()}
               >
                 {isImportingPortal ? (
                   <Loader2Icon data-icon="inline-start" className="animate-spin" />
