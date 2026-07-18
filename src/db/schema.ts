@@ -129,6 +129,11 @@ export const userSettings = pgTable("user_settings", {
   logoSource: text("logo_source").notNull().default("provider"),
   useProxy: boolean("use_proxy").notNull().default(true),
   useImageProxy: boolean("use_image_proxy").notNull().default(true),
+  // A random, revocable secret that authorizes the public favorites-playlist
+  // export URL without a session cookie (M3U players can't send one). Null
+  // until the user first requests a playlist link; regenerating it rotates
+  // out any previously shared URL.
+  favoritesToken: text("favorites_token").unique(),
   updatedAt: timestamp("updated_at").notNull(),
 })
 
@@ -181,8 +186,9 @@ export const savedChannels = pgTable("saved_channels", {
   sourceId: integer("source_id")
     .notNull()
     .references(() => savedSources.id, { onDelete: "cascade" }),
-  portalId: integer("portal_id")
-    .references(() => savedPortals.id, { onDelete: "cascade" }),
+  portalId: integer("portal_id").references(() => savedPortals.id, {
+    onDelete: "cascade",
+  }),
   channelId: text("channel_id").notNull(),
   xmltvId: text("xmltv_id").notNull().default(""),
   number: text("number").notNull(),
@@ -223,7 +229,7 @@ export const epgChannels = pgTable(
     primaryKey({ columns: [table.countryCode, table.channelId] }),
     index("epg_channels_channel_id_lower_idx").on(table.channelIdLower),
     index("epg_channels_name_normalized_idx").on(table.nameNormalized),
-  ]
+  ],
 )
 
 // A user's own custom EPG (XMLTV) sources: a reusable library. Many saved
@@ -243,7 +249,7 @@ export const userEpgSources = pgTable(
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").notNull(),
   },
-  (table) => [index("user_epg_sources_user_id_idx").on(table.userId)]
+  (table) => [index("user_epg_sources_user_id_idx").on(table.userId)],
 )
 
 // Parsed channel directory for a custom EPG source (mirrors epgChannels). Only
@@ -264,30 +270,33 @@ export const userEpgChannels = pgTable(
     primaryKey({ columns: [table.epgSourceId, table.channelId] }),
     index("user_epg_channels_channel_id_lower_idx").on(table.channelIdLower),
     index("user_epg_channels_name_normalized_idx").on(table.nameNormalized),
-  ]
+  ],
 )
 
 export const savedPortalsRelations = relations(savedPortals, ({ many }) => ({
   channels: many(savedChannels),
 }))
 
-export const savedSourcesRelations = relations(savedSources, ({ many, one }) => ({
-  channels: many(savedChannels),
-  stalker: one(savedStalkerSources),
-  xtream: one(savedXtreamSources),
-  m3u: one(savedM3uSources),
-  epgSource: one(userEpgSources, {
-    fields: [savedSources.epgSourceId],
-    references: [userEpgSources.id],
+export const savedSourcesRelations = relations(
+  savedSources,
+  ({ many, one }) => ({
+    channels: many(savedChannels),
+    stalker: one(savedStalkerSources),
+    xtream: one(savedXtreamSources),
+    m3u: one(savedM3uSources),
+    epgSource: one(userEpgSources, {
+      fields: [savedSources.epgSourceId],
+      references: [userEpgSources.id],
+    }),
   }),
-}))
+)
 
 export const userEpgSourcesRelations = relations(
   userEpgSources,
   ({ many }) => ({
     channels: many(userEpgChannels),
     sources: many(savedSources),
-  })
+  }),
 )
 
 export const userEpgChannelsRelations = relations(
@@ -297,7 +306,7 @@ export const userEpgChannelsRelations = relations(
       fields: [userEpgChannels.epgSourceId],
       references: [userEpgSources.id],
     }),
-  })
+  }),
 )
 
 export const savedStalkerSourcesRelations = relations(
@@ -307,7 +316,7 @@ export const savedStalkerSourcesRelations = relations(
       fields: [savedStalkerSources.sourceId],
       references: [savedSources.id],
     }),
-  })
+  }),
 )
 
 export const savedXtreamSourcesRelations = relations(
@@ -317,7 +326,7 @@ export const savedXtreamSourcesRelations = relations(
       fields: [savedXtreamSources.sourceId],
       references: [savedSources.id],
     }),
-  })
+  }),
 )
 
 export const savedM3uSourcesRelations = relations(
@@ -327,7 +336,7 @@ export const savedM3uSourcesRelations = relations(
       fields: [savedM3uSources.sourceId],
       references: [savedSources.id],
     }),
-  })
+  }),
 )
 
 export const userRelations = relations(user, ({ many }) => ({

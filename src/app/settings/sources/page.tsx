@@ -1,6 +1,6 @@
-"use client";
+"use client"
 
-import * as React from "react";
+import * as React from "react"
 import {
   CopyIcon,
   Loader2Icon,
@@ -9,20 +9,21 @@ import {
   PlusIcon,
   RefreshCwIcon,
   SquarePenIcon,
+  StarIcon,
   Trash2Icon,
   TvIcon,
   WaypointsIcon,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -31,7 +32,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -39,71 +40,71 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+} from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from "@/components/ui/input-group";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { copyTextToClipboard } from "@/lib/clipboard";
-import type { SavedSourceRecord } from "@/lib/source-types";
-import { useUserSettings } from "@/hooks/use-user-settings";
-import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org";
-import { proxyImageUrl } from "@/lib/image-proxy";
-import { prunePortalChannelsCache } from "@/lib/portal-channels-cache";
+} from "@/components/ui/input-group"
+import { toast } from "sonner"
+import { cn } from "@/lib/utils"
+import { copyTextToClipboard } from "@/lib/clipboard"
+import type { SavedSourceRecord } from "@/lib/source-types"
+import { useUserSettings } from "@/hooks/use-user-settings"
+import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
+import { proxyImageUrl } from "@/lib/image-proxy"
+import { prunePortalChannelsCache } from "@/lib/portal-channels-cache"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@/components/ui/tooltip"
 
-const IPTV_ORG_GITHUB_URL = "https://github.com/iptv-org/iptv";
+const IPTV_ORG_GITHUB_URL = "https://github.com/iptv-org/iptv"
 const IPTV_ORG_LOGO_BASE =
-  "https://img.logo.dev/iptv-org.github.io?token=live_6a1a28fd-6420-4492-aeb0-b297461d9de2&size=128&retina=true&format=png";
-const IPTV_ORG_LOGO_LIGHT = IPTV_ORG_LOGO_BASE;
-const IPTV_ORG_LOGO_DARK = `${IPTV_ORG_LOGO_BASE}&theme=dark`;
-import { AddPortalSheet } from "@/components/add-portal-sheet";
-import { AuthDialog } from "@/components/auth-dialog";
-import { SettingsHeader } from "@/components/settings-header";
-import { ShimmeringText } from "@/components/ui/shimmering-text";
-import { useAiSettings } from "@/hooks/use-ai-settings";
+  "https://img.logo.dev/iptv-org.github.io?token=live_6a1a28fd-6420-4492-aeb0-b297461d9de2&size=128&retina=true&format=png"
+const IPTV_ORG_LOGO_LIGHT = IPTV_ORG_LOGO_BASE
+const IPTV_ORG_LOGO_DARK = `${IPTV_ORG_LOGO_BASE}&theme=dark`
+import { AddPortalSheet } from "@/components/add-portal-sheet"
+import { AuthDialog } from "@/components/auth-dialog"
+import { SettingsHeader } from "@/components/settings-header"
+import { ShimmeringText } from "@/components/ui/shimmering-text"
+import { useAiSettings } from "@/hooks/use-ai-settings"
 
-type SavedPortalRecord = SavedSourceRecord;
+type SavedPortalRecord = SavedSourceRecord
 
 type EnrichProgress =
   | {
-    type: "progress";
-    stage: "scan" | "exact" | "ai";
-    processed: number;
-    total: number;
-    matched: number;
-  }
+      type: "progress"
+      stage: "scan" | "exact" | "ai"
+      processed: number
+      total: number
+      matched: number
+    }
   | {
-    type: "match";
-    name: string;
-    xmltvId: string;
-    logoUrl: string;
-    matched: number;
-    processed: number;
-    total: number;
-  }
+      type: "match"
+      name: string
+      xmltvId: string
+      logoUrl: string
+      matched: number
+      processed: number
+      total: number
+    }
   | {
-    type: "done";
-    total: number;
-    needing: number;
-    matched: number;
-    exact: number;
-    aiResolved: number;
-    aiCalls: number;
-    aiFailed: number;
-    aiAvailable: boolean;
-    aiError: string | null;
-    cleared: number;
-  }
-  | { type: "error"; error: string };
+      type: "done"
+      total: number
+      needing: number
+      matched: number
+      exact: number
+      aiResolved: number
+      aiCalls: number
+      aiFailed: number
+      aiAvailable: boolean
+      aiError: string | null
+      cleared: number
+    }
+  | { type: "error"; error: string }
 
 function EnrichMatchRow({
   name,
@@ -111,10 +112,10 @@ function EnrichMatchRow({
   logoUrl,
   useImageProxy,
 }: {
-  name: string;
-  xmltvId: string;
-  logoUrl: string;
-  useImageProxy: boolean;
+  name: string
+  xmltvId: string
+  logoUrl: string
+  useImageProxy: boolean
 }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
@@ -123,142 +124,188 @@ function EnrichMatchRow({
         <img
           src={proxyImageUrl(logoUrl, useImageProxy)}
           alt=""
-          className="size-5 shrink-0 rounded bg-muted/40 object-contain"
+          className="bg-muted/40 size-5 shrink-0 rounded object-contain"
         />
       ) : (
-        <span className="size-5 shrink-0 rounded bg-muted/40" />
+        <span className="bg-muted/40 size-5 shrink-0 rounded" />
       )}
       <span className="min-w-0 flex-1 truncate">{name}</span>
-      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+      <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
         {xmltvId}
       </span>
     </span>
-  );
+  )
 }
 
 export default function SourcesSettingsPage() {
-  const [addSourceOpen, setAddSourceOpen] = React.useState(false);
+  const [addSourceOpen, setAddSourceOpen] = React.useState(false)
   const [savedPortals, setSavedPortals] = React.useState<SavedPortalRecord[]>(
-    []
-  );
-  const [isLoading, setIsLoading] = React.useState(true);
-  const { settings, updateSettings, userId } = useUserSettings();
-  const [authOpen, setAuthOpen] = React.useState(false);
-  const activePortalIds = settings.enabledSourceIds;
-  const useProxy = settings.useProxy;
+    [],
+  )
+  const [isLoading, setIsLoading] = React.useState(true)
+  const { settings, updateSettings, userId } = useUserSettings()
+  const [authOpen, setAuthOpen] = React.useState(false)
+  const activePortalIds = settings.enabledSourceIds
+  const useProxy = settings.useProxy
   const [refetchingPortalId, setRefetchingPortalId] = React.useState<
     number | null
-  >(null);
+  >(null)
   const [copyingPortalId, setCopyingPortalId] = React.useState<number | null>(
-    null
-  );
-  const [deletingPortalId, setDeletingPortalId] = React.useState<
-    number | null
-  >(null);
+    null,
+  )
+  const [deletingPortalId, setDeletingPortalId] = React.useState<number | null>(
+    null,
+  )
   const [enrichingPortalId, setEnrichingPortalId] = React.useState<
     number | null
-  >(null);
+  >(null)
   const [portalPendingDelete, setPortalPendingDelete] =
-    React.useState<SavedPortalRecord | null>(null);
+    React.useState<SavedPortalRecord | null>(null)
   const [editingPortal, setEditingPortal] =
-    React.useState<SavedPortalRecord | null>(null);
+    React.useState<SavedPortalRecord | null>(null)
   const [portalPendingRename, setPortalPendingRename] =
-    React.useState<SavedPortalRecord | null>(null);
-  const [renameValue, setRenameValue] = React.useState("");
-  const [renameError, setRenameError] = React.useState("");
-  const [isRenamingPortal, setIsRenamingPortal] = React.useState(false);
-  const [isClearingCache, setIsClearingCache] = React.useState(false);
-  const { settings: aiSettings } = useAiSettings();
+    React.useState<SavedPortalRecord | null>(null)
+  const [renameValue, setRenameValue] = React.useState("")
+  const [renameError, setRenameError] = React.useState("")
+  const [isRenamingPortal, setIsRenamingPortal] = React.useState(false)
+  const [isClearingCache, setIsClearingCache] = React.useState(false)
+  const [isCopyingFavorites, setIsCopyingFavorites] = React.useState(false)
+  const [isRegeneratingFavorites, setIsRegeneratingFavorites] =
+    React.useState(false)
+  const [regenerateFavoritesOpen, setRegenerateFavoritesOpen] =
+    React.useState(false)
+  const { settings: aiSettings } = useAiSettings()
 
   function handleUseProxyChange(nextUseProxy: boolean) {
-    updateSettings({ useProxy: nextUseProxy });
+    updateSettings({ useProxy: nextUseProxy })
   }
 
   async function handleForceRefresh() {
-    setIsClearingCache(true);
+    setIsClearingCache(true)
     try {
       // Passing an empty keep-list drops every cached source's channel
       // snapshot, so the browser refetches everything fresh next load.
-      await prunePortalChannelsCache([]);
+      await prunePortalChannelsCache([])
       toast.success("Channel cache cleared", {
         description: "Sources will refetch fresh data next time you open them.",
-      });
+      })
     } catch {
-      toast.error("Could not clear the channel cache");
+      toast.error("Could not clear the channel cache")
     } finally {
-      setIsClearingCache(false);
+      setIsClearingCache(false)
     }
   }
 
   function handleIptvOrgChange(enabled: boolean) {
-    updateSettings({ iptvOrgEnabled: enabled });
+    updateSettings({ iptvOrgEnabled: enabled })
+  }
+
+  async function handleCopyFavoritesPlaylist() {
+    setIsCopyingFavorites(true)
+    try {
+      const res = await fetch("/api/favorites/token")
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url)
+        throw new Error(data.error || "Could not create a playlist link.")
+      await copyTextToClipboard(data.url)
+      toast.success("Copied favorites playlist URL", {
+        description: "Includes logos and EPG ids for every favorited channel.",
+      })
+    } catch (error) {
+      toast.error("Could not copy playlist URL", {
+        description: error instanceof Error ? error.message : "Unavailable.",
+      })
+    } finally {
+      setIsCopyingFavorites(false)
+    }
+  }
+
+  async function handleRegenerateFavoritesPlaylist() {
+    setIsRegeneratingFavorites(true)
+    try {
+      const res = await fetch("/api/favorites/token", { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url)
+        throw new Error(data.error || "Could not regenerate the playlist link.")
+      await copyTextToClipboard(data.url)
+      toast.success("Regenerated and copied a new playlist URL", {
+        description: "The previous link no longer works.",
+      })
+      setRegenerateFavoritesOpen(false)
+    } catch (error) {
+      toast.error("Could not regenerate the playlist link", {
+        description: error instanceof Error ? error.message : "Unavailable.",
+      })
+    } finally {
+      setIsRegeneratingFavorites(false)
+    }
   }
 
   React.useEffect(() => {
-    let isMounted = true;
+    let isMounted = true
 
-    (async () => {
+    ;(async () => {
       try {
-        const response = await fetch("/api/portals", { cache: "no-store" });
-        const data = await response.json().catch(() => ({ portals: [] }));
+        const response = await fetch("/api/portals", { cache: "no-store" })
+        const data = await response.json().catch(() => ({ portals: [] }))
 
-        if (!isMounted) return;
+        if (!isMounted) return
 
-        setSavedPortals(Array.isArray(data.portals) ? data.portals : []);
+        setSavedPortals(Array.isArray(data.portals) ? data.portals : [])
       } catch {
-        if (isMounted) setSavedPortals([]);
+        if (isMounted) setSavedPortals([])
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) setIsLoading(false)
       }
-    })();
+    })()
 
     return () => {
-      isMounted = false;
-    };
-  }, []);
+      isMounted = false
+    }
+  }, [])
 
   function handleCheckedChange(portal: SavedPortalRecord, checked: boolean) {
     const next = checked
       ? [...activePortalIds, portal.id]
-      : activePortalIds.filter((id) => id !== portal.id);
+      : activePortalIds.filter((id) => id !== portal.id)
 
-    updateSettings({ enabledSourceIds: next });
+    updateSettings({ enabledSourceIds: next })
   }
 
   async function handleRefetchPortal(portal: SavedPortalRecord) {
-    setRefetchingPortalId(portal.id);
-    const toastId = toast.loading(`Refetching ${portal.name}...`);
+    setRefetchingPortalId(portal.id)
+    const toastId = toast.loading(`Refetching ${portal.name}...`)
 
     try {
       const response = await fetch(`/api/portals/${portal.id}/refetch`, {
         method: "POST",
-      });
-      const data = await response.json().catch(() => ({}));
+      })
+      const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        toast.error(`Failed to refetch ${portal.name}`, { id: toastId });
-        return;
+        toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
+        return
       }
 
       if (data.portal) {
         setSavedPortals((current) =>
-          current.map((item) => (item.id === portal.id ? data.portal : item))
-        );
+          current.map((item) => (item.id === portal.id ? data.portal : item)),
+        )
       }
 
-      toast.success(`${portal.name} refetched successfully`, { id: toastId });
+      toast.success(`${portal.name} refetched successfully`, { id: toastId })
     } catch {
-      toast.error(`Failed to refetch ${portal.name}`, { id: toastId });
+      toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
     } finally {
-      setRefetchingPortalId(null);
+      setRefetchingPortalId(null)
     }
   }
 
   async function handleEnrichPortal(portal: SavedPortalRecord) {
-    setEnrichingPortalId(portal.id);
+    setEnrichingPortalId(portal.id)
     const toastId = toast.loading(`Enriching ${portal.name}...`, {
       description: "Matching channels to EPG data",
-    });
+    })
 
     try {
       const response = await fetch(`/api/portals/${portal.id}/enrich`, {
@@ -283,36 +330,35 @@ export default function SourcesSettingsPage() {
             reasoningEffort: aiSettings.reasoningEffort,
           },
         }),
-      });
+      })
 
       if (!response.ok || !response.body) {
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch(() => ({}))
         toast.error(`Failed to enrich ${portal.name}`, {
           id: toastId,
           description: data.error,
-        });
-        return;
+        })
+        return
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let final: Extract<EnrichProgress, { type: "done" }> | null = null;
-      let streamError: string | null = null;
-      let latestMatch: Extract<EnrichProgress, { type: "match" }> | null =
-        null;
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let final: Extract<EnrichProgress, { type: "done" }> | null = null
+      let streamError: string | null = null
+      let latestMatch: Extract<EnrichProgress, { type: "match" }> | null = null
       // Keep the toast focused on the most recently reconciled channel while
       // avoiding an expensive render for every streamed match.
-      let lastRender = 0;
+      let lastRender = 0
 
       const renderMatch = (
         message: Extract<EnrichProgress, { type: "match" }>,
-        force: boolean
+        force: boolean,
       ) => {
-        latestMatch = message;
-        const now = Date.now();
-        if (!force && now - lastRender < 75) return;
-        lastRender = now;
+        latestMatch = message
+        const now = Date.now()
+        if (!force && now - lastRender < 75) return
+        lastRender = now
         toast.loading(
           `Enriching ${portal.name}... · ${message.matched.toLocaleString()} updated`,
           {
@@ -325,38 +371,38 @@ export default function SourcesSettingsPage() {
                 useImageProxy={settings.useImageProxy}
               />
             ),
-          }
-        );
-      };
+          },
+        )
+      }
 
       const handleLine = (line: string) => {
-        if (!line.trim()) return;
-        let message: EnrichProgress;
+        if (!line.trim()) return
+        let message: EnrichProgress
         try {
-          message = JSON.parse(line) as EnrichProgress;
+          message = JSON.parse(line) as EnrichProgress
         } catch {
-          return;
+          return
         }
 
         if (message.type === "match") {
-          renderMatch(message, false);
+          renderMatch(message, false)
         } else if (message.type === "progress") {
           const label =
             message.stage === "ai"
               ? "AI reviewing candidate mappings"
               : message.stage === "exact"
                 ? "Finding deterministic mappings"
-                : "Preparing channel list";
+                : "Preparing channel list"
           const progress = message.total
             ? `${message.processed.toLocaleString()}/${message.total.toLocaleString()}`
-            : "";
+            : ""
           toast.loading(
             `Enriching ${portal.name}... · ${message.matched.toLocaleString()} updated`,
             {
               id: toastId,
               description: latestMatch ? (
                 <span className="flex min-w-0 flex-col gap-1.5">
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {label} · {progress}
                   </span>
                   <EnrichMatchRow
@@ -369,138 +415,135 @@ export default function SourcesSettingsPage() {
               ) : (
                 `${label}${progress ? ` · ${progress}` : ""}`
               ),
-            }
-          );
+            },
+          )
         } else if (message.type === "done") {
-          final = message;
+          final = message
         } else if (message.type === "error") {
-          streamError = message.error;
+          streamError = message.error
         }
-      };
-
-      for (; ;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) handleLine(line);
       }
-      if (buffer) handleLine(buffer);
+
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+        for (const line of lines) handleLine(line)
+      }
+      if (buffer) handleLine(buffer)
 
       if (streamError) {
         toast.error(`Failed to enrich ${portal.name}`, {
           id: toastId,
           description: streamError,
-        });
-        return;
+        })
+        return
       }
 
       if (final) {
-        const done: Extract<EnrichProgress, { type: "done" }> = final;
-        const parts = [`${done.matched.toLocaleString()} XMLTV IDs updated`];
+        const done: Extract<EnrichProgress, { type: "done" }> = final
+        const parts = [`${done.matched.toLocaleString()} XMLTV IDs updated`]
         if (done.aiResolved) {
-          parts.push(`${done.aiResolved.toLocaleString()} via AI`);
+          parts.push(`${done.aiResolved.toLocaleString()} via AI`)
         }
         if (!done.aiAvailable) {
-          parts.push("AI not configured");
+          parts.push("AI not configured")
         } else if (done.aiResolved === 0 && done.aiFailed > 0) {
-          parts.push(`AI error: ${done.aiError ?? "provider failed"}`);
+          parts.push(`AI error: ${done.aiError ?? "provider failed"}`)
         }
         toast.success(`${portal.name} enriched`, {
           id: toastId,
           description: parts.join(" · "),
-        });
+        })
       } else {
-        toast.success(`${portal.name} enriched`, { id: toastId });
+        toast.success(`${portal.name} enriched`, { id: toastId })
       }
     } catch {
-      toast.error(`Failed to enrich ${portal.name}`, { id: toastId });
+      toast.error(`Failed to enrich ${portal.name}`, { id: toastId })
     } finally {
-      setEnrichingPortalId(null);
+      setEnrichingPortalId(null)
     }
   }
 
   async function handleDeletePortal(portal: SavedPortalRecord) {
-    setDeletingPortalId(portal.id);
-    const toastId = toast.loading(`Deleting ${portal.name}...`);
+    setDeletingPortalId(portal.id)
+    const toastId = toast.loading(`Deleting ${portal.name}...`)
 
     try {
       const response = await fetch(`/api/portals/${portal.id}`, {
         method: "DELETE",
-      });
+      })
 
       if (!response.ok) {
-        toast.error(`Failed to delete ${portal.name}`, { id: toastId });
-        return;
+        toast.error(`Failed to delete ${portal.name}`, { id: toastId })
+        return
       }
 
       setSavedPortals((current) =>
-        current.filter((item) => item.id !== portal.id)
-      );
+        current.filter((item) => item.id !== portal.id),
+      )
       if (activePortalIds.includes(portal.id)) {
         updateSettings({
           enabledSourceIds: activePortalIds.filter((id) => id !== portal.id),
-        });
+        })
       }
-      toast.success(`${portal.name} deleted`, { id: toastId });
+      toast.success(`${portal.name} deleted`, { id: toastId })
     } catch {
-      toast.error(`Failed to delete ${portal.name}`, { id: toastId });
+      toast.error(`Failed to delete ${portal.name}`, { id: toastId })
     } finally {
-      setDeletingPortalId(null);
+      setDeletingPortalId(null)
     }
   }
 
   async function handleCopyPlaylist(portal: SavedPortalRecord) {
-    setCopyingPortalId(portal.id);
+    setCopyingPortalId(portal.id)
 
     try {
       const playlistUrl = new URL(
         `/api/portals/${portal.id}/playlist`,
-        window.location.origin
-      );
+        window.location.origin,
+      )
 
-      await copyTextToClipboard(playlistUrl.href);
+      await copyTextToClipboard(playlistUrl.href)
       toast.success("Copied M3U Plus playlist URL", {
         description: portal.name,
-      });
+      })
     } catch (error) {
       toast.error("Could not copy playlist URL", {
         description:
           error instanceof Error ? error.message : "Clipboard unavailable.",
-      });
+      })
     } finally {
-      setCopyingPortalId(null);
+      setCopyingPortalId(null)
     }
   }
 
   async function handleRenamePortal() {
-    if (!portalPendingRename) return;
+    if (!portalPendingRename) return
 
-    const name = renameValue.trim();
+    const name = renameValue.trim()
 
     if (!name) {
-      setRenameError("Enter a nickname.");
-      return;
+      setRenameError("Enter a nickname.")
+      return
     }
 
-    setIsRenamingPortal(true);
-    setRenameError("");
+    setIsRenamingPortal(true)
+    setRenameError("")
 
     try {
-      const response = await fetch(
-        `/api/portals/${portalPendingRename.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        }
-      );
-      const data = await response.json().catch(() => ({}));
+      const response = await fetch(`/api/portals/${portalPendingRename.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      })
+      const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        setRenameError(data.error || "Could not rename this source.");
-        return;
+        setRenameError(data.error || "Could not rename this source.")
+        return
       }
 
       if (data.portal) {
@@ -508,17 +551,17 @@ export default function SourcesSettingsPage() {
           current.map((item) =>
             item.id === portalPendingRename.id
               ? { ...item, name: data.portal.name }
-              : item
-          )
-        );
+              : item,
+          ),
+        )
       }
 
-      toast.success("Source renamed", { description: name });
-      setPortalPendingRename(null);
+      toast.success("Source renamed", { description: name })
+      setPortalPendingRename(null)
     } catch {
-      setRenameError("Could not rename this source.");
+      setRenameError("Could not rename this source.")
     } finally {
-      setIsRenamingPortal(false);
+      setIsRenamingPortal(false)
     }
   }
 
@@ -527,17 +570,17 @@ export default function SourcesSettingsPage() {
       <AddPortalSheet
         open={addSourceOpen}
         onOpenChange={(nextOpen) => {
-          setAddSourceOpen(nextOpen);
-          if (!nextOpen) setEditingPortal(null);
+          setAddSourceOpen(nextOpen)
+          if (!nextOpen) setEditingPortal(null)
         }}
         editingPortal={editingPortal}
         onSaved={(portal) => {
-          setSavedPortals((current) => [portal, ...current]);
+          setSavedPortals((current) => [portal, ...current])
         }}
         onUpdated={(portal) => {
           setSavedPortals((current) =>
-            current.map((item) => (item.id === portal.id ? portal : item))
-          );
+            current.map((item) => (item.id === portal.id ? portal : item)),
+          )
         }}
       />
 
@@ -546,7 +589,7 @@ export default function SourcesSettingsPage() {
       <Dialog
         open={portalPendingRename !== null}
         onOpenChange={(open) => {
-          if (!open) setPortalPendingRename(null);
+          if (!open) setPortalPendingRename(null)
         }}
       >
         <DialogContent>
@@ -568,13 +611,13 @@ export default function SourcesSettingsPage() {
                   value={renameValue}
                   aria-invalid={Boolean(renameError)}
                   onChange={(event) => {
-                    setRenameValue(event.target.value);
-                    setRenameError("");
+                    setRenameValue(event.target.value)
+                    setRenameError("")
                   }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleRenamePortal();
+                      event.preventDefault()
+                      handleRenamePortal()
                     }
                   }}
                 />
@@ -615,7 +658,7 @@ export default function SourcesSettingsPage() {
       <AlertDialog
         open={portalPendingDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setPortalPendingDelete(null);
+          if (!open) setPortalPendingDelete(null)
         }}
       >
         <AlertDialogContent>
@@ -632,10 +675,10 @@ export default function SourcesSettingsPage() {
               type="button"
               variant="destructive"
               onClick={() => {
-                if (!portalPendingDelete) return;
-                const portal = portalPendingDelete;
-                setPortalPendingDelete(null);
-                handleDeletePortal(portal);
+                if (!portalPendingDelete) return
+                const portal = portalPendingDelete
+                setPortalPendingDelete(null)
+                handleDeletePortal(portal)
               }}
             >
               <Trash2Icon className="size-4" />
@@ -678,11 +721,11 @@ export default function SourcesSettingsPage() {
             className="flex items-center justify-center gap-1.5 rounded-md"
             onClick={() => {
               if (!userId) {
-                setAuthOpen(true);
-                return;
+                setAuthOpen(true)
+                return
               }
-              setEditingPortal(null);
-              setAddSourceOpen(true);
+              setEditingPortal(null)
+              setAddSourceOpen(true)
             }}
           >
             <PlusIcon className="size-4" />
@@ -691,11 +734,12 @@ export default function SourcesSettingsPage() {
         </div>
       </div>
 
-      <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
+      <div className="bg-background/50 flex w-full items-center justify-between gap-4 rounded-lg border p-3">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Label htmlFor="use-proxy">Use proxy</Label>
-          <span className="text-xs text-muted-foreground">
-            Try this if the stream isn&apos;t loading, helps with HTTP-only or geo-restricted streams.
+          <span className="text-muted-foreground text-xs">
+            Try this if the stream isn&apos;t loading, helps with HTTP-only or
+            geo-restricted streams.
           </span>
         </div>
         <Switch
@@ -706,7 +750,7 @@ export default function SourcesSettingsPage() {
         />
       </div>
 
-      <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
+      <div className="bg-background/50 flex w-full items-center justify-between gap-4 rounded-lg border p-3">
         <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -725,11 +769,11 @@ export default function SourcesSettingsPage() {
               href={IPTV_ORG_GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-fit text-sm font-medium leading-none underline-offset-4 hover:underline"
+              className="w-fit text-sm leading-none font-medium underline-offset-4 hover:underline"
             >
               {IPTV_ORG_SOURCE_NAME}
             </a>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               Publicly available IPTV channels, shown by default
             </span>
           </div>
@@ -742,14 +786,100 @@ export default function SourcesSettingsPage() {
         />
       </div>
 
+      <div className="bg-background/50 flex w-full items-center justify-between gap-4 rounded-lg border p-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="bg-primary/15 text-primary flex size-8 shrink-0 items-center justify-center rounded-md brightness-85 dark:brightness-100">
+            <StarIcon className="size-4" />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="w-fit text-sm leading-none font-medium">
+              Favorites playlist
+            </span>
+            <span className="text-muted-foreground text-xs">
+              M3U Plus link with logos and EPG ids for every favorited channel
+            </span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={isRegeneratingFavorites}
+                  onClick={() => setRegenerateFavoritesOpen(true)}
+                  aria-label="Regenerate favorites playlist link"
+                >
+                  <RefreshCwIcon className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent align="center">
+              Regenerate link, invalidating the old one
+            </TooltipContent>
+          </Tooltip>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isCopyingFavorites}
+            onClick={handleCopyFavoritesPlaylist}
+          >
+            {isCopyingFavorites ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <CopyIcon className="size-4" />
+            )}
+            Copy link
+          </Button>
+        </div>
+      </div>
+
+      <AlertDialog
+        open={regenerateFavoritesOpen}
+        onOpenChange={(open) =>
+          !isRegeneratingFavorites && setRegenerateFavoritesOpen(open)
+        }
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate playlist link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The current favorites playlist URL will stop working immediately.
+              Any player using it will need the new link, which gets copied to
+              your clipboard.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRegeneratingFavorites}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={isRegeneratingFavorites}
+              onClick={handleRegenerateFavoritesPlaylist}
+            >
+              {isRegeneratingFavorites ? (
+                <Loader2Icon className="animate-spin" />
+              ) : (
+                <RefreshCwIcon />
+              )}
+              Regenerate
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {savedPortals.length || isLoading ? (
         <div className="mt-2 flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <span className="text-sm font-medium text-muted-foreground">
+            <span className="text-muted-foreground text-sm font-medium">
               Your sources
             </span>
             {savedPortals.length ? (
-              <span className="text-xs tabular-nums text-muted-foreground">
+              <span className="text-muted-foreground text-xs tabular-nums">
                 {activePortalIds.length} active
               </span>
             ) : null}
@@ -757,25 +887,25 @@ export default function SourcesSettingsPage() {
           {savedPortals.length ? (
             <div className="flex flex-col">
               {savedPortals.map((portal) => {
-                const isActive = activePortalIds.includes(portal.id);
+                const isActive = activePortalIds.includes(portal.id)
 
                 const isBusy =
                   refetchingPortalId === portal.id ||
                   copyingPortalId === portal.id ||
                   deletingPortalId === portal.id ||
-                  enrichingPortalId === portal.id;
+                  enrichingPortalId === portal.id
 
                 return (
                   <div
                     key={portal.id}
                     role="button"
                     tabIndex={0}
-                    className="group/source -mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 outline-none hover:bg-accent/50 focus-visible:bg-accent/50"
+                    className="group/source hover:bg-accent/50 focus-visible:bg-accent/50 -mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 outline-none"
                     onClick={() => handleCheckedChange(portal, !isActive)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        handleCheckedChange(portal, !isActive);
+                        event.preventDefault()
+                        handleCheckedChange(portal, !isActive)
                       }
                     }}
                   >
@@ -783,8 +913,8 @@ export default function SourcesSettingsPage() {
                       className={cn(
                         "flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-medium",
                         isActive
-                          ? "bg-primary/15 text-primary brightness-85 dark:bg-primary/15 dark:brightness-100"
-                          : "bg-muted text-muted-foreground"
+                          ? "bg-primary/15 text-primary dark:bg-primary/15 brightness-85 dark:brightness-100"
+                          : "bg-muted text-muted-foreground",
                       )}
                     >
                       {portal.name.charAt(0).toUpperCase()}
@@ -793,7 +923,7 @@ export default function SourcesSettingsPage() {
                       <span className="w-full truncate text-sm font-medium">
                         {portal.name}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         {sourceTypeLabel(portal.sourceType)} ·{" "}
                         {portal.channelCount.toLocaleString()} channels
                       </span>
@@ -825,11 +955,14 @@ export default function SourcesSettingsPage() {
                             </Button>
                           }
                         />
-                        <DropdownMenuContent align="end" className="w-52! shadow-2xl shadow-primary/15">
+                        <DropdownMenuContent
+                          align="end"
+                          className="shadow-primary/15 w-52! shadow-2xl"
+                        >
                           <DropdownMenuItem
                             onClick={() => {
-                              setEditingPortal(portal);
-                              setAddSourceOpen(true);
+                              setEditingPortal(portal)
+                              setAddSourceOpen(true)
                             }}
                           >
                             <SquarePenIcon className="size-4" />
@@ -837,9 +970,9 @@ export default function SourcesSettingsPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
-                              setRenameValue(portal.name);
-                              setRenameError("");
-                              setPortalPendingRename(portal);
+                              setRenameValue(portal.name)
+                              setRenameError("")
+                              setPortalPendingRename(portal)
                             }}
                           >
                             <PencilIcon className="size-4" />
@@ -851,7 +984,11 @@ export default function SourcesSettingsPage() {
                               onClick={() => handleCopyPlaylist(portal)}
                             >
                               <CopyIcon className="size-4" />
-                              Copy <span className="font-mono font-medium tracking-tight">m3u_plus</span> URL
+                              Copy{" "}
+                              <span className="font-mono font-medium tracking-tight">
+                                m3u_plus
+                              </span>{" "}
+                              URL
                             </DropdownMenuItem>
                           ) : null}
                           <DropdownMenuItem
@@ -878,29 +1015,29 @@ export default function SourcesSettingsPage() {
                       </DropdownMenu>
                     </div>
                   </div>
-                );
+                )
               })}
             </div>
           ) : (
             <div className="flex items-center gap-2 px-1 py-3 text-sm">
-              <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
+              <Loader2Icon className="text-muted-foreground size-4 shrink-0 animate-spin" />
               <ShimmeringText text="Loading saved sources." />
             </div>
           )}
         </div>
       ) : null}
     </div>
-  );
+  )
 }
 
 function sourceTypeLabel(sourceType: SavedSourceRecord["sourceType"]) {
   if (sourceType === "xtream") {
-    return "Xtream";
+    return "Xtream"
   }
 
   if (sourceType === "m3u") {
-    return "M3U";
+    return "M3U"
   }
 
-  return "Stalker";
+  return "Stalker"
 }

@@ -4,12 +4,13 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { selectSavedSource } from "@/db/saved-sources"
 import { savedChannels } from "@/db/schema"
+import { escapeM3uAttribute, filenameSafe, m3uExtinf } from "@/lib/m3u-export"
 
 export const runtime = "nodejs"
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params
   const sourceId = Number(id)
@@ -31,7 +32,7 @@ export async function GET(
         error:
           "Only Stalker sources can be exported as lazy create-link playlists.",
       },
-      { status: 400 }
+      { status: 400 },
     )
   }
 
@@ -52,14 +53,14 @@ export async function GET(
       logoUrl: channel.logoUrl,
     })),
     request.url,
-    sourceId
+    sourceId,
   )
 
   return new NextResponse(body, {
     headers: {
       "Content-Type": "audio/x-mpegurl; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filenameSafe(
-        source.name
+        source.name,
       )}.m3u"`,
       "Cache-Control": "no-store",
     },
@@ -78,44 +79,27 @@ function buildM3uPlaylist(
     logoUrl: string
   }>,
   requestUrl: string,
-  sourceId: number
+  sourceId: number,
 ) {
   const lines = [`#EXTM3U playlist="${escapeM3uAttribute(sourceName)}"`]
 
   for (const channel of channels) {
     const logo = channel.logoUrl || channel.logo
-    const displayName = channel.name || channel.number || `Channel ${channel.id}`
+    const displayName =
+      channel.name || channel.number || `Channel ${channel.id}`
     const url = new URL(`/api/portals/${sourceId}/create-link`, requestUrl)
     url.searchParams.set("channel", String(channel.id))
 
     lines.push(
-      [
-        "#EXTINF:-1",
-        `tvg-id="${escapeM3uAttribute(channel.xmltvId)}"`,
-        `tvg-name="${escapeM3uAttribute(displayName)}"`,
-        `tvg-logo="${escapeM3uAttribute(logo)}"`,
-        `group-title="${escapeM3uAttribute(channel.genre)}"`,
-        `,${escapeM3uText(displayName)}`,
-      ].join(" "),
-      url.href
+      m3uExtinf({
+        xmltvId: channel.xmltvId,
+        displayName,
+        logo,
+        genre: channel.genre,
+      }),
+      url.href,
     )
   }
 
   return `${lines.join("\n")}\n`
-}
-
-function escapeM3uAttribute(value: string) {
-  return value.replace(/[\r\n"]/g, (match) => (match === '"' ? "&quot;" : " "))
-}
-
-function escapeM3uText(value: string) {
-  return value.replace(/[\r\n]/g, " ")
-}
-
-function filenameSafe(value: string) {
-  const filename = value
-    .trim()
-    .replace(/[^a-z0-9._-]+/gi, "-")
-    .replace(/^-|-$/g, "")
-  return filename || "playlist"
 }
