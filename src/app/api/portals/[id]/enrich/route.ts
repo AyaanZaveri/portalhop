@@ -6,7 +6,7 @@ import {
   applyXmltvIdUpdates,
   selectSavedChannelRows,
 } from "@/db/saved-channels"
-import { selectSavedSource } from "@/db/saved-sources"
+import { selectSavedSource, touchSavedSource } from "@/db/saved-sources"
 import { requireUser } from "@/lib/session"
 import {
   buildEpgIndex,
@@ -418,6 +418,14 @@ export async function POST(
             })
           }
         })
+
+        if (changedUpdates.length) {
+          // Rewrote saved_channels out-of-band — bump the source's own
+          // updatedAt so the client's IndexedDB channel cache invalidates
+          // instead of continuing to serve the pre-enrich snapshot.
+          await touchSavedSource(db, sourceId)
+        }
+
         const matchedRows = changedUpdates.length - cleared
 
         if (aiAvailable) {
