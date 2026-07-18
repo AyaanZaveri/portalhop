@@ -94,10 +94,7 @@ import { copyTextToClipboard } from "@/lib/clipboard"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { useUserSettings } from "@/hooks/use-user-settings"
-import {
-  IPTV_ORG_SOURCE_ID,
-  IPTV_ORG_SOURCE_NAME,
-} from "@/lib/iptv-org"
+import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
@@ -147,32 +144,36 @@ type CaptionCue = {
 }
 
 type ExternalPlayer = "iina" | "vlc" | "mpv" | "outplayer"
-type ClientPlatform = "android" | "ios" | "linux" | "macos" | "windows" | "other"
+type ClientPlatform =
+  "android" | "ios" | "linux" | "macos" | "windows" | "other"
 
 const externalPlayers: Array<{
   id: ExternalPlayer
   label: string
   platforms: ClientPlatform[]
 }> = [
-    { id: "iina", label: "IINA", platforms: ["macos"] },
-    {
-      id: "vlc",
-      label: "VLC",
-      platforms: ["android", "ios", "linux", "macos", "windows"],
-    },
-    {
-      id: "mpv",
-      label: "mpv",
-      platforms: ["android", "linux", "macos", "windows"],
-    },
-    { id: "outplayer", label: "Outplayer", platforms: ["ios"] },
-  ]
+  { id: "iina", label: "IINA", platforms: ["macos"] },
+  {
+    id: "vlc",
+    label: "VLC",
+    platforms: ["android", "ios", "linux", "macos", "windows"],
+  },
+  {
+    id: "mpv",
+    label: "mpv",
+    platforms: ["android", "linux", "macos", "windows"],
+  },
+  { id: "outplayer", label: "Outplayer", platforms: ["ios"] },
+]
 
 function getExternalPlayerLabel(player: ExternalPlayer) {
   return externalPlayers.find(({ id }) => id === player)?.label ?? "player"
 }
 
-function getClientPlatform(userAgent: string, maxTouchPoints = 0): ClientPlatform {
+function getClientPlatform(
+  userAgent: string,
+  maxTouchPoints = 0,
+): ClientPlatform {
   if (/Android/i.test(userAgent)) return "android"
   if (/iPad|iPhone|iPod/i.test(userAgent)) return "ios"
   if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) return "ios"
@@ -220,8 +221,7 @@ function getExternalPlayerUrl(player: ExternalPlayer, streamUrl: string) {
   }
 }
 
-const proxyBaseUrl =
-  process.env.NEXT_PUBLIC_PROXY_URL
+const proxyBaseUrl = process.env.NEXT_PUBLIC_PROXY_URL
 const proxyManifestUrl = `${proxyBaseUrl}/proxy/hls/manifest.m3u8`
 
 const defaultSourceRequest: SourceRequest = {
@@ -244,20 +244,32 @@ export default function Home() {
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
     useState<SourceRequest>(defaultSourceRequest)
-  const [loadedPortals, setLoadedPortals] = useState<Record<number, LoadedPortal>>({})
+  const [loadedPortals, setLoadedPortals] = useState<
+    Record<number, LoadedPortal>
+  >({})
   const [isLoadingPortals, setIsLoadingPortals] = useState(true)
   const [iptvOrgChannels, setIptvOrgChannels] = useState<
     PortalChannelWithSource[]
   >([])
   const [iptvOrgLoading, setIptvOrgLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [epgChannels, setEpgChannels] = useState<Record<string, { name: string; logoUrl?: string; countryCode?: string }>>({})
-  const [customEpgChannels, setCustomEpgChannels] = useState<Record<number, Record<string, { logoUrl?: string }>>>({})
+  const [epgChannels, setEpgChannels] = useState<
+    Record<string, { name: string; logoUrl?: string; countryCode?: string }>
+  >({})
+  const [customEpgChannels, setCustomEpgChannels] = useState<
+    Record<number, Record<string, { logoUrl?: string }>>
+  >({})
 
   const fetchEpgChannels = useCallback(async () => {
     try {
-      const customIds = Object.values(loadedPortals).map(({ portal }) => portal.epgMode === "custom" ? portal.epgSourceId : null).filter((id): id is number => Number.isInteger(id))
-      const res = await fetch(`/api/epg/channels${customIds.length ? `?sourceIds=${customIds.join(",")}` : ""}`)
+      const customIds = Object.values(loadedPortals)
+        .map(({ portal }) =>
+          portal.epgMode === "custom" ? portal.epgSourceId : null,
+        )
+        .filter((id): id is number => Number.isInteger(id))
+      const res = await fetch(
+        `/api/epg/channels${customIds.length ? `?sourceIds=${customIds.join(",")}` : ""}`,
+      )
       if (!res.ok) throw new Error("Failed to fetch EPG channels")
       const channels = await res.json()
       setEpgChannels(channels.builtin ?? channels)
@@ -266,8 +278,6 @@ export default function Home() {
       console.error("Failed to load EPG channels:", err)
     }
   }, [loadedPortals])
-
-
 
   // Refreshing the EPG directory is a batch job over ~78 country feeds, so it is
   // driven from Settings → EPG rather than kicked off on page load.
@@ -311,10 +321,10 @@ export default function Home() {
             // The API may be CDN-cached from before server-side normalization.
             xmltvId: normalizeXmltvId(channel.xmltvId),
             portalSource,
-          }))
+          })),
         )
       })
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setIptvOrgLoading(false)
       })
@@ -404,7 +414,7 @@ export default function Home() {
         }
 
         const portalsToOpen = portals.filter((portal) =>
-          enabledSourceIds.includes(portal.id)
+          enabledSourceIds.includes(portal.id),
         )
 
         // Drop cache entries for sources that were deleted entirely, so the
@@ -439,7 +449,7 @@ export default function Home() {
             toast.error(
               error instanceof Error
                 ? error.message
-                : "Could not load a saved portal."
+                : "Could not load a saved portal.",
             )
           }
         }
@@ -456,7 +466,7 @@ export default function Home() {
         toast.error(
           error instanceof Error
             ? error.message
-            : "Could not load saved portals."
+            : "Could not load saved portals.",
         )
       } finally {
         if (isMounted) {
@@ -474,7 +484,7 @@ export default function Home() {
   }, [settingsLoaded, enabledKey])
 
   return (
-    <main className="h-screen overflow-hidden bg-background text-foreground">
+    <main className="bg-background text-foreground h-screen overflow-hidden">
       <div className="relative h-full w-full">
         <AddPortalSheet
           open={sheetOpen}
@@ -553,7 +563,7 @@ function NoPortalsSelected({
         <PortalHopWordmark />
         <div className="flex max-w-sm flex-col gap-1.5">
           <p className="font-medium">Nothing to browse yet</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {signedIn
               ? "Add a portal, or turn the free IPTV-org channels back on to start browsing."
               : "Sign in to load your portals, or turn on the free IPTV-org channels to start browsing."}
@@ -561,7 +571,7 @@ function NoPortalsSelected({
         </div>
         {onEnableFreeChannels ? (
           <Button variant="outline" size="sm" onClick={onEnableFreeChannels}>
-            <TvIcon className="size-3.5 mr-0.5 mt-[-0.08rem]" />
+            <TvIcon className="mt-[-0.08rem] mr-0.5 size-3.5" />
             Show public channels
           </Button>
         ) : null}
@@ -574,7 +584,7 @@ function EmptyPlayerPanel({ showBackdrop = true }: { showBackdrop?: boolean }) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden p-4">
       {showBackdrop ? <PrimaryMeshGradientBackdrop /> : null}
-      <div className="relative z-10 flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+      <div className="text-muted-foreground relative z-10 flex flex-col items-center justify-center gap-3 text-center">
         <TvIcon className="size-8" />
         <p className="text-sm">No channel selected.</p>
       </div>
@@ -583,9 +593,7 @@ function EmptyPlayerPanel({ showBackdrop = true }: { showBackdrop?: boolean }) {
 }
 
 type BrowseFilter =
-  | { type: "favorites" }
-  | { type: "all" }
-  | { type: "category"; genre: string }
+  { type: "favorites" } | { type: "all" } | { type: "category"; genre: string }
 
 function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
   return {
@@ -594,7 +602,7 @@ function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
     className: cn(
       "rounded-full",
       options?.wide ? "min-w-0 max-w-full shrink!" : "max-w-40 shrink-0",
-      !active && "text-muted-foreground"
+      !active && "text-muted-foreground",
     ),
   }
 }
@@ -618,7 +626,10 @@ function ChannelBrowser({
   portalRequest: SourceRequest
   useProxy: boolean
   useImageProxy: boolean
-  epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>
+  epgChannels: Record<
+    string,
+    { name: string; logoUrl?: string; countryCode?: string }
+  >
   customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>
   query: string
   onQueryChange: (value: string) => void
@@ -629,8 +640,9 @@ function ChannelBrowser({
   const { favorites, toggleFavorite, migrateFavoriteKeys } = useFavorites()
   const isChannelFavorited = useCallback(
     (channel: PortalChannelWithSource) =>
-      favorites.has(getChannelKey(channel)) || favorites.has(getLegacyChannelKey(channel)),
-    [favorites]
+      favorites.has(getChannelKey(channel)) ||
+      favorites.has(getLegacyChannelKey(channel)),
+    [favorites],
   )
 
   useEffect(() => {
@@ -647,14 +659,14 @@ function ChannelBrowser({
 
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const [selectedPortalIds, setSelectedPortalIds] = useState<Set<number>>(
-    () => new Set()
+    () => new Set(),
   )
   const prefersReducedMotion = useReducedMotion()
   const [clientPlatform, setClientPlatform] = useState<ClientPlatform>("other")
 
   useEffect(() => {
     setClientPlatform(
-      getClientPlatform(navigator.userAgent, navigator.maxTouchPoints)
+      getClientPlatform(navigator.userAgent, navigator.maxTouchPoints),
     )
   }, [])
 
@@ -662,11 +674,10 @@ function ChannelBrowser({
   const favoriteCount = useMemo(
     () =>
       allChannels.reduce(
-        (count, channel) =>
-          isChannelFavorited(channel) ? count + 1 : count,
-        0
+        (count, channel) => (isChannelFavorited(channel) ? count + 1 : count),
+        0,
       ),
-    [allChannels, isChannelFavorited]
+    [allChannels, isChannelFavorited],
   )
 
   // Default the filter to Favorites only when the current list actually has
@@ -675,7 +686,7 @@ function ChannelBrowser({
   // count is already known, and defaulting to All would paint a frame of every
   // channel before the effect could swap it out.
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(() =>
-    favoriteCount > 0 ? { type: "favorites" } : { type: "all" }
+    favoriteCount > 0 ? { type: "favorites" } : { type: "all" },
   )
 
   // Keeps reacting if favorites or channels arrive after mount, and stops once
@@ -696,7 +707,8 @@ function ChannelBrowser({
     const channelsForCategories = selectedPortalIds.size
       ? allChannels.filter(
           (channel) =>
-            channel.portalSource && selectedPortalIds.has(channel.portalSource.id)
+            channel.portalSource &&
+            selectedPortalIds.has(channel.portalSource.id),
         )
       : allChannels
 
@@ -709,7 +721,7 @@ function ChannelBrowser({
 
   const categories = useMemo(() => {
     return [...categoryCounts.keys()].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" })
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
     )
   }, [categoryCounts])
 
@@ -722,28 +734,33 @@ function ChannelBrowser({
     }
 
     return [...uniquePortals.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     )
   }, [allChannels])
 
-  const togglePortal = useCallback((portalId: number, checked: boolean) => {
-    chooseFilter({ type: "all" })
-    setSelectedPortalIds((current) => {
-      const next = new Set(current)
-      if (checked) {
-        next.add(portalId)
-      } else {
-        next.delete(portalId)
-      }
-      return next
-    })
-  }, [chooseFilter])
+  const togglePortal = useCallback(
+    (portalId: number, checked: boolean) => {
+      chooseFilter({ type: "all" })
+      setSelectedPortalIds((current) => {
+        const next = new Set(current)
+        if (checked) {
+          next.add(portalId)
+        } else {
+          next.delete(portalId)
+        }
+        return next
+      })
+    },
+    [chooseFilter],
+  )
 
   const visibleChannels = useMemo(() => {
     const channelsForSelectedPortals = selectedPortalIds.size
-      ? channels.filter((channel) =>
-        channel.portalSource && selectedPortalIds.has(channel.portalSource.id)
-      )
+      ? channels.filter(
+          (channel) =>
+            channel.portalSource &&
+            selectedPortalIds.has(channel.portalSource.id),
+        )
       : channels
 
     if (browseFilter.type === "all") {
@@ -755,7 +772,7 @@ function ChannelBrowser({
     }
 
     return channelsForSelectedPortals.filter(
-      (channel) => (channel.genre || "Uncategorized") === browseFilter.genre
+      (channel) => (channel.genre || "Uncategorized") === browseFilter.genre,
     )
   }, [browseFilter, channels, isChannelFavorited, selectedPortalIds])
   const [copiedChannel, setCopiedChannel] = useState("")
@@ -769,7 +786,10 @@ function ChannelBrowser({
     useState<PortalChannelWithSource | null>(null)
   const [epgProgrammes, setEpgProgrammes] = useState<EpgProgramme[]>([])
   const [isLoadingEpg, setIsLoadingEpg] = useState(false)
+  const [isLoadingMoreEpg, setIsLoadingMoreEpg] = useState(false)
+  const [epgHasMore, setEpgHasMore] = useState(false)
   const [epgError, setEpgError] = useState("")
+  const epgRequestRef = useRef<Record<string, unknown> | null>(null)
   const [playerStream, setPlayerStream] = useState<{
     channelKey: string
     channelName: string
@@ -779,7 +799,9 @@ function ChannelBrowser({
     portalName: string
     url: string
   } | null>(null)
-  const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(null)
+  const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
+    null,
+  )
   const captionCuesRef = useRef<Map<string, CaptionCue[]>>(new Map())
   const captionDebugStateRef = useRef("")
   const [activeCaption, setActiveCaption] = useState<string | null>(null)
@@ -792,7 +814,7 @@ function ChannelBrowser({
     count: visibleChannels.length,
     getScrollElement: () =>
       scrollAreaRef.current?.querySelector<HTMLElement>(
-        "[data-slot='scroll-area-viewport']"
+        "[data-slot='scroll-area-viewport']",
       ) ?? null,
     estimateSize: () => 84,
     overscan: 12,
@@ -824,7 +846,10 @@ function ChannelBrowser({
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
 
-    const logCaptionState = (state: string, detail: Record<string, unknown>) => {
+    const logCaptionState = (
+      state: string,
+      detail: Record<string, unknown>,
+    ) => {
       if (captionDebugStateRef.current === state) return
       captionDebugStateRef.current = state
       console.log("[Portal Hop captions]", detail)
@@ -839,10 +864,13 @@ function ChannelBrowser({
       }))
 
     const updateActiveCaption = () => {
-      const selectedTrack = Array.from(playerElement.querySelectorAll("track")).find(
+      const selectedTrack = Array.from(
+        playerElement.querySelectorAll("track"),
+      ).find(
         (track) =>
-          (track.track.kind === "captions" || track.track.kind === "subtitles") &&
-          track.track.mode === "showing"
+          (track.track.kind === "captions" ||
+            track.track.kind === "subtitles") &&
+          track.track.mode === "showing",
       )
 
       if (!selectedTrack) {
@@ -861,12 +889,9 @@ function ChannelBrowser({
           ? [...captionCuesRef.current.keys()][0]
           : undefined
       const now = playerElement.currentTime
-      const activeCues = (cueTrackId
-        ? captionCuesRef.current.get(cueTrackId) ?? []
-        : []
-      ).filter(
-        (cue) => cue.startTime <= now && cue.endTime >= now
-      )
+      const activeCues = (
+        cueTrackId ? (captionCuesRef.current.get(cueTrackId) ?? []) : []
+      ).filter((cue) => cue.startTime <= now && cue.endTime >= now)
 
       if (!activeCues.length) {
         logCaptionState(`no-active-cue:${selectedTrack.id}`, {
@@ -876,7 +901,7 @@ function ChannelBrowser({
           trackId: selectedTrack.id,
           cueTrackId,
           knownCueCount: cueTrackId
-            ? captionCuesRef.current.get(cueTrackId)?.length ?? 0
+            ? (captionCuesRef.current.get(cueTrackId)?.length ?? 0)
             : 0,
         })
         setActiveCaption(null)
@@ -885,7 +910,9 @@ function ChannelBrowser({
 
       // CEA captions emit one cue per screen row. Render the most recent
       // screen as one subtitle block so live updates never stack over each other.
-      const latestStartTime = Math.max(...activeCues.map((cue) => cue.startTime))
+      const latestStartTime = Math.max(
+        ...activeCues.map((cue) => cue.startTime),
+      )
       const lines = activeCues
         .filter((cue) => Math.abs(cue.startTime - latestStartTime) < 0.05)
         .sort((a, b) => a.line - b.line)
@@ -949,7 +976,7 @@ function ChannelBrowser({
         setStreamVariant((current) =>
           current.frameRateLabel
             ? current
-            : { ...current, frameRateLabel: formatFrameRateLabel(snapped) }
+            : { ...current, frameRateLabel: formatFrameRateLabel(snapped) },
         )
       }
     }
@@ -1021,7 +1048,7 @@ function ChannelBrowser({
       }
       const handleCuesParsed = (
         _event: typeof Hls.Events.CUES_PARSED,
-        data: { type: string; track: string; cues: VTTCue[] }
+        data: { type: string; track: string; cues: VTTCue[] },
       ) => {
         if (data.type !== "captions") return
 
@@ -1043,7 +1070,7 @@ function ChannelBrowser({
               existingCue.startTime === captionCue.startTime &&
               existingCue.endTime === captionCue.endTime &&
               existingCue.line === captionCue.line &&
-              existingCue.text === captionCue.text
+              existingCue.text === captionCue.text,
           )
 
           if (!alreadyKnown) next.push(captionCue)
@@ -1051,7 +1078,9 @@ function ChannelBrowser({
 
         captionCuesRef.current.set(
           data.track,
-          next.filter((cue) => cue.endTime >= playerElement.currentTime - 5).slice(-300)
+          next
+            .filter((cue) => cue.endTime >= playerElement.currentTime - 5)
+            .slice(-300),
         )
         console.log("[Portal Hop captions]", {
           event: "hls-cues-parsed",
@@ -1068,11 +1097,11 @@ function ChannelBrowser({
       }
       const handleLevelSwitching = (
         _event: typeof Hls.Events.LEVEL_SWITCHING,
-        data: { level: number }
+        data: { level: number },
       ) => updateFromLevel(data.level)
       const handleLevelSwitched = (
         _event: typeof Hls.Events.LEVEL_SWITCHED,
-        data: { level: number }
+        data: { level: number },
       ) => updateFromLevel(data.level)
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
@@ -1119,8 +1148,14 @@ function ChannelBrowser({
 
       playerElement.removeEventListener("loadedmetadata", updateFromNativeVideo)
       playerElement.removeEventListener("timeupdate", updateActiveCaption)
-      playerElement.textTracks.removeEventListener("change", updateActiveCaption)
-      playerElement.textTracks.removeEventListener("addtrack", updateActiveCaption)
+      playerElement.textTracks.removeEventListener(
+        "change",
+        updateActiveCaption,
+      )
+      playerElement.textTracks.removeEventListener(
+        "addtrack",
+        updateActiveCaption,
+      )
       removeHlsListeners?.()
     }
   }, [playerElement, playerStream])
@@ -1130,16 +1165,29 @@ function ChannelBrowser({
       setEpgProgrammes([])
       setEpgError("")
       setIsLoadingEpg(false)
+      setEpgHasMore(false)
+      epgRequestRef.current = null
       return
     }
 
     const controller = new AbortController()
     const sourceRequest = selectedChannel.portalSource?.request ?? portalRequest
     const sourceEndpoint = selectedChannel.portalSource?.endpoint ?? endpoint
+    const requestBody = {
+      ...sourceRequest,
+      epgMode: selectedChannel?.portalSource?.epgMode ?? "portal",
+      epgSourceId: selectedChannel?.portalSource?.epgSourceId ?? null,
+      endpoint: sourceEndpoint,
+      channelId: selectedChannel?.id,
+      channelName: selectedChannel?.name,
+      xmltvId: selectedChannel?.xmltvId,
+    }
+    epgRequestRef.current = requestBody
 
     async function loadChannelEpg() {
       setIsLoadingEpg(true)
       setEpgError("")
+      setEpgHasMore(false)
 
       try {
         const response = await fetch("/api/channel-epg", {
@@ -1147,15 +1195,7 @@ function ChannelBrowser({
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
           signal: controller.signal,
-          body: JSON.stringify({
-            ...sourceRequest,
-            epgMode: selectedChannel?.portalSource?.epgMode ?? "portal",
-            epgSourceId: selectedChannel?.portalSource?.epgSourceId ?? null,
-            endpoint: sourceEndpoint,
-            channelId: selectedChannel?.id,
-            channelName: selectedChannel?.name,
-            xmltvId: selectedChannel?.xmltvId,
-          }),
+          body: JSON.stringify(requestBody),
         })
         const data = await response.json().catch(() => ({}))
 
@@ -1164,15 +1204,21 @@ function ChannelBrowser({
         }
 
         setEpgProgrammes(
-          Array.isArray(data.programmes) ? (data.programmes as EpgProgramme[]) : []
+          Array.isArray(data.programmes)
+            ? (data.programmes as EpgProgramme[])
+            : [],
         )
+        setEpgHasMore(Boolean(data.hasMore))
       } catch (error) {
         if (controller.signal.aborted) {
           return
         }
 
         setEpgProgrammes([])
-        setEpgError(error instanceof Error ? error.message : "Could not load EPG data.")
+        setEpgHasMore(false)
+        setEpgError(
+          error instanceof Error ? error.message : "Could not load EPG data.",
+        )
       } finally {
         if (!controller.signal.aborted) {
           setIsLoadingEpg(false)
@@ -1187,9 +1233,58 @@ function ChannelBrowser({
     }
   }, [endpoint, playerStream, portalRequest, selectedChannel])
 
+  const loadMoreEpg = useCallback(async () => {
+    const baseRequest = epgRequestRef.current
+    const lastProgramme = epgProgrammes[epgProgrammes.length - 1]
+
+    if (!baseRequest || !lastProgramme || isLoadingMoreEpg || !epgHasMore) {
+      return
+    }
+
+    setIsLoadingMoreEpg(true)
+
+    try {
+      const response = await fetch("/api/channel-epg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ ...baseRequest, from: lastProgramme.stopAt }),
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        setEpgHasMore(false)
+        return
+      }
+
+      const nextProgrammes = Array.isArray(data.programmes)
+        ? (data.programmes as EpgProgramme[])
+        : []
+
+      if (!nextProgrammes.length) {
+        setEpgHasMore(false)
+        return
+      }
+
+      setEpgProgrammes((current) => {
+        const seenIds = new Set(current.map((programme) => programme.id))
+        const deduped = nextProgrammes.filter(
+          (programme) => !seenIds.has(programme.id),
+        )
+        return [...current, ...deduped]
+      })
+      setEpgHasMore(Boolean(data.hasMore))
+    } catch {
+      // Silent: the user can keep scrolling to retry, per the existing
+      // pattern of not surfacing transient network hiccups mid-scroll.
+    } finally {
+      setIsLoadingMoreEpg(false)
+    }
+  }, [epgHasMore, epgProgrammes, isLoadingMoreEpg])
+
   async function pullChannelStream(
     channel: PortalChannelWithSource,
-    action: "copy" | ExternalPlayer | "play" = "play"
+    action: "copy" | ExternalPlayer | "play" = "play",
   ) {
     const channelKey = getChannelKey(channel)
     const sourceRequest = channel.portalSource?.request ?? portalRequest
@@ -1241,7 +1336,7 @@ function ChannelBrowser({
         toast.dismiss(toastId)
         toast.success("Copied stream", {
           description: channel.name,
-          icon: <CheckIcon className="size-4 text-foreground" />,
+          icon: <CheckIcon className="text-foreground size-4" />,
         })
       } else if (action !== "play") {
         const playerUrl = getExternalPlayerUrl(action, streamLink)
@@ -1249,7 +1344,7 @@ function ChannelBrowser({
         toast.dismiss(toastId)
         toast.success(`Opening in ${getExternalPlayerLabel(action)}`, {
           description: channel.name,
-          icon: <CheckIcon className="size-4 text-foreground" />,
+          icon: <CheckIcon className="text-foreground size-4" />,
         })
       } else {
         // A newer click already superseded this one, so don't swap the player.
@@ -1262,7 +1357,13 @@ function ChannelBrowser({
           channelKey,
           channelName: channel.name || "Live stream",
           genre: channel.genre,
-          logoUrl: getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels, useImageProxy),
+          logoUrl: getChannelLogoUrl(
+            channel,
+            channel.portalSource,
+            epgChannels,
+            customEpgChannels,
+            useImageProxy,
+          ),
           number: channel.number,
           portalName: channel.portalSource?.name ?? "",
           url: streamLink,
@@ -1294,14 +1395,14 @@ function ChannelBrowser({
   const resizableOrientation = isMobileLayout ? "vertical" : "horizontal"
   const isResponsiveLayoutReady = useHydratedLayout()
   const availableExternalPlayers = externalPlayers.filter(({ platforms }) =>
-    platforms.includes(clientPlatform)
+    platforms.includes(clientPlatform),
   )
 
   const activeCategoryGenre =
     browseFilter.type === "category" ? browseFilter.genre : null
 
   const renderChannelContent = () => (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm min-[940px]:min-w-80">
+    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-sm min-[940px]:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
@@ -1332,7 +1433,7 @@ function ChannelBrowser({
                   <Button
                     {...chipButtonProps(
                       selectedPortalIds.size > 0 || browseFilter.type === "all",
-                      { wide: true }
+                      { wide: true },
                     )}
                     aria-label="Filter channels by portal"
                   />
@@ -1345,7 +1446,8 @@ function ChannelBrowser({
                 )}
                 <span className="min-w-0 truncate">
                   {selectedPortalIds.size === 1
-                    ? portals.find((portal) => selectedPortalIds.has(portal.id))?.name
+                    ? portals.find((portal) => selectedPortalIds.has(portal.id))
+                        ?.name
                     : selectedPortalIds.size > 1
                       ? `${selectedPortalIds.size} portals`
                       : "All"}
@@ -1371,10 +1473,14 @@ function ChannelBrowser({
                     <DropdownMenuCheckboxItem
                       key={portal.id}
                       checked={selectedPortalIds.has(portal.id)}
-                      onCheckedChange={(checked) => togglePortal(portal.id, checked)}
+                      onCheckedChange={(checked) =>
+                        togglePortal(portal.id, checked)
+                      }
                     >
                       <TvIcon />
-                      <span className="min-w-0 flex-1 truncate">{portal.name}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {portal.name}
+                      </span>
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuGroup>
@@ -1393,7 +1499,9 @@ function ChannelBrowser({
             items={categories}
             value={activeCategoryGenre}
             onValueChange={(genre) => {
-              chooseFilter(genre ? { type: "category", genre } : { type: "all" })
+              chooseFilter(
+                genre ? { type: "category", genre } : { type: "all" },
+              )
               setSelectedPortalIds(new Set())
             }}
             open={categoryMenuOpen}
@@ -1438,7 +1546,8 @@ function ChannelBrowser({
               <ComboboxList>
                 {(genre: string) => {
                   const isActiveGenre =
-                    browseFilter.type === "category" && browseFilter.genre === genre
+                    browseFilter.type === "category" &&
+                    browseFilter.genre === genre
                   return (
                     <ComboboxItem
                       key={genre}
@@ -1450,7 +1559,7 @@ function ChannelBrowser({
                         {genre}
                       </span>
                       {isActiveGenre ? null : (
-                        <span className="ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums text-muted-foreground">
+                        <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
                           {(categoryCounts.get(genre) ?? 0).toLocaleString()}
                         </span>
                       )}
@@ -1481,7 +1590,13 @@ function ChannelBrowser({
               const isSelected =
                 selectedChannel && getChannelKey(selectedChannel) === channelKey
               const isFavorited = isChannelFavorited(channel)
-              const logoUrl = getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels, useImageProxy)
+              const logoUrl = getChannelLogoUrl(
+                channel,
+                channel.portalSource,
+                epgChannels,
+                customEpgChannels,
+                useImageProxy,
+              )
               const channelBadgeId = channel.xmltvId ?? ""
 
               return (
@@ -1498,8 +1613,8 @@ function ChannelBrowser({
                       thing (background, content, and star) responds. */}
                   <div
                     className={cn(
-                      "group flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out hover:bg-accent/80 active:scale-[0.99]",
-                      isSelected && "bg-accent shadow-xs"
+                      "group hover:bg-accent/80 flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out active:scale-[0.99]",
+                      isSelected && "bg-accent shadow-xs",
                     )}
                   >
                     <button
@@ -1508,7 +1623,7 @@ function ChannelBrowser({
                       className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
                       onClick={() => pullChannelStream(channel)}
                     >
-                      <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
+                      <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
                         {logoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
                           <img
@@ -1524,9 +1639,10 @@ function ChannelBrowser({
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="truncate font-medium">
-                          {channel.name || `Channel ${channel.number || virtualRow.index + 1}`}
+                          {channel.name ||
+                            `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
-                        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
                           <CategoryVisual
                             category={channel.genre || "Uncategorized"}
                             className="size-3 shrink-0"
@@ -1552,7 +1668,9 @@ function ChannelBrowser({
                                 variant="secondary"
                                 className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
                               >
-                                <span className="truncate">{channelBadgeId}</span>
+                                <span className="truncate">
+                                  {channelBadgeId}
+                                </span>
                               </Badge>
                             ) : null}
                           </span>
@@ -1570,16 +1688,19 @@ function ChannelBrowser({
                         aria-pressed={isFavorited}
                         onClick={() => toggleFavorite(channelKey)}
                         className={cn(
-                          "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[color,opacity,transform] duration-[160ms] ease-out hover:text-foreground active:scale-95",
+                          "text-muted-foreground hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-[color,opacity,transform] duration-[160ms] ease-out active:scale-95",
                           isResolving
                             ? "opacity-0"
                             : isFavorited
                               ? "text-amber-500 opacity-100 hover:text-amber-500"
-                              : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                              : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
                         )}
                       >
                         <StarIcon
-                          className={cn("size-4", isFavorited && "fill-current")}
+                          className={cn(
+                            "size-4",
+                            isFavorited && "fill-current",
+                          )}
                         />
                       </button>
                       {isResolving ? (
@@ -1597,7 +1718,11 @@ function ChannelBrowser({
           <Empty className="h-40">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                {browseFilter.type === "favorites" ? <StarIcon /> : <SearchIcon />}
+                {browseFilter.type === "favorites" ? (
+                  <StarIcon />
+                ) : (
+                  <SearchIcon />
+                )}
               </EmptyMedia>
               <EmptyTitle>
                 {browseFilter.type === "favorites"
@@ -1617,7 +1742,7 @@ function ChannelBrowser({
   )
 
   const renderPlayerContent = () => (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-background">
+    <div className="bg-background relative flex h-full flex-col overflow-hidden rounded-2xl">
       {!playerStream ? <PrimaryMeshGradientBackdrop /> : null}
       <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
         {playerStream ? (
@@ -1633,7 +1758,7 @@ function ChannelBrowser({
             transition={{ type: "spring", bounce: 0, duration: 0.4 }}
           >
             {playerStream.logoUrl ? (
-              <div className="flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border border-border/60 bg-zinc-900 p-1">
+              <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
                 <img
                   src={playerStream.logoUrl}
@@ -1644,10 +1769,10 @@ function ChannelBrowser({
               </div>
             ) : null}
             <div className="flex min-w-0 flex-col">
-              <p className="truncate font-semibold text-lg">
+              <p className="truncate text-lg font-semibold">
                 {playerStream.channelName}
               </p>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 text-sm">
                 <span className="truncate">
                   {playerStream.genre || "Uncategorized"}
                 </span>
@@ -1662,7 +1787,7 @@ function ChannelBrowser({
         ) : (
           <div className="flex flex-col">
             <p className="font-semibold">Select a channel</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Pick a channel from the sidebar to start playback.
             </p>
           </div>
@@ -1704,7 +1829,7 @@ function ChannelBrowser({
               />
               {activeCaption ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-[10%] z-20 flex justify-center px-8">
-                  <p className="max-w-[85%] rounded-xl bg-black/70 px-4 py-2 text-center text-[clamp(0.875rem,1.4vw,1.125rem)] font-medium leading-tight whitespace-pre-line text-white shadow-xl backdrop-blur-md group-data-[state=fullscreen]/player:text-[clamp(1rem,2.2vw,1.875rem)]">
+                  <p className="max-w-[85%] rounded-xl bg-black/70 px-4 py-2 text-center text-[clamp(0.875rem,1.4vw,1.125rem)] leading-tight font-medium whitespace-pre-line text-white shadow-xl backdrop-blur-md group-data-[state=fullscreen]/player:text-[clamp(1rem,2.2vw,1.875rem)]">
                     {activeCaption}
                   </p>
                 </div>
@@ -1716,7 +1841,7 @@ function ChannelBrowser({
                 <MediaPlayerControlsOverlay />
                 <div className="flex w-full items-center gap-3 pb-1">
                   {playerStream.logoUrl ? (
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-950/50 backdrop-blur p-1 shadow-inner">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-950/50 p-1 shadow-inner backdrop-blur">
                       {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
                       <img
                         src={playerStream.logoUrl}
@@ -1776,6 +1901,10 @@ function ChannelBrowser({
               programmes={epgProgrammes}
               isLoading={isLoadingEpg}
               error={epgError}
+              useImageProxy={useImageProxy}
+              hasMore={epgHasMore}
+              isLoadingMore={isLoadingMoreEpg}
+              onLoadMore={loadMoreEpg}
             />
           </div>
         </ScrollArea>
@@ -1830,7 +1959,7 @@ function ChannelBrowser({
                 />
               }
             >
-              <TvIcon className="size-4 -mt-px" />
+              <TvIcon className="-mt-px size-4" />
               {!isMobileLayout && "Open in player"}
               <ChevronDownIcon className="size-4 opacity-70" />
             </DropdownMenuTrigger>
@@ -1842,7 +1971,9 @@ function ChannelBrowser({
                     <DropdownMenuItem
                       key={player.id}
                       disabled={Boolean(resolvingChannel)}
-                      onClick={() => pullChannelStream(selectedChannel, player.id)}
+                      onClick={() =>
+                        pullChannelStream(selectedChannel, player.id)
+                      }
                       className="py-1.5"
                     >
                       <PlayerLogo player={player.id} />
@@ -1851,7 +1982,9 @@ function ChannelBrowser({
                   ))}
                 </DropdownMenuGroup>
               ) : null}
-              {availableExternalPlayers.length > 0 ? <DropdownMenuSeparator /> : null}
+              {availableExternalPlayers.length > 0 ? (
+                <DropdownMenuSeparator />
+              ) : null}
               <DropdownMenuItem
                 disabled={Boolean(resolvingChannel)}
                 onClick={() => pullChannelStream(selectedChannel, "copy")}
@@ -1875,7 +2008,7 @@ function ChannelBrowser({
         <ResizablePanelGroup
           key={resizableOrientation}
           orientation={resizableOrientation}
-          className="h-full gap-1.5 overflow-hidden bg-muted/30 p-3"
+          className="bg-muted/30 h-full gap-1.5 overflow-hidden p-3"
           resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
         >
           {isMobileLayout ? (
@@ -1893,12 +2026,12 @@ function ChannelBrowser({
           )}
         </ResizablePanelGroup>
       ) : (
-        <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 min-[940px]:flex-row">
-          <div className="order-3 min-h-0 basis-[46%] shrink min-[940px]:order-1 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:basis-auto min-[940px]:shrink-0">
+        <div className="bg-muted/30 flex h-full w-full flex-col gap-1.5 overflow-hidden p-3 min-[940px]:flex-row">
+          <div className="order-3 min-h-0 shrink basis-[46%] min-[940px]:order-1 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:shrink-0 min-[940px]:basis-auto">
             {renderChannelContent()}
           </div>
-          <div className="order-2 w-px h-px bg-transparent shrink-0 min-[940px]:order-2" />
-          <div className="order-1 min-h-0 basis-[54%] shrink min-[940px]:order-3 min-[940px]:flex-1 min-[940px]:basis-auto">
+          <div className="order-2 h-px w-px shrink-0 bg-transparent min-[940px]:order-2" />
+          <div className="order-1 min-h-0 shrink basis-[54%] min-[940px]:order-3 min-[940px]:flex-1 min-[940px]:basis-auto">
             {renderPlayerContent()}
           </div>
         </div>
@@ -1912,7 +2045,9 @@ const useBrowserLayoutEffect =
 
 function useMediaQuery(query: string, defaultMatches = false) {
   const [matches, setMatches] = useState(() =>
-    typeof window === "undefined" ? defaultMatches : window.matchMedia(query).matches
+    typeof window === "undefined"
+      ? defaultMatches
+      : window.matchMedia(query).matches,
   )
 
   useBrowserLayoutEffect(() => {
@@ -1947,10 +2082,9 @@ function StreamInfoBadges({
   variant: StreamVariant
   className?: string
 }) {
-  const label = [
-    variant.resolutionLabel,
-    variant.frameRateLabel,
-  ].filter(Boolean).join(" • ")
+  const label = [variant.resolutionLabel, variant.frameRateLabel]
+    .filter(Boolean)
+    .join(" • ")
 
   if (!label) {
     return null
@@ -1960,8 +2094,8 @@ function StreamInfoBadges({
     <Badge
       variant="outline"
       className={cn(
-        "h-5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ease-out",
-        className
+        "animate-in fade-in-0 slide-in-from-bottom-1 h-5 duration-300 ease-out",
+        className,
       )}
     >
       {label}
@@ -2034,12 +2168,21 @@ function EpgSchedule({
   programmes,
   isLoading,
   error,
+  useImageProxy,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   programmes: EpgProgramme[]
   isLoading: boolean
   error: string
+  useImageProxy: boolean
+  hasMore: boolean
+  isLoadingMore: boolean
+  onLoadMore: () => void
 }) {
   const [now, setNow] = useState(() => Date.now())
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 30000)
@@ -2049,83 +2192,138 @@ function EpgSchedule({
     }
   }, [])
 
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+
+    if (!sentinel || !hasMore) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onLoadMore()
+        }
+      },
+      { rootMargin: "200px" },
+    )
+
+    observer.observe(sentinel)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasMore, onLoadMore])
+
   return (
     <section className="mt-4 flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-2 md:gap-2.5 min-w-0">
-          <TvIcon className="size-4 md:size-5 shrink-0 text-muted-foreground" />
-          <span className="text-base md:text-xl font-semibold">Programme Guide</span>
-        </div>
-        {programmes[0] ? (
-          <span className="shrink-0 text-sm font-medium text-muted-foreground">
-            {formatScheduleDate(programmes[0].startAt)}
-          </span>
-        ) : null}
+      <div className="flex items-center gap-2 px-1 md:gap-2.5">
+        <TvIcon className="text-muted-foreground -mt-0.5 size-4 shrink-0 md:size-5" />
+        <span className="text-base font-semibold md:text-xl">
+          Programme Guide
+        </span>
       </div>
 
       {isLoading ? (
-        <div className="flex h-28 items-center justify-center rounded-md bg-muted/20 text-sm text-muted-foreground">
+        <div className="bg-muted/20 text-muted-foreground flex h-28 items-center justify-center rounded-md text-sm">
           <Loader2Icon className="mr-2 size-4 animate-spin" />
           Loading EPG
         </div>
       ) : error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border p-4 text-sm">
           {error}
         </div>
       ) : programmes.length ? (
         <div className="flex flex-col gap-3">
-          {programmes.map((programme) => {
+          {programmes.map((programme, index) => {
             const start = new Date(programme.startAt).getTime()
             const stop = new Date(programme.stopAt).getTime()
             const isLive = start <= now && stop > now
             const progress = isLive
-              ? Math.min(100, Math.max(0, ((now - start) / (stop - start)) * 100))
+              ? Math.min(
+                  100,
+                  Math.max(0, ((now - start) / (stop - start)) * 100),
+                )
               : 0
 
+            const posterUrl = programme.posterUrl
+              ? proxyImageUrl(programme.posterUrl, useImageProxy)
+              : ""
+
+            const previousProgramme = programmes[index - 1]
+            const showDateSeparator =
+              !previousProgramme ||
+              scheduleDateKey(programme.startAt) !==
+                scheduleDateKey(previousProgramme.startAt)
+
             return (
-              <article
-                key={programme.id}
-                className="rounded-md bg-muted/20 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
-                      <span>
-                        {formatTimeRange(programme.startAt, programme.stopAt)}
-                      </span>
-                      {isLive ? (
-                        <Badge className="h-5 text-[10px] font-mono ">LIVE</Badge>
-                      ) : null}
-                      {programme.category ? (
-                        <Badge variant="outline" className="h-5">
-                          {programme.category}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <h3 className="truncate text-base font-semibold">
-                      {programme.title}
-                    </h3>
-                    {programme.description ? (
-                      <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
-                        {programme.description}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                {isLive ? (
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${progress}%` }}
-                    />
+              <div key={programme.id} className="flex flex-col gap-3">
+                {showDateSeparator ? (
+                  <div className="text-muted-foreground px-1 text-sm font-medium">
+                    {formatScheduleDate(programme.startAt)}
                   </div>
                 ) : null}
-              </article>
+                <article className="bg-muted/20 rounded-md p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-muted-foreground mb-1 flex flex-wrap items-center gap-2 text-xs font-medium">
+                        <span>
+                          {formatTimeRange(programme.startAt, programme.stopAt)}
+                        </span>
+                        {programme.category ? (
+                          <Badge variant="outline" className="h-5">
+                            {programme.category}
+                          </Badge>
+                        ) : null}
+                        {isLive ? <Badge className="h-5">On Air</Badge> : null}
+                      </div>
+                      <h3 className="truncate text-base font-semibold">
+                        {programme.title}
+                      </h3>
+                      {programme.description ? (
+                        <p className="text-muted-foreground line-clamp-2 text-sm leading-6">
+                          {programme.description}
+                        </p>
+                      ) : null}
+                      {isLive ? (
+                        <div className="bg-muted mt-3 h-1.5 overflow-hidden rounded-full">
+                          <div
+                            className="bg-primary h-full rounded-full"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                    {posterUrl ? (
+                      <div className="hidden h-28 w-20 shrink-0 items-center justify-center overflow-clip rounded-md bg-zinc-900 sm:flex">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- Programme posters come from arbitrary EPG hosts. */}
+                        <img
+                          src={posterUrl}
+                          alt=""
+                          className="size-full object-cover"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              </div>
             )
           })}
+          {hasMore ? (
+            <div
+              ref={sentinelRef}
+              className="flex h-10 items-center justify-center"
+            >
+              {isLoadingMore ? (
+                <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : (
-        <div className="flex h-28 items-center justify-center rounded-md bg-muted/20 px-4 text-center text-sm text-muted-foreground">
+        <div className="bg-muted/20 text-muted-foreground flex h-28 items-center justify-center rounded-md px-4 text-center text-sm">
           No programme information available for this channel.
         </div>
       )}
@@ -2148,7 +2346,10 @@ function getChannelKey(channel: PortalChannelWithSource) {
 }
 
 function getLegacyChannelKey(channel: PortalChannelWithSource) {
-  return [channel.portalSource?.id ?? "manual", channel.id || channel.number || channel.name].join(":")
+  return [
+    channel.portalSource?.id ?? "manual",
+    channel.id || channel.number || channel.name,
+  ].join(":")
 }
 
 function getPortalSource(portal: SavedPortalRecord): PortalSource {
@@ -2204,7 +2405,7 @@ function getPortalSource(portal: SavedPortalRecord): PortalSource {
 }
 
 async function fetchSavedPortalResult(
-  portal: SavedPortalRecord
+  portal: SavedPortalRecord,
 ): Promise<PortalResponse> {
   const response = await fetch(`/api/portals/${portal.id}`, {
     cache: "no-store",
@@ -2229,7 +2430,7 @@ async function fetchSavedPortalResult(
 // when the source's cached channels are still fresh, so a plain page
 // refresh doesn't re-download every enabled portal's full channel list.
 async function loadPortalChannels(
-  portal: SavedPortalRecord
+  portal: SavedPortalRecord,
 ): Promise<PortalResponse> {
   const updatedAt = new Date(portal.updatedAt).getTime()
   const cached = Number.isFinite(updatedAt)
@@ -2258,12 +2459,26 @@ async function loadPortalChannels(
   return result
 }
 
-function getChannelLogoUrl(channel: PortalChannel, portalSource: PortalSource | undefined, epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>, customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>, useImageProxy: boolean) {
+function getChannelLogoUrl(
+  channel: PortalChannel,
+  portalSource: PortalSource | undefined,
+  epgChannels: Record<
+    string,
+    { name: string; logoUrl?: string; countryCode?: string }
+  >,
+  customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>,
+  useImageProxy: boolean,
+) {
   const lookupId = normalizeXmltvId(channel.xmltvId) || channel.id
 
   const logoUrl =
-    (portalSource?.epgMode === "iptv-org" && lookupId ? epgChannels[lookupId.toLowerCase()]?.logoUrl : null) ||
-    (portalSource?.epgMode === "custom" && portalSource.epgSourceId && lookupId ? customEpgChannels[portalSource.epgSourceId]?.[lookupId.toLowerCase()]?.logoUrl : null) ||
+    (portalSource?.epgMode === "iptv-org" && lookupId
+      ? epgChannels[lookupId.toLowerCase()]?.logoUrl
+      : null) ||
+    (portalSource?.epgMode === "custom" && portalSource.epgSourceId && lookupId
+      ? customEpgChannels[portalSource.epgSourceId]?.[lookupId.toLowerCase()]
+          ?.logoUrl
+      : null) ||
     channel.logoUrl ||
     ""
 
@@ -2289,6 +2504,11 @@ function formatScheduleDate(value: string) {
   }).format(new Date(value))
 }
 
+function scheduleDateKey(value: string) {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
 function uniqueGenres(channels: PortalChannel[]) {
   const genres = new Map<string, { id: string; title: string }>()
 
@@ -2309,7 +2529,7 @@ function LoadingShell() {
   const isResponsiveLayoutReady = useHydratedLayout()
 
   const channelContent = (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm min-[940px]:min-w-80">
+    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-sm min-[940px]:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
@@ -2338,13 +2558,13 @@ function LoadingShell() {
   )
 
   const playerContent = (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl bg-background">
+    <div className="bg-background relative flex h-full flex-col overflow-hidden rounded-2xl">
       <PrimaryMeshGradientBackdrop />
       <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex min-w-0 flex-col">
             <p className="font-semibold">Select a channel</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Pick a channel from the sidebar to start playback.
             </p>
           </div>
@@ -2375,12 +2595,12 @@ function LoadingShell() {
 
   if (!isResponsiveLayoutReady) {
     return (
-      <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden bg-muted/30 p-3 min-[940px]:flex-row">
-        <div className="order-3 min-h-0 basis-[46%] shrink min-[940px]:order-1 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:basis-auto min-[940px]:shrink-0">
+      <div className="bg-muted/30 flex h-full w-full flex-col gap-1.5 overflow-hidden p-3 min-[940px]:flex-row">
+        <div className="order-3 min-h-0 shrink basis-[46%] min-[940px]:order-1 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:shrink-0 min-[940px]:basis-auto">
           {channelContent}
         </div>
-        <div className="order-2 w-px h-px bg-transparent shrink-0 min-[940px]:order-2" />
-        <div className="order-1 min-h-0 basis-[54%] shrink min-[940px]:order-3 min-[940px]:flex-1 min-[940px]:basis-auto">
+        <div className="order-2 h-px w-px shrink-0 bg-transparent min-[940px]:order-2" />
+        <div className="order-1 min-h-0 shrink basis-[54%] min-[940px]:order-3 min-[940px]:flex-1 min-[940px]:basis-auto">
           {playerContent}
         </div>
       </div>
@@ -2391,7 +2611,7 @@ function LoadingShell() {
     <ResizablePanelGroup
       key={isMobileLayout ? "vertical" : "horizontal"}
       orientation={isMobileLayout ? "vertical" : "horizontal"}
-      className="h-full gap-1.5 overflow-hidden bg-muted/30 p-3"
+      className="bg-muted/30 h-full gap-1.5 overflow-hidden p-3"
       resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
     >
       {isMobileLayout ? (

@@ -29,6 +29,7 @@ export type EpgProgramme = {
   title: string
   description: string
   category?: string
+  posterUrl?: string
   startAt: string
   stopAt: string
   source: "provider" | "epg"
