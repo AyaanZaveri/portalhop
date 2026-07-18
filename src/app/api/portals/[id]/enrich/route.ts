@@ -28,7 +28,7 @@ import { normalizeXmltvId } from "@/lib/xmltv-id"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-// Smaller batches are more accurate — the model attends to each item better,
+// Smaller batches are more accurate: the model attends to each item better,
 // and 20-item batches measured ~2.5s vs noticeably worse picks at 40+. Wall
 // time is recovered by running more of them in parallel instead.
 const AI_BATCH_SIZE = 20
@@ -130,7 +130,7 @@ export async function POST(
           `[XMLTV] ${portal.name}: AI reranking enabled from ${aiCredentialSource} (${AI_BATCH_SIZE} channels/request, ${AI_BATCH_CONCURRENCY} concurrent requests)`
         )
       : pc.yellow(
-          `[XMLTV] ${portal.name}: AI reranking disabled — missing ${missingAiSettings.join(", ")}`
+          `[XMLTV] ${portal.name}: AI reranking disabled, missing ${missingAiSettings.join(", ")}`
         )
   )
 
@@ -158,7 +158,7 @@ export async function POST(
 
         for (const row of rows) {
           // Some portals append a quality/language tag to their xmltv ids
-          // (e.g. "TSN1.ca@SD") that never appears in real EPG data — strip
+          // (e.g. "TSN1.ca@SD") that never appears in real EPG data. Strip
           // it before checking validity so these rows aren't needlessly
           // re-matched, and so the clean id gets written back below.
           const normalizedId = normalizeXmltvId(row.xmltvId)
@@ -420,7 +420,7 @@ export async function POST(
         })
 
         if (changedUpdates.length) {
-          // Rewrote saved_channels out-of-band — bump the source's own
+          // Rewrote saved_channels out-of-band, so bump the source's own
           // updatedAt so the client's IndexedDB channel cache invalidates
           // instead of continuing to serve the pre-enrich snapshot.
           await touchSavedSource(db, sourceId)

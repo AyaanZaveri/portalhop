@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
     if (jsonResponse.ok) {
       const responseTimeMs = Math.round(performance.now() - startedAt)
-      // Accepting the param is not enough — the model must actually return
+      // Accepting the param is not enough; the model must actually return
       // parseable JSON for enrichment to rely on it.
       const jsonSupported = parsesAsJson(await contentOf(jsonResponse))
       return NextResponse.json({

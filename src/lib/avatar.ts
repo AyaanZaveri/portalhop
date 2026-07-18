@@ -1,6 +1,6 @@
 // Generated fallback avatars come from DiceBear's hosted API as plain image
 // URLs, so they slot into the same `user.image` field as Google photos or a
-// future user upload — every avatar source is just a URL rendered by <img>.
+// future user upload; every avatar source is just a URL rendered by <img>.
 // Swapping to a self-hosted DiceBear endpoint later only changes this URL, not
 // the storage model.
 
@@ -21,7 +21,7 @@ export function generatedAvatarUrl(seed: string): string {
   return url.href
 }
 
-// A fresh seed for "shuffle" — crypto.randomUUID is available in every browser
+// A fresh seed for "shuffle". crypto.randomUUID is available in every browser
 // this app targets (secure context).
 export function randomAvatarSeed(): string {
   return crypto.randomUUID()

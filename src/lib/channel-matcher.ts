@@ -3,8 +3,8 @@
  *
  * The EPG list is large (~28k channels) and a single source can carry tens of
  * thousands of channels, so we never hand the whole EPG list to the model.
- * Instead this module does the cheap, deterministic work — normalize, exact
- * match, and fuzzy-retrieve a short candidate list — and only the genuinely
+ * Instead this module does the cheap, deterministic work (normalize, exact
+ * match, and fuzzy-retrieve a short candidate list), and only the genuinely
  * ambiguous cases are handed to the AI reranker.
  */
 
@@ -22,7 +22,7 @@ export type MatchCandidate = {
 }
 
 export type ClassifiedMatch =
-  /** A single confident match — assign it without spending any tokens. */
+  /** A single confident match; assign it without spending any tokens. */
   | { kind: "exact"; xmltvId: string }
   /**
    * The same channel across multiple regions (identical name, e.g. CNN.us /
@@ -30,9 +30,9 @@ export type ClassifiedMatch =
    * without spending tokens.
    */
   | { kind: "regional"; candidates: MatchCandidate[] }
-  /** Genuinely different candidate names — the AI reranker should pick. */
+  /** Genuinely different candidate names; the AI reranker should pick. */
   | { kind: "ambiguous"; candidates: MatchCandidate[] }
-  /** Nothing plausible — leave unmatched. */
+  /** Nothing plausible; leave unmatched. */
   | { kind: "none" }
 
 /** Country/region suffix of an xmltv id, e.g. `CNN.ca` → `ca`. */
@@ -152,7 +152,7 @@ export type EpgIndex = {
   }[]
   /** EPG id → entry, for cheap lookup after an exact-name hit. */
   byId: Map<string, EpgIndex["entries"][number]>
-  /** All EPG ids currently known, lowercased — used to detect stale ids. */
+  /** All EPG ids currently known, lowercased; used to detect stale ids. */
   knownIds: Set<string>
 }
 

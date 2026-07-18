@@ -6,7 +6,7 @@
 // ethnicities, and genres ("SPORTS", "KIDS"). We resolve them in priority order:
 //   1. A leading country code before a delimiter ("GR | ...", "US: ...").
 //   2. A country/place-name keyword anywhere in the name (highest-confidence signal).
-//   3. A demonym or language keyword anywhere in the name (lower confidence — e.g.
+//   3. A demonym or language keyword anywhere in the name (lower confidence, e.g.
 //      "English" alone could describe several countries, so this only wins when
 //      no actual country name is present in the string, per #2).
 //   4. A genre keyword ("sports", "movies") → Lucide icon.
@@ -343,7 +343,7 @@ export function resolveCategoryVisual(category: string): CategoryVisual | null {
     if (override) return { kind: "flag", code: override }
   }
 
-  // 2. Country/place-name keyword — checked in full across the whole string
+  // 2. Country/place-name keyword, checked in full across the whole string
   // before ever considering a demonym/language, so e.g. "English Canada"
   // resolves to Canada (a real place), not the UK (from "English").
   for (const [alias, code] of FLAG_PRIMARY.multi) {

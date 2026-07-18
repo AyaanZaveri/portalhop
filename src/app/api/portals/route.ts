@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 
   // The source row is created first (small, text-only insert) so the
   // channel list can be fetched server-side afterward instead of accepted
-  // from the client — a saved portal can have tens of thousands of
+  // from the client. A saved portal can have tens of thousands of
   // channels, which reliably blows past Vercel's ~4.5MB function payload
   // limit if the browser has to upload it directly.
   const source = await db.transaction(async (tx) => {
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
       playlistUrl,
     })
   } catch (error) {
-    // The connection info didn't work — don't leave a channel-less source
+    // The connection info didn't work, so don't leave a channel-less source
     // sitting around.
     await deleteSavedSource(db, source.id, user.id)
     return NextResponse.json(

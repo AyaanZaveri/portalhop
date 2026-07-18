@@ -137,7 +137,7 @@ export default function LlmProviderSettingsPage() {
           description: `${timing} · JSON output supported`,
         });
       } else {
-        // Enrichment sends response_format:{type:"json_object"} — a model
+        // Enrichment sends response_format:{type:"json_object"}; a model
         // without it drops matches, so warn instead of a clean success.
         toast.warning("Model has no JSON output mode", {
           id: toastId,

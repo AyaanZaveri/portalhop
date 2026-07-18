@@ -21,7 +21,7 @@ type XmltvProgramme = Omit<EpgProgramme, "source">;
 // Fetches an XMLTV file and returns a decompressed line source, auto-detecting
 // gzip vs plain XML. The iptv-epg.org files are raw `.xml.gz` (no
 // Content-Encoding, so `fetch` won't unzip them), while custom EPG endpoints
-// (e.g. xmltv.php) are usually plain XML — this handles both by peeking the
+// (e.g. xmltv.php) are usually plain XML. This handles both by peeking the
 // first bytes for the gzip magic number (0x1f 0x8b) without consuming them.
 async function fetchXmltvStream(
   url: string

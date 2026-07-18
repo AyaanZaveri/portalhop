@@ -57,7 +57,7 @@ export default function SettingsLayout({
   }, [isPending, signedIn, router]);
 
   if (!isPending && !signedIn) {
-    // Definitely signed out — we're about to redirect, so render nothing
+    // Definitely signed out; we're about to redirect, so render nothing
     // rather than flashing the settings chrome.
     return null;
   }

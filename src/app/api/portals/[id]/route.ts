@@ -73,7 +73,7 @@ export async function GET(
 /**
  * Renames a source (body is just `{ name }`), or replaces its connection
  * details and channels entirely (body matches the shape POST /api/portals
- * accepts). The client tells these apart by whether `sourceType` is present —
+ * accepts). The client tells these apart by whether `sourceType` is present;
  * a rename never needs to touch credentials or re-test the connection.
  */
 export async function PATCH(
@@ -171,7 +171,7 @@ export async function PATCH(
   const now = new Date()
 
   // Update the connection info first (small, text-only) so the channel list
-  // can be fetched server-side afterward — a saved portal can have tens of
+  // can be fetched server-side afterward. A saved portal can have tens of
   // thousands of channels, which reliably blows past Vercel's ~4.5MB
   // function payload limit if the browser has to upload it directly.
   await db.transaction(async (tx) => {

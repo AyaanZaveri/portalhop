@@ -3,8 +3,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
 // Saved source credentials (portal URLs, MAC addresses, serials, device ids,
 // signatures, Xtream/M3U usernames + passwords) are effectively live keys to a
 // user's IPTV subscription, so they are encrypted at rest with AES-256-GCM
-// rather than stored as plaintext. This defends against a database leak — a
-// dumped table, a leaked connection string, an over-broad read — not against a
+// rather than stored as plaintext. This defends against a database leak (a
+// dumped table, a leaked connection string, an over-broad read), not against a
 // full app-server compromise, since the server necessarily holds the key to
 // talk to the upstream portal on every request.
 

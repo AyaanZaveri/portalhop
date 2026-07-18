@@ -37,7 +37,7 @@ Rules:
 - Choose only from the provided candidate ids for that channel. Never invent an id.
 - If a current XMLTV id is supplied, keep it unless another listed candidate is clearly a better match.
 - Match the actual broadcaster/feed, accounting for regional variants (e.g. "CNN" is not "CNN International" or "CNN en Español"), language, and country. Prefer the candidate whose region/language best fits the channel name.
-- Ignore quality tags (HD, FHD, 4K, SD, VIP, backup) and leading country/region prefixes when comparing. A name may carry several leading tags — country, region, city, provider — separated by | - :, e.g. "CA | USA Border | Buffalo - NBC 2 | WGRZ"; ignore all of them. Treat the leading country code as unreliable: a US station resold on a foreign portal still carries a foreign tag.
+- Ignore quality tags (HD, FHD, 4K, SD, VIP, backup) and leading country/region prefixes when comparing. A name may carry several leading tags (country, region, city, provider) separated by | - :, e.g. "CA | USA Border | Buffalo - NBC 2 | WGRZ"; ignore all of them. Treat the leading country code as unreliable: a US station resold on a foreign portal still carries a foreign tag.
 - For a local broadcast station the call sign (3-4 letters such as WGRZ, WIVB, KDFX) identifies the channel; a small channel number like "NBC 2" or "CBS 4" does not. If a candidate's name contains the same call sign, choose that candidate.
 - Distinguish base channels from numbered/named variants ("2", "Plus", "Overflow 2", "International", "Español", "Deportes" are different feeds); pick the exact one the name denotes.
 - If none of the candidates is clearly the same channel, return an empty string for that key.
@@ -163,7 +163,7 @@ export async function rerankBatch(
     return matches
   }
 
-  // A share of batches come back unparseable — usually a transient provider
+  // A share of batches come back unparseable, usually a transient provider
   // hiccup that a clean retry fixes, occasionally a deterministic malformation
   // that salvage recovers. Either way we never drop a whole batch of channels.
   const first = await generateText_(model)

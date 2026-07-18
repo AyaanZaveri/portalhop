@@ -39,8 +39,8 @@ export async function selectSavedSources(
 /**
  * Bumps a source's updatedAt without touching its connection fields. Callers
  * that rewrite `saved_channels` out-of-band (e.g. the EPG enrich pipeline)
- * use this so the client's per-source IndexedDB channel cache — keyed on
- * this timestamp — is invalidated on the next load instead of silently
+ * use this so the client's per-source IndexedDB channel cache (keyed on
+ * this timestamp) is invalidated on the next load instead of silently
  * serving pre-enrich data indefinitely.
  */
 export async function touchSavedSource(db: Db, sourceId: number): Promise<void> {

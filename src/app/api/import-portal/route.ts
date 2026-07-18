@@ -30,9 +30,9 @@ interface ImportPortalRequest {
   }
 }
 
-const SYSTEM_PROMPT = `You are a strict field extraction engine for IPTV portal connection data. The pasted text may describe a Stalker/MAG portal (portal URL + MAC address, optionally serial/device IDs/signature), an Xtream Codes connection (server URL + username + password), or a plain M3U playlist link. An Xtream connection may appear as a playlist link such as http://host:port/get.php?username=...&password=...&type=m3u_plus, a player_api.php link with the same query params, or a direct stream link such as http://host:port/live/USERNAME/PASSWORD/12345.m3u8 or /movie/USERNAME/PASSWORD/12345.mp4 or /series/USERNAME/PASSWORD/12345.mp4 — in that path form, the two path segments between live|movie|series and the numeric stream id ARE the username and password, even though nothing labels them as such. Note that get.php/player_api.php links often contain "m3u" in a type= query parameter (e.g. type=m3u_plus) — that does NOT make them a plain M3U playlist; a link with username= and password= query parameters, or a live/movie/series path, is always Xtream, never playlistUrl, no matter what its query string says.
+const SYSTEM_PROMPT = `You are a strict field extraction engine for IPTV portal connection data. The pasted text may describe a Stalker/MAG portal (portal URL + MAC address, optionally serial/device IDs/signature), an Xtream Codes connection (server URL + username + password), or a plain M3U playlist link. An Xtream connection may appear as a playlist link such as http://host:port/get.php?username=...&password=...&type=m3u_plus, a player_api.php link with the same query params, or a direct stream link such as http://host:port/live/USERNAME/PASSWORD/12345.m3u8 or /movie/USERNAME/PASSWORD/12345.mp4 or /series/USERNAME/PASSWORD/12345.mp4. In that path form, the two path segments between live|movie|series and the numeric stream id ARE the username and password, even though nothing labels them as such. Note that get.php/player_api.php links often contain "m3u" in a type= query parameter (e.g. type=m3u_plus); that does NOT make them a plain M3U playlist. A link with username= and password= query parameters, or a live/movie/series path, is always Xtream, never playlistUrl, no matter what its query string says.
 
-A single pasted URL is exactly one of Stalker, Xtream, or M3U — fill only the fields for the type the text actually shows, and leave every field for the other types blank.
+A single pasted URL is exactly one of Stalker, Xtream, or M3U. Fill only the fields for the type the text actually shows, and leave every field for the other types blank.
 
 Do not think out loud. Do not explain. Do not summarize. Do not include reasoning, notes, markdown, code fences, labels, or commentary. Return only the JSON object requested by the schema.
 
@@ -54,7 +54,7 @@ Field rules:
 - serverUrl: only set this for an Xtream connection. The scheme+host+port of the Xtream server, with no path, query string, or trailing slash (e.g. http://example.com:8080). If given a get.php, player_api.php, or live/movie/series stream link, strip everything after the host:port.
 - username: the Xtream username, whether labeled explicitly (Username, User, Login), present as a username= query parameter, or the first path segment after live/movie/series in a direct stream link.
 - password: the Xtream password, whether labeled explicitly (Password, Pass), present as a password= query parameter, or the second path segment after live/movie/series in a direct stream link.
-- playlistUrl: only set this when the URL is none of the above — no MAC address, no username=/password= query parameters, and no live/movie/series credential path. Copy the URL exactly as given, with no normalization. This covers plain hosted M3U playlist links (e.g. ending in .m3u/.m3u8, or from a playlist-hosting service), which carry no separate credentials of their own.
+- playlistUrl: only set this when the URL is none of the above: no MAC address, no username=/password= query parameters, and no live/movie/series credential path. Copy the URL exactly as given, with no normalization. This covers plain hosted M3U playlist links (e.g. ending in .m3u/.m3u8, or from a playlist-hosting service), which carry no separate credentials of their own.
 
 Ignore scan metadata, dates, expiration, VPN location, m3u lines, hits/by lines, markdown links, emoji, decorative box drawing, and labels after extracting their values.`
 
@@ -334,7 +334,7 @@ function parsePortalText(text: string): ImportedPortal {
         // A MAC address means this is unambiguously a Stalker/MAG portal.
         parsed.portalUrl = normalizePortalUrl(url)
       } else {
-        // No MAC and no Xtream credentials — the only connection type a bare
+        // No MAC and no Xtream credentials, so the only connection type a bare
         // URL can represent on its own is a plain M3U playlist link.
         parsed.playlistUrl = url
       }

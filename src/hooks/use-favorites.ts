@@ -17,7 +17,7 @@ import {
 /**
  * Keeps the favorites cache in sync with the signed-in user. Call this once near
  * the app root so favorites load (and local ones migrate) even before any portal
- * is opened. Safe to call from multiple places — loads are de-duped.
+ * is opened. Safe to call from multiple places; loads are de-duped.
  */
 export function useFavoritesSync() {
   const { data, isPending: sessionPending } = authClient.useSession()

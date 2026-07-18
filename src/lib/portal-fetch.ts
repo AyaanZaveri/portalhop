@@ -29,8 +29,8 @@ export type PortalFetchInput = {
  * Live-fetches a portal's channel list server-side. Saving/refetching a
  * portal always goes through this rather than accepting a client-supplied
  * channel array, so the (potentially huge, tens of thousands of entries)
- * channel list never has to round-trip through a request body — the one
- * path that reliably hits Vercel's ~4.5MB function payload limit for large
+ * channel list never has to round-trip through a request body, which is the
+ * one path that reliably hits Vercel's ~4.5MB function payload limit for large
  * portals.
  */
 export async function fetchChannelsForPortal(
