@@ -135,6 +135,7 @@ type PortalChannelWithSource = PortalChannel & {
 type StreamVariant = {
   resolutionLabel: string
   frameRateLabel: string
+  bitrateLabel: string
 }
 
 type CaptionCue = {
@@ -809,6 +810,7 @@ function ChannelBrowser({
   const [streamVariant, setStreamVariant] = useState<StreamVariant>({
     resolutionLabel: "",
     frameRateLabel: "",
+    bitrateLabel: "",
   })
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
@@ -826,7 +828,7 @@ function ChannelBrowser({
   }, [visibleChannels, rowVirtualizer])
 
   useEffect(() => {
-    setStreamVariant({ resolutionLabel: "", frameRateLabel: "" })
+    setStreamVariant({ resolutionLabel: "", frameRateLabel: "", bitrateLabel: "" })
     captionCuesRef.current.clear()
     captionDebugStateRef.current = ""
     setActiveCaption(null)
@@ -998,6 +1000,7 @@ function ChannelBrowser({
             height: playerElement.videoHeight,
           }),
           frameRateLabel: "",
+          bitrateLabel: "",
         }
       })
     }
@@ -1012,11 +1015,35 @@ function ChannelBrowser({
 
       console.log("[Portal Hop captions] HLS engine connected")
 
+      const getActiveLevel = (levelIndex?: number) => {
+        const levelIndexes = [
+          levelIndex,
+          hls.currentLevel,
+          hls.loadLevel,
+          hls.nextLoadLevel,
+        ]
+
+        for (const index of levelIndexes) {
+          if (typeof index === "number" && index >= 0 && hls.levels[index]) {
+            return hls.levels[index]
+          }
+        }
+      }
+
+      const updateBitrate = (bitrate?: number) => {
+        if (!bitrate) return
+
+        const bitrateLabel = formatBitrateLabel(bitrate)
+
+        setStreamVariant((current) =>
+          current.bitrateLabel === bitrateLabel
+            ? current
+            : { ...current, bitrateLabel },
+        )
+      }
+
       const updateFromLevel = (levelIndex?: number) => {
-        const currentLevelIndex =
-          typeof levelIndex === "number" ? levelIndex : hls.currentLevel
-        const level =
-          currentLevelIndex >= 0 ? hls.levels[currentLevelIndex] : undefined
+        const level = getActiveLevel(levelIndex)
 
         if (level) {
           const next = formatStreamVariant(level)
@@ -1028,6 +1055,7 @@ function ChannelBrowser({
           setStreamVariant((current) => ({
             resolutionLabel: next.resolutionLabel || current.resolutionLabel,
             frameRateLabel: next.frameRateLabel || current.frameRateLabel,
+            bitrateLabel: current.bitrateLabel,
           }))
         }
       }
@@ -1104,11 +1132,31 @@ function ChannelBrowser({
         _event: typeof Hls.Events.LEVEL_SWITCHED,
         data: { level: number },
       ) => updateFromLevel(data.level)
+      const handleFragBuffered = (
+        _event: typeof Hls.Events.FRAG_BUFFERED,
+        data: {
+          frag: { duration: number; level: number }
+          stats: { loaded: number }
+        },
+      ) => {
+        // Streams without frame-rate metadata are frequently auto-level HLS
+        // streams, where `currentLevel` remains -1. A buffered fragment has
+        // both the active level and its actual encoded size, so calculate the
+        // bitrate from it rather than waiting for level metadata to resolve.
+        const calculatedBitrate =
+          data.stats.loaded > 0 && data.frag.duration > 0
+            ? (data.stats.loaded * 8) / data.frag.duration
+            : undefined
+
+        updateBitrate(calculatedBitrate)
+        updateFromLevel(data.frag.level)
+      }
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
       hls.on(Hls.Events.CUES_PARSED, handleCuesParsed)
       hls.on(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
       hls.on(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
+      hls.on(Hls.Events.FRAG_BUFFERED, handleFragBuffered)
       allowEmbeddedCaptions()
       updateFromLevel()
 
@@ -1117,6 +1165,7 @@ function ChannelBrowser({
         hls.off(Hls.Events.CUES_PARSED, handleCuesParsed)
         hls.off(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
         hls.off(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
+        hls.off(Hls.Events.FRAG_BUFFERED, handleFragBuffered)
       }
 
       return true
@@ -1829,7 +1878,7 @@ function ChannelBrowser({
                 }
               />
               {activeCaption ? (
-                <div className="pointer-events-none absolute inset-x-0 bottom-[10%] z-20 flex justify-center px-8">
+                <div className="pointer-events-none absolute inset-x-0 bottom-[5%] z-20 flex justify-center px-8">
                   <p className="max-w-[85%] rounded-xl bg-black/70 px-4 py-2 text-center text-[clamp(0.875rem,1.4vw,1.125rem)] leading-tight font-medium whitespace-pre-line text-white shadow-xl backdrop-blur-md group-data-[state=fullscreen]/player:text-[clamp(1rem,2.2vw,1.875rem)]">
                     {activeCaption}
                   </p>
@@ -2086,8 +2135,11 @@ function StreamInfoBadges({
   const label = [variant.resolutionLabel, variant.frameRateLabel]
     .filter(Boolean)
     .join(" • ")
+  const labelWithBitrate = variant.bitrateLabel
+    ? [label, variant.bitrateLabel].filter(Boolean).join(" @ ")
+    : label
 
-  if (!label) {
+  if (!labelWithBitrate) {
     return null
   }
 
@@ -2099,7 +2151,7 @@ function StreamInfoBadges({
         className,
       )}
     >
-      {label}
+      {labelWithBitrate}
     </Badge>
   )
 }
@@ -2116,6 +2168,7 @@ function formatStreamVariant({
   return {
     resolutionLabel: formatResolutionLabel({ width, height }),
     frameRateLabel: formatFrameRateLabel(frameRate),
+    bitrateLabel: "",
   }
 }
 
@@ -2145,6 +2198,14 @@ function formatFrameRateLabel(frameRate: number) {
       : String(Number(frameRate.toFixed(2)))
 
   return `${labelValue} fps`
+}
+
+function formatBitrateLabel(bitrate: number) {
+  if (!Number.isFinite(bitrate) || bitrate <= 0) {
+    return ""
+  }
+
+  return `${(bitrate / 1_000_000).toFixed(1)} Mbps`
 }
 
 const COMMON_FRAME_RATES = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60]

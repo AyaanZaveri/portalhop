@@ -76,34 +76,34 @@ type SavedPortalRecord = SavedSourceRecord
 
 type EnrichProgress =
   | {
-      type: "progress"
-      stage: "scan" | "exact" | "ai"
-      processed: number
-      total: number
-      matched: number
-    }
+    type: "progress"
+    stage: "scan" | "exact" | "ai"
+    processed: number
+    total: number
+    matched: number
+  }
   | {
-      type: "match"
-      name: string
-      xmltvId: string
-      logoUrl: string
-      matched: number
-      processed: number
-      total: number
-    }
+    type: "match"
+    name: string
+    xmltvId: string
+    logoUrl: string
+    matched: number
+    processed: number
+    total: number
+  }
   | {
-      type: "done"
-      total: number
-      needing: number
-      matched: number
-      exact: number
-      aiResolved: number
-      aiCalls: number
-      aiFailed: number
-      aiAvailable: boolean
-      aiError: string | null
-      cleared: number
-    }
+    type: "done"
+    total: number
+    needing: number
+    matched: number
+    exact: number
+    aiResolved: number
+    aiCalls: number
+    aiFailed: number
+    aiAvailable: boolean
+    aiError: string | null
+    cleared: number
+  }
   | { type: "error"; error: string }
 
 function EnrichMatchRow({
@@ -244,20 +244,20 @@ export default function SourcesSettingsPage() {
   React.useEffect(() => {
     let isMounted = true
 
-    ;(async () => {
-      try {
-        const response = await fetch("/api/portals", { cache: "no-store" })
-        const data = await response.json().catch(() => ({ portals: [] }))
+      ; (async () => {
+        try {
+          const response = await fetch("/api/portals", { cache: "no-store" })
+          const data = await response.json().catch(() => ({ portals: [] }))
 
-        if (!isMounted) return
+          if (!isMounted) return
 
-        setSavedPortals(Array.isArray(data.portals) ? data.portals : [])
-      } catch {
-        if (isMounted) setSavedPortals([])
-      } finally {
-        if (isMounted) setIsLoading(false)
-      }
-    })()
+          setSavedPortals(Array.isArray(data.portals) ? data.portals : [])
+        } catch {
+          if (isMounted) setSavedPortals([])
+        } finally {
+          if (isMounted) setIsLoading(false)
+        }
+      })()
 
     return () => {
       isMounted = false
@@ -424,7 +424,7 @@ export default function SourcesSettingsPage() {
         }
       }
 
-      for (;;) {
+      for (; ;) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
@@ -822,8 +822,8 @@ export default function SourcesSettingsPage() {
           </Tooltip>
           <Button
             type="button"
-            size="sm"
-            variant="outline"
+            size="icon-sm"
+            variant="ghost"
             disabled={isCopyingFavorites}
             onClick={handleCopyFavoritesPlaylist}
           >
@@ -832,7 +832,6 @@ export default function SourcesSettingsPage() {
             ) : (
               <CopyIcon className="size-4" />
             )}
-            Copy link
           </Button>
         </div>
       </div>
