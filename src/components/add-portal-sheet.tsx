@@ -351,6 +351,7 @@ export function AddPortalSheet({
             serverUrl: string
             username: string
             password: string
+            playlistUrl: string
           }
         >
         | undefined
@@ -374,6 +375,7 @@ export function AddPortalSheet({
         serverUrl: portal.serverUrl || current.serverUrl,
         username: portal.username || current.username,
         password: portal.password || current.password,
+        playlistUrl: portal.playlistUrl || current.playlistUrl,
       }))
       setTestResult(null)
       setImportDialogOpen(false)
@@ -383,7 +385,9 @@ export function AddPortalSheet({
           ? "Xtream connection fields imported."
           : detectedType === "stalker"
             ? "Stalker connection fields imported."
-            : "Connection fields imported.",
+            : detectedType === "m3u"
+              ? "M3U playlist link imported."
+              : "Connection fields imported.",
         { position: "top-center" }
       )
     } catch (error) {
@@ -937,7 +941,7 @@ export function AddPortalSheet({
             <DialogHeader>
               <DialogTitle>Import connection text</DialogTitle>
               <DialogDescription>
-                Paste a Stalker portal dump or an Xtream link/credentials and Portal Hop will fill the connection fields and switch to the right tab automatically.
+                Paste a Stalker portal dump, an Xtream link/credentials, or an M3U playlist link and Portal Hop will fill the connection fields and switch to the right tab automatically.
               </DialogDescription>
             </DialogHeader>
 
@@ -945,7 +949,7 @@ export function AddPortalSheet({
               <Textarea
                 value={importText}
                 onChange={(event) => setImportText(event.target.value)}
-                placeholder="Paste portal/MAC text, or an Xtream URL/username/password..."
+                placeholder="Paste portal/MAC text, an Xtream URL/username/password, or an M3U playlist link..."
                 wrap="soft"
                 className="min-h-full min-w-0 resize-none overflow-hidden break-all whitespace-pre-wrap border-0 bg-transparent shadow-none ring-0 field-sizing-content focus-visible:ring-0 dark:bg-transparent [overflow-wrap:anywhere]"
               />
