@@ -13,13 +13,12 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
+import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 import {
   nullableString,
-  readChannels,
   readEpgMode,
   readEpgSourceId,
   readSourceType,
-  safeNumber,
   stringValue,
 } from "@/lib/portal-form-utils"
 import { requireUser } from "@/lib/session"
@@ -170,19 +169,15 @@ export async function PATCH(
   }
 
   const now = new Date()
-  const channels = readChannels(body.channels)
 
-  const portal = await db.transaction(async (tx) => {
+  // Update the connection info first (small, text-only) so the channel list
+  // can be fetched server-side afterward — a saved portal can have tens of
+  // thousands of channels, which reliably blows past Vercel's ~4.5MB
+  // function payload limit if the browser has to upload it directly.
+  await db.transaction(async (tx) => {
     await tx
       .update(savedSources)
-      .set({
-        name,
-        sourceType,
-        channelCount: channels.length || safeNumber(body.channelCount),
-        epgMode,
-        epgSourceId,
-        updatedAt: now,
-      })
+      .set({ name, sourceType, epgMode, epgSourceId, updatedAt: now })
       .where(eq(savedSources.id, sourceId))
 
     // The source may have switched type (e.g. Stalker -> Xtream), so clear
@@ -228,39 +223,86 @@ export async function PATCH(
         derivedXtreamPassword: derived?.password ?? null,
       })
     }
+  })
 
-    await tx.delete(savedChannels).where(eq(savedChannels.sourceId, sourceId))
-
-    if (channels.length) {
-      await insertSavedChannels(tx, sourceId, channels, now)
-    }
-
-    return {
-      id: sourceId,
-      userId: existing.userId,
-      name,
+  let result
+  try {
+    result = await fetchChannelsForPortal({
       sourceType,
-      channelCount: channels.length || safeNumber(body.channelCount),
-      epgMode,
-      epgSourceId,
-      createdAt: existing.createdAt,
-      updatedAt: now,
       portalUrl,
       mac,
-      serial: nullableString(body.serial),
-      deviceId: nullableString(body.deviceId),
-      deviceId2: nullableString(body.deviceId2),
-      signature: nullableString(body.signature),
+      serial: nullableString(body.serial) ?? undefined,
+      deviceId: nullableString(body.deviceId) ?? undefined,
+      deviceId2: nullableString(body.deviceId2) ?? undefined,
+      signature: nullableString(body.signature) ?? undefined,
       timezone,
       stbType,
-      endpoint: nullableString(body.endpoint),
+      endpoint: nullableString(body.endpoint) ?? undefined,
       serverUrl,
       username,
       password,
       outputFormat,
       playlistUrl,
+    })
+  } catch (error) {
+    // Connection info is already updated, but leave the previous channel
+    // list in place rather than wiping it out on a (likely transient)
+    // fetch failure.
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Could not fetch channels for this source.",
+      },
+      { status: 502 }
+    )
+  }
+
+  const updatedAt = new Date()
+  await db.transaction(async (tx) => {
+    await tx.delete(savedChannels).where(eq(savedChannels.sourceId, sourceId))
+
+    if (result.channels.length) {
+      await insertSavedChannels(tx, sourceId, result.channels, updatedAt)
+    }
+
+    await tx
+      .update(savedSources)
+      .set({ channelCount: result.channels.length, updatedAt })
+      .where(eq(savedSources.id, sourceId))
+
+    if (sourceType === "stalker") {
+      await tx
+        .update(savedStalkerSources)
+        .set({ endpoint: result.endpoint })
+        .where(eq(savedStalkerSources.sourceId, sourceId))
     }
   })
+
+  const portal = {
+    id: sourceId,
+    userId: existing.userId,
+    name,
+    sourceType,
+    channelCount: result.channels.length,
+    epgMode,
+    epgSourceId,
+    createdAt: existing.createdAt,
+    updatedAt,
+    portalUrl,
+    mac,
+    serial: nullableString(body.serial),
+    deviceId: nullableString(body.deviceId),
+    deviceId2: nullableString(body.deviceId2),
+    signature: nullableString(body.signature),
+    timezone,
+    stbType,
+    endpoint: result.endpoint,
+    serverUrl,
+    username,
+    password,
+    outputFormat,
+    playlistUrl,
+  };
 
   return NextResponse.json({ portal })
 }

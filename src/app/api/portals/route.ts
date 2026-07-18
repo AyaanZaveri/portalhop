@@ -1,8 +1,9 @@
+import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
 import { insertSavedChannels } from "@/db/saved-channels"
-import { selectSavedSources } from "@/db/saved-sources"
+import { deleteSavedSource, selectSavedSources } from "@/db/saved-sources"
 import { selectUserEpgSource } from "@/db/user-epg-sources"
 import {
   savedM3uSources,
@@ -11,13 +12,12 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
+import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 import {
   nullableString,
-  readChannels,
   readEpgMode,
   readEpgSourceId,
   readSourceType,
-  safeNumber,
   stringValue,
 } from "@/lib/portal-form-utils"
 import { requireUser } from "@/lib/session"
@@ -98,15 +98,20 @@ export async function POST(request: Request) {
 
   const now = new Date()
   const db = getDb()
-  const channels = readChannels(body.channels)
-  const portal = await db.transaction(async (tx) => {
-    const [source] = await tx
+
+  // The source row is created first (small, text-only insert) so the
+  // channel list can be fetched server-side afterward instead of accepted
+  // from the client — a saved portal can have tens of thousands of
+  // channels, which reliably blows past Vercel's ~4.5MB function payload
+  // limit if the browser has to upload it directly.
+  const source = await db.transaction(async (tx) => {
+    const [row] = await tx
       .insert(savedSources)
       .values({
         userId: user.id,
         name,
         sourceType,
-        channelCount: channels.length || safeNumber(body.channelCount),
+        channelCount: 0,
         epgMode,
         epgSourceId,
         createdAt: now,
@@ -116,7 +121,7 @@ export async function POST(request: Request) {
 
     if (sourceType === "stalker") {
       await tx.insert(savedStalkerSources).values({
-        sourceId: source.id,
+        sourceId: row.id,
         portalUrl,
         mac,
         serial: nullableString(body.serial),
@@ -129,7 +134,7 @@ export async function POST(request: Request) {
       })
     } else if (sourceType === "xtream") {
       await tx.insert(savedXtreamSources).values({
-        sourceId: source.id,
+        sourceId: row.id,
         serverUrl,
         username,
         password,
@@ -138,7 +143,7 @@ export async function POST(request: Request) {
     } else {
       const derived = parseXtreamFromM3uUrl(playlistUrl)
       await tx.insert(savedM3uSources).values({
-        sourceId: source.id,
+        sourceId: row.id,
         playlistUrl,
         derivedXtreamServerUrl: derived?.serverUrl ?? null,
         derivedXtreamUsername: derived?.username ?? null,
@@ -146,35 +151,84 @@ export async function POST(request: Request) {
       })
     }
 
-    if (channels.length) {
-      await insertSavedChannels(tx, source.id, channels, now)
-    }
+    return row
+  })
 
-    return {
-      id: source.id,
-      name: source.name,
+  let result
+  try {
+    result = await fetchChannelsForPortal({
       sourceType,
-      channelCount: source.channelCount,
-      epgMode,
-      epgSourceId,
-      createdAt: source.createdAt,
-      updatedAt: source.updatedAt,
       portalUrl,
       mac,
-      serial: nullableString(body.serial),
-      deviceId: nullableString(body.deviceId),
-      deviceId2: nullableString(body.deviceId2),
-      signature: nullableString(body.signature),
+      serial: nullableString(body.serial) ?? undefined,
+      deviceId: nullableString(body.deviceId) ?? undefined,
+      deviceId2: nullableString(body.deviceId2) ?? undefined,
+      signature: nullableString(body.signature) ?? undefined,
       timezone,
       stbType,
-      endpoint: nullableString(body.endpoint),
+      endpoint: nullableString(body.endpoint) ?? undefined,
       serverUrl,
       username,
       password,
       outputFormat,
       playlistUrl,
+    })
+  } catch (error) {
+    // The connection info didn't work — don't leave a channel-less source
+    // sitting around.
+    await deleteSavedSource(db, source.id, user.id)
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Could not fetch channels for this source.",
+      },
+      { status: 502 }
+    )
+  }
+
+  const updatedAt = new Date()
+  await db.transaction(async (tx) => {
+    if (result.channels.length) {
+      await insertSavedChannels(tx, source.id, result.channels, updatedAt)
+    }
+
+    await tx
+      .update(savedSources)
+      .set({ channelCount: result.channels.length, updatedAt })
+      .where(eq(savedSources.id, source.id))
+
+    if (sourceType === "stalker") {
+      await tx
+        .update(savedStalkerSources)
+        .set({ endpoint: result.endpoint })
+        .where(eq(savedStalkerSources.sourceId, source.id))
     }
   })
+
+  const portal = {
+    id: source.id,
+    name: source.name,
+    sourceType,
+    channelCount: result.channels.length,
+    epgMode,
+    epgSourceId,
+    createdAt: source.createdAt,
+    updatedAt,
+    portalUrl,
+    mac,
+    serial: nullableString(body.serial),
+    deviceId: nullableString(body.deviceId),
+    deviceId2: nullableString(body.deviceId2),
+    signature: nullableString(body.signature),
+    timezone,
+    stbType,
+    endpoint: result.endpoint,
+    serverUrl,
+    username,
+    password,
+    outputFormat,
+    playlistUrl,
+  }
 
   return NextResponse.json({ portal }, { status: 201 })
 }

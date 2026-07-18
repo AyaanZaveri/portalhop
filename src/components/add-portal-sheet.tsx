@@ -489,8 +489,6 @@ export function AddPortalSheet({
           epgSourceId: form.epgMode === "custom" ? form.epgSourceId : null,
           name,
           endpoint: testResult.endpoint,
-          channelCount: testResult.channels.length,
-          channels: testResult.channels,
         }),
       }
     )
