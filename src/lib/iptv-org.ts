@@ -12,6 +12,13 @@ export const IPTV_ORG_PLAYLIST_URL =
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
+// The country-indexed playlist otherwise opens on whatever sorts first
+// alphabetically (Afghanistan), which isn't a useful default for most
+// visitors. Surface the largest English-language markets first, interleaved
+// by channel name rather than grouped by country; everything else keeps its
+// original alphabetical (by country, then name) order after them.
+const PRIORITY_COUNTRIES = new Set(["United States", "Canada", "United Kingdom", "Australia"])
+
 let cache: { channels: PortalChannel[]; fetchedAt: number } | null = null
 let inFlight: Promise<PortalChannel[]> | null = null
 
@@ -34,7 +41,7 @@ export async function getIptvOrgChannels(): Promise<PortalChannel[]> {
   inFlight = (async () => {
     try {
       const result = await fetchM3uChannels(IPTV_ORG_PLAYLIST_URL)
-      const channels = result.channels.map((channel) => {
+      const mapped = result.channels.map((channel) => {
         const category = normalizeCategory(channel.genre)
         return {
           ...channel,
@@ -45,6 +52,17 @@ export async function getIptvOrgChannels(): Promise<PortalChannel[]> {
           genreId: category,
         }
       })
+
+      const priority: PortalChannel[] = []
+      const rest: PortalChannel[] = []
+      for (const channel of mapped) {
+        ;(PRIORITY_COUNTRIES.has(channel.genre) ? priority : rest).push(channel)
+      }
+      priority.sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+      )
+
+      const channels = [...priority, ...rest]
       cache = { channels, fetchedAt: Date.now() }
       return channels
     } finally {
