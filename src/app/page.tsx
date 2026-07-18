@@ -97,6 +97,7 @@ import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { CategoryVisual } from "@/components/category-visual"
+import { ProgrammeCategoryIcon } from "@/components/programme-category-icon"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
@@ -2271,7 +2272,11 @@ function EpgSchedule({
                           {formatTimeRange(programme.startAt, programme.stopAt)}
                         </span>
                         {programme.category ? (
-                          <Badge variant="outline" className="h-5">
+                          <Badge variant="outline" className="h-5 gap-1">
+                            <ProgrammeCategoryIcon
+                              category={programme.category}
+                              className="text-muted-foreground"
+                            />
                             {programme.category}
                           </Badge>
                         ) : null}
