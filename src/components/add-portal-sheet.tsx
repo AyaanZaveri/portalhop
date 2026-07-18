@@ -305,7 +305,11 @@ export function AddPortalSheet({
       }
 
       setTestResult(data)
-      toast.success("Connection test successful!", { position: "top-center" })
+      const channelCount = Array.isArray(data.channels) ? data.channels.length : 0
+      toast.success(
+        `Connection test successful! Found ${channelCount.toLocaleString()} channel${channelCount === 1 ? "" : "s"}.`,
+        { position: "top-center" }
+      )
     } catch (err) {
       setIsLoading(false)
       const errMsg =
