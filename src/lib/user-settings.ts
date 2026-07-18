@@ -6,12 +6,15 @@ export type UserSettingsData = {
   /** whether the built-in iptv-org free playlist is shown. */
   iptvOrgEnabled: boolean
   useProxy: boolean
+  /** whether channel/EPG logos are routed through the wsrv.nl image proxy. */
+  useImageProxy: boolean
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettingsData = {
   enabledSourceIds: [],
   iptvOrgEnabled: true,
   useProxy: true,
+  useImageProxy: true,
 }
 
 /** Coerces an unknown value (e.g. a JSON patch body) into a partial settings. */
@@ -41,6 +44,10 @@ export function sanitizeSettingsPatch(
 
   if (typeof input.useProxy === "boolean") {
     patch.useProxy = input.useProxy
+  }
+
+  if (typeof input.useImageProxy === "boolean") {
+    patch.useImageProxy = input.useImageProxy
   }
 
   return patch

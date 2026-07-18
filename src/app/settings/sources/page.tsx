@@ -109,17 +109,19 @@ function EnrichMatchRow({
   name,
   xmltvId,
   logoUrl,
+  useImageProxy,
 }: {
   name: string;
   xmltvId: string;
   logoUrl: string;
+  useImageProxy: boolean;
 }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={proxyImageUrl(logoUrl)}
+          src={proxyImageUrl(logoUrl, useImageProxy)}
           alt=""
           className="size-5 shrink-0 rounded bg-muted/40 object-contain"
         />
@@ -320,6 +322,7 @@ export default function SourcesSettingsPage() {
                 name={message.name}
                 xmltvId={message.xmltvId}
                 logoUrl={message.logoUrl}
+                useImageProxy={settings.useImageProxy}
               />
             ),
           }
@@ -360,6 +363,7 @@ export default function SourcesSettingsPage() {
                     name={latestMatch.name}
                     xmltvId={latestMatch.xmltvId}
                     logoUrl={latestMatch.logoUrl}
+                    useImageProxy={settings.useImageProxy}
                   />
                 </span>
               ) : (
@@ -691,7 +695,7 @@ export default function SourcesSettingsPage() {
         <div className="flex min-w-0 flex-col gap-1.5">
           <Label htmlFor="use-proxy">Use proxy</Label>
           <span className="text-xs text-muted-foreground">
-            Try this if the stream isn&apos;t loading
+            Try this if the stream isn&apos;t loading, helps with HTTP-only or geo-restricted streams.
           </span>
         </div>
         <Switch

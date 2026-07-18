@@ -128,6 +128,7 @@ export const userSettings = pgTable("user_settings", {
   iptvOrgEnabled: boolean("iptv_org_enabled").notNull().default(true),
   logoSource: text("logo_source").notNull().default("provider"),
   useProxy: boolean("use_proxy").notNull().default(true),
+  useImageProxy: boolean("use_image_proxy").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull(),
 })
 
@@ -195,7 +196,7 @@ export const savedChannels = pgTable("saved_channels", {
   updatedAt: timestamp("updated_at").notNull(),
 })
 
-// The iptv-epg.org channel directory. Public, global, identical for every user —
+// The iptv-epg.org channel directory. Public, global, identical for every user;
 // a shared cache of a public dataset rather than user data. Refreshed one country
 // at a time so each write fits inside a serverless request.
 export const epgCountries = pgTable("epg_countries", {
@@ -225,7 +226,7 @@ export const epgChannels = pgTable(
   ]
 )
 
-// A user's own custom EPG (XMLTV) sources — a reusable library. Many saved
+// A user's own custom EPG (XMLTV) sources: a reusable library. Many saved
 // sources can point at the same one via savedSources.epgSourceId. The URL is
 // encrypted at rest because XMLTV endpoints often embed credentials.
 export const userEpgSources = pgTable(

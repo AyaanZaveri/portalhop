@@ -12,13 +12,19 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { SettingsHeader } from "@/components/settings-header"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
+import { Switch } from "@/components/ui/switch"
+import { useUserSettings } from "@/hooks/use-user-settings"
 import type { EpgManifest } from "@/lib/epg-store"
 import { EPG_SOURCES } from "@/lib/epg-sources"
+
+const WSRV_LOGO_LIGHT = "/proxy/wsrv-light.svg"
+const WSRV_LOGO_DARK = "/proxy/wsrv-dark.svg"
 
 type UserEpgSource = { id: number; name: string; url: string; channelCount: number; refreshedAt: string | null }
 const REFRESH_CONCURRENCY = 3
 
 export default function EpgAndLogosSettingsPage() {
+  const { settings, updateSettings } = useUserSettings()
   const [manifest, setManifest] = React.useState<EpgManifest | null>(null)
   const [sources, setSources] = React.useState<UserEpgSource[]>([])
   const [isLoadingSources, setIsLoadingSources] = React.useState(true)
@@ -59,9 +65,47 @@ export default function EpgAndLogosSettingsPage() {
     catch { toast.error("Could not delete EPG source.") }
     finally { setDeleting(false) }
   }
+  function handleUseImageProxyChange(nextUseImageProxy: boolean) {
+    updateSettings({ useImageProxy: nextUseImageProxy })
+  }
   const total = manifest?.countries.reduce((sum, country) => sum + country.count, 0) ?? 0
   return <div className="flex flex-col gap-8">
     <SettingsHeader icon={CalendarIcon} title="EPG & Logos" />
+    <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={WSRV_LOGO_LIGHT}
+          alt=""
+          className="size-8 shrink-0 dark:hidden"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={WSRV_LOGO_DARK}
+          alt=""
+          className="hidden size-8 shrink-0 dark:block"
+        />
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <a
+            href="https://wsrv.nl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-fit text-sm font-medium leading-none underline-offset-4 hover:underline"
+          >
+            Image proxy
+          </a>
+          <span className="text-xs text-muted-foreground">
+            Route channel and EPG logos through wsrv.nl to fix slow, unreliable, or HTTP-only image hosts
+          </span>
+        </div>
+      </div>
+      <Switch
+        id="use-image-proxy"
+        checked={settings.useImageProxy}
+        onCheckedChange={handleUseImageProxyChange}
+        aria-label="Use image proxy"
+      />
+    </div>
     <section className="flex flex-col gap-3"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">iptv-epg.org is available per portal from its EPG selector.</p></div><Button size="sm" onClick={refreshBuiltIn} disabled={refreshing === "builtin"}>{refreshing === "builtin" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Refresh EPG</Button></div>
       <div className="grid grid-cols-3 gap-3"><Stat label="Last updated" value={manifest?.lastFetchedAt ? new Date(manifest.lastFetchedAt).toLocaleDateString(undefined, { dateStyle: "medium" }) : "Never"} /><Stat label="Countries" value={String(manifest?.countries.length ?? 0)} /><Stat label="Total channels" value={total.toLocaleString()} /></div>
     </section>

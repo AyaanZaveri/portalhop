@@ -28,6 +28,7 @@ export async function getUserSettings(
       : [],
     iptvOrgEnabled: row.iptvOrgEnabled,
     useProxy: row.useProxy,
+    useImageProxy: row.useImageProxy,
   }
 }
 

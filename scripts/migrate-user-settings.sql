@@ -9,8 +9,12 @@ create table if not exists user_settings (
   iptv_org_enabled boolean not null default true,
   logo_source text not null default 'provider',
   use_proxy boolean not null default true,
+  use_image_proxy boolean not null default true,
   updated_at timestamp not null
 );
+
+alter table user_settings
+  add column if not exists use_image_proxy boolean not null default true;
 
 alter table user_settings enable row level security;
 

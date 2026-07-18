@@ -239,7 +239,7 @@ const defaultSourceRequest: SourceRequest = {
 export default function Home() {
   useFavoritesSync()
   const { settings, settingsLoaded, userId, updateSettings } = useUserSettings()
-  const { enabledSourceIds, iptvOrgEnabled, useProxy } = settings
+  const { enabledSourceIds, iptvOrgEnabled, useProxy, useImageProxy } = settings
   const [query, setQuery] = useState("")
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
@@ -511,6 +511,7 @@ export default function Home() {
             endpoint={result?.endpoint ?? ""}
             portalRequest={previewSourceRequest}
             useProxy={useProxy}
+            useImageProxy={useImageProxy}
             epgChannels={epgChannels}
             customEpgChannels={customEpgChannels}
             query={query}
@@ -604,6 +605,7 @@ function ChannelBrowser({
   endpoint,
   portalRequest,
   useProxy,
+  useImageProxy,
   epgChannels,
   customEpgChannels,
   query,
@@ -615,6 +617,7 @@ function ChannelBrowser({
   endpoint: string
   portalRequest: SourceRequest
   useProxy: boolean
+  useImageProxy: boolean
   epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>
   customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>
   query: string
@@ -1249,7 +1252,7 @@ function ChannelBrowser({
           icon: <CheckIcon className="size-4 text-foreground" />,
         })
       } else {
-        // A newer click already superseded this one — don't swap the player.
+        // A newer click already superseded this one, so don't swap the player.
         if (pullSeqRef.current !== seq) {
           toast.dismiss(toastId)
           return
@@ -1259,7 +1262,7 @@ function ChannelBrowser({
           channelKey,
           channelName: channel.name || "Live stream",
           genre: channel.genre,
-          logoUrl: getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels),
+          logoUrl: getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels, useImageProxy),
           number: channel.number,
           portalName: channel.portalSource?.name ?? "",
           url: streamLink,
@@ -1267,7 +1270,7 @@ function ChannelBrowser({
         toast.dismiss(toastId)
       }
     } catch (error) {
-      // Superseded by a newer channel click — stay silent, its request owns
+      // Superseded by a newer channel click, so stay silent; its request owns
       // the UI now.
       if (controller.signal.aborted) {
         toast.dismiss(toastId)
@@ -1478,7 +1481,7 @@ function ChannelBrowser({
               const isSelected =
                 selectedChannel && getChannelKey(selectedChannel) === channelKey
               const isFavorited = isChannelFavorited(channel)
-              const logoUrl = getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels)
+              const logoUrl = getChannelLogoUrl(channel, channel.portalSource, epgChannels, customEpgChannels, useImageProxy)
               const channelBadgeId = channel.xmltvId ?? ""
 
               return (
@@ -1492,7 +1495,7 @@ function ChannelBrowser({
                 >
                   {/* Positioning (translateY) lives on the wrapper above; the
                       visible row scales as one unit on press so the whole
-                      thing — background, content, and star — responds. */}
+                      thing (background, content, and star) responds. */}
                   <div
                     className={cn(
                       "group flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out hover:bg-accent/80 active:scale-[0.99]",
@@ -2255,7 +2258,7 @@ async function loadPortalChannels(
   return result
 }
 
-function getChannelLogoUrl(channel: PortalChannel, portalSource: PortalSource | undefined, epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>, customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>) {
+function getChannelLogoUrl(channel: PortalChannel, portalSource: PortalSource | undefined, epgChannels: Record<string, { name: string; logoUrl?: string; countryCode?: string }>, customEpgChannels: Record<number, Record<string, { logoUrl?: string }>>, useImageProxy: boolean) {
   const lookupId = normalizeXmltvId(channel.xmltvId) || channel.id
 
   const logoUrl =
@@ -2264,7 +2267,7 @@ function getChannelLogoUrl(channel: PortalChannel, portalSource: PortalSource | 
     channel.logoUrl ||
     ""
 
-  return logoUrl ? proxyImageUrl(logoUrl) : ""
+  return logoUrl ? proxyImageUrl(logoUrl, useImageProxy) : ""
 }
 
 function formatTimeRange(startAt: string, stopAt: string) {
