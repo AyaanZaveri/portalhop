@@ -1402,7 +1402,7 @@ function ChannelBrowser({
     browseFilter.type === "category" ? browseFilter.genre : null
 
   const renderChannelContent = () => (
-    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-sm min-[940px]:min-w-80">
+    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl min-[940px]:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
@@ -1602,7 +1602,7 @@ function ChannelBrowser({
               return (
                 <div
                   key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                  className="absolute inset-x-0"
+                  className={cn("absolute inset-x-0", isSelected && "z-10")}
                   style={{
                     height: `${virtualRow.size - 6}px`,
                     transform: `translateY(${virtualRow.start + 3}px)`,
@@ -2529,7 +2529,7 @@ function LoadingShell() {
   const isResponsiveLayoutReady = useHydratedLayout()
 
   const channelContent = (
-    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl shadow-sm min-[940px]:min-w-80">
+    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl min-[940px]:min-w-80">
       <div className="flex flex-col gap-3 p-4 pb-2">
         <PortalHopWordmark className="mb-1" />
         <InputGroup>
