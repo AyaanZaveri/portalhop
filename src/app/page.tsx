@@ -2263,7 +2263,7 @@ function EpgSchedule({
                     {formatScheduleDate(programme.startAt)}
                   </div>
                 ) : null}
-                <article className="bg-muted/20 rounded-md p-4">
+                <article className="bg-muted/20 relative overflow-hidden rounded-md p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="text-muted-foreground mb-1 flex flex-wrap items-center gap-2 text-xs font-medium">
@@ -2281,7 +2281,7 @@ function EpgSchedule({
                         {programme.title}
                       </h3>
                       {programme.description ? (
-                        <p className="text-muted-foreground line-clamp-2 text-sm leading-6">
+                        <p className="text-muted-foreground text-sm leading-6">
                           {programme.description}
                         </p>
                       ) : null}
@@ -2295,15 +2295,30 @@ function EpgSchedule({
                       ) : null}
                     </div>
                     {posterUrl ? (
-                      <div className="hidden h-28 w-20 shrink-0 items-center justify-center overflow-clip rounded-md bg-zinc-900 sm:flex">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- Programme posters come from arbitrary EPG hosts. */}
-                        <img
-                          src={posterUrl}
-                          alt=""
-                          className="size-full object-cover"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
+                      <div className="relative shrink-0 self-center">
+                        <div
+                          className="pointer-events-none absolute -inset-32 [mask-image:linear-gradient(to_left,black_0%,rgba(0,0,0,0.55)_35%,rgba(0,0,0,0.18)_65%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_left,black_0%,rgba(0,0,0,0.55)_35%,rgba(0,0,0,0.18)_65%,transparent_100%)]"
+                          aria-hidden="true"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Ambient glow uses the same arbitrary EPG poster host as the thumbnail below. */}
+                          <img
+                            src={posterUrl}
+                            alt=""
+                            className="size-full scale-150 object-cover opacity-25 saturate-150 contrast-125 blur-2xl dark:opacity-70 dark:saturate-100 dark:contrast-100"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <div className="relative aspect-[5/7] w-20 max-h-40 overflow-clip rounded-md bg-zinc-900">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Programme posters come from arbitrary EPG hosts. */}
+                          <img
+                            src={posterUrl}
+                            alt=""
+                            className="size-full object-cover"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
                       </div>
                     ) : null}
                   </div>
