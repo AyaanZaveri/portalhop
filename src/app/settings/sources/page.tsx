@@ -53,6 +53,12 @@ import type { SavedSourceRecord } from "@/lib/source-types";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org";
 import { proxyImageUrl } from "@/lib/image-proxy";
+import { prunePortalChannelsCache } from "@/lib/portal-channels-cache";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const IPTV_ORG_GITHUB_URL = "https://github.com/iptv-org/iptv";
 const IPTV_ORG_LOGO_BASE =
@@ -159,10 +165,27 @@ export default function SourcesSettingsPage() {
   const [renameValue, setRenameValue] = React.useState("");
   const [renameError, setRenameError] = React.useState("");
   const [isRenamingPortal, setIsRenamingPortal] = React.useState(false);
+  const [isClearingCache, setIsClearingCache] = React.useState(false);
   const { settings: aiSettings } = useAiSettings();
 
   function handleUseProxyChange(nextUseProxy: boolean) {
     updateSettings({ useProxy: nextUseProxy });
+  }
+
+  async function handleForceRefresh() {
+    setIsClearingCache(true);
+    try {
+      // Passing an empty keep-list drops every cached source's channel
+      // snapshot, so the browser refetches everything fresh next load.
+      await prunePortalChannelsCache([]);
+      toast.success("Channel cache cleared", {
+        description: "Sources will refetch fresh data next time you open them.",
+      });
+    } catch {
+      toast.error("Could not clear the channel cache");
+    } finally {
+      setIsClearingCache(false);
+    }
   }
 
   function handleIptvOrgChange(enabled: boolean) {
@@ -620,22 +643,48 @@ export default function SourcesSettingsPage() {
 
       <div className="flex items-start justify-between gap-4">
         <SettingsHeader icon={TvIcon} title="Sources" />
-        <Button
-          type="button"
-          size="sm"
-          className="flex items-center justify-center gap-1.5 rounded-md"
-          onClick={() => {
-            if (!userId) {
-              setAuthOpen(true);
-              return;
-            }
-            setEditingPortal(null);
-            setAddSourceOpen(true);
-          }}
-        >
-          <PlusIcon className="size-4" />
-          Add Source
-        </Button>
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="rounded-md"
+                  disabled={isClearingCache}
+                  onClick={handleForceRefresh}
+                  aria-label="Force refresh channel cache"
+                >
+                  {isClearingCache ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCwIcon className="size-4" />
+                  )}
+                </Button>
+              }
+            />
+            <TooltipContent align="center">
+              Clear the local channel cache
+            </TooltipContent>
+          </Tooltip>
+          <Button
+            type="button"
+            size="sm"
+            className="flex items-center justify-center gap-1.5 rounded-md"
+            onClick={() => {
+              if (!userId) {
+                setAuthOpen(true);
+                return;
+              }
+              setEditingPortal(null);
+              setAddSourceOpen(true);
+            }}
+          >
+            <PlusIcon className="size-4" />
+            Add Source
+          </Button>
+        </div>
       </div>
 
       <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
