@@ -30,6 +30,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty"
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -1584,11 +1591,23 @@ function ChannelBrowser({
             })}
           </div>
         ) : (
-          <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-            {browseFilter.type === "favorites"
-              ? "Star channels to see them here."
-              : "No channels matched the current filter."}
-          </div>
+          <Empty className="h-40">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                {browseFilter.type === "favorites" ? <StarIcon /> : <SearchIcon />}
+              </EmptyMedia>
+              <EmptyTitle>
+                {browseFilter.type === "favorites"
+                  ? "No favorites yet"
+                  : "No channels found"}
+              </EmptyTitle>
+              <EmptyDescription>
+                {browseFilter.type === "favorites"
+                  ? "Star channels to see them here."
+                  : "No channels matched the current filter."}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </ScrollArea>
     </div>
