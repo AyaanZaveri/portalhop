@@ -2361,31 +2361,7 @@ function EpgSchedule({
                       ) : null}
                     </div>
                     {posterUrl ? (
-                      <div className="relative shrink-0 self-center">
-                        <div
-                          className="pointer-events-none absolute -inset-32 [mask-image:linear-gradient(to_left,black_0%,rgba(0,0,0,0.55)_35%,rgba(0,0,0,0.18)_65%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_left,black_0%,rgba(0,0,0,0.55)_35%,rgba(0,0,0,0.18)_65%,transparent_100%)]"
-                          aria-hidden="true"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element -- Ambient glow uses the same arbitrary EPG poster host as the thumbnail below. */}
-                          <img
-                            src={posterUrl}
-                            alt=""
-                            className="size-full scale-150 object-cover opacity-25 saturate-150 contrast-125 blur-2xl dark:opacity-70 dark:saturate-100 dark:contrast-100"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <div className="relative aspect-[5/7] w-20 max-h-40 overflow-clip rounded-md bg-zinc-900">
-                          {/* eslint-disable-next-line @next/next/no-img-element -- Programme posters come from arbitrary EPG hosts. */}
-                          <img
-                            src={posterUrl}
-                            alt=""
-                            className="size-full object-cover"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      </div>
+                      <ProgrammeArtwork posterUrl={posterUrl} />
                     ) : null}
                   </div>
                 </article>
@@ -2409,6 +2385,44 @@ function EpgSchedule({
         </div>
       )}
     </section>
+  )
+}
+
+function ProgrammeArtwork({ posterUrl }: { posterUrl: string }) {
+  const [ambientImageLoaded, setAmbientImageLoaded] = useState(false)
+
+  return (
+    <div className="relative shrink-0 self-center">
+      <div
+        className={cn(
+          "pointer-events-none absolute -inset-24 transition-opacity duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:transition-none [mask-image:linear-gradient(to_left,black_0%,rgba(0,0,0,0.55)_35%,rgba(0,0,0,0.18)_65%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_left,black_0%,rgba(0,0,0,0.55)_35%,rgba(0,0,0,0.18)_65%,transparent_100%)]",
+          ambientImageLoaded ? "opacity-100" : "opacity-0",
+        )}
+        aria-hidden="true"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- Ambient glow uses the same arbitrary EPG poster host as the thumbnail below. */}
+        <img
+          src={posterUrl}
+          alt=""
+          className="size-full scale-[1.65] transform-gpu object-cover opacity-25 saturate-150 contrast-125 blur-[28px] dark:opacity-70 dark:saturate-100 dark:contrast-100"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={() => setAmbientImageLoaded(true)}
+        />
+      </div>
+      <div className="relative aspect-[5/7] w-20 max-h-40 overflow-clip rounded-md bg-zinc-900">
+        {/* eslint-disable-next-line @next/next/no-img-element -- Programme posters come from arbitrary EPG hosts. */}
+        <img
+          src={posterUrl}
+          alt=""
+          className="size-full object-cover"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    </div>
   )
 }
 
