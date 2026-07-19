@@ -1652,7 +1652,10 @@ function ChannelBrowser({
               return (
                 <div
                   key={`${channel.id}-${channel.number}-${virtualRow.index}`}
-                  className={cn("absolute inset-x-0", isSelected && "z-10")}
+                  className={cn(
+                    "group absolute inset-x-0",
+                    isSelected && "z-10",
+                  )}
                   style={{
                     height: `${virtualRow.size - 6}px`,
                     transform: `translateY(${virtualRow.start + 3}px)`,
@@ -1663,16 +1666,18 @@ function ChannelBrowser({
                       thing (background, content, and star) responds. */}
                   <div
                     className={cn(
-                      "group hover:bg-accent/80 flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out active:scale-[0.99]",
+                      "pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out group-hover:bg-accent/80 group-active:scale-[0.99]",
                       isSelected && "bg-accent shadow-xs",
                     )}
                   >
                     <button
                       type="button"
                       disabled={!canResolve}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
+                      aria-label={`Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`}
+                      className="pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
                       onClick={() => pullChannelStream(channel)}
-                    >
+                    />
+                    <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
                       <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
                         {logoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
@@ -1726,8 +1731,8 @@ function ChannelBrowser({
                           </span>
                         ) : null}
                       </div>
-                    </button>
-                    <div className="relative flex size-8 shrink-0 items-center justify-center">
+                    </div>
+                    <div className="pointer-events-auto relative z-10 flex size-8 shrink-0 items-center justify-center">
                       <button
                         type="button"
                         aria-label={
