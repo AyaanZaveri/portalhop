@@ -1674,7 +1674,7 @@ function ChannelBrowser({
                       type="button"
                       disabled={!canResolve}
                       aria-label={`Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`}
-                      className="pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+                      className="pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
                       onClick={() => pullChannelStream(channel)}
                     />
                     <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
@@ -1849,7 +1849,10 @@ function ChannelBrowser({
         )}
       </div>
       {playerStream ? (
-        <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
+        <ScrollArea
+          className="min-h-0 flex-1 px-4 pb-4"
+          viewportClassName="focus-visible:ring-0 focus-visible:outline-none"
+        >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-2">
             <MediaPlayer
               key={`${playerStream.channelKey}-${playerStream.url}`}
