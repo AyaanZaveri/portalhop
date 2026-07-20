@@ -3,8 +3,6 @@
 
   <h3>PortalHop</h3>
 
-  **[portalhop.vercel.app](https://portalhop.vercel.app/)**
-
   One player for every IPTV source you've got. Add Stalker (MAG), Xtream Codes, or M3U portals, or skip setup entirely with the built-in free channel catalog from [iptv-org](https://github.com/iptv-org/iptv), and watch everything from one clean UI, with a synced programme guide and favorites, on any device.
 
   <p>
@@ -17,6 +15,8 @@
     <img src="https://img.shields.io/badge/shadcn%2Fui-000000?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
     <img src="https://img.shields.io/badge/Motion-000000?logo=framer&logoColor=white" alt="Motion" />
   </p>
+
+  **[Try the hosted version →](https://portalhop.vercel.app/)**
 </div>
 
 ## Features
