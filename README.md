@@ -2,9 +2,9 @@
   <img src="public/portalhop-logo.png" width="120" alt="PortalHop logo" />
 
   <div id="toc">
-    <ul style="list-style: none">
+    <ul style="list-style: none; margin: 0; padding: 0">
       <summary>
-        <h1>PortalHop</h1>
+        <h1 style="margin-bottom: 0">PortalHop</h1>
       </summary>
     </ul>
   </div>
