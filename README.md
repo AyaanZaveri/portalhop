@@ -1,7 +1,13 @@
 <div align="center">
   <img src="public/portalhop-logo.png" width="120" alt="PortalHop logo" />
 
-  <h3>PortalHop</h3>
+  <div id="toc">
+    <ul style="list-style: none">
+      <summary>
+        <h1>PortalHop</h1>
+      </summary>
+    </ul>
+  </div>
 
   One player for every IPTV source you've got. Add Stalker (MAG), Xtream Codes, or M3U portals, or skip setup entirely with the built-in free channel catalog from [iptv-org](https://github.com/iptv-org/iptv), and watch everything from one clean UI, with a synced programme guide and favorites, on any device.
 
