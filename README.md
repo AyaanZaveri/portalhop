@@ -9,9 +9,9 @@
     </ul>
   </div>
 
-  One player for every IPTV source you've got. Add Stalker (MAG), Xtream Codes, or M3U portals, or skip setup entirely with the built-in free channel catalog from [iptv-org](https://github.com/iptv-org/iptv), and watch everything from one clean UI, with a synced programme guide and favorites, on any device.
-
   **[portalhop.vercel.app](https://portalhop.vercel.app/)**
+
+  One player for every IPTV source you've got. Add Stalker (MAG), Xtream Codes, or M3U portals, or skip setup entirely with the built-in free channel catalog from [iptv-org](https://github.com/iptv-org/iptv), and watch everything from one clean UI, with a synced programme guide and favorites, on any device.
 
   <p>
     <img src="https://img.shields.io/badge/Next.js_16.2.9-000000?logo=nextdotjs&logoColor=white" alt="Next.js 16.2.9" />
