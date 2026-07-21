@@ -22,7 +22,7 @@
     <img src="https://img.shields.io/badge/Motion-000000?logo=framer&logoColor=white" alt="Motion" />
   </p>
 
-  **[Try the hosted version →](https://portalhop.vercel.app/)**
+  **[Try the hosted version ↗](https://portalhop.vercel.app/)**
 </div>
 
 ## Features
