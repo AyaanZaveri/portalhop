@@ -349,19 +349,24 @@ function mergeImportedFields(
   aiResult?: Partial<ImportedPortal>
 ): ImportedPortal {
   const normalizedAi = importedPortalSchema.parse(aiResult ?? {})
+  // Credentials must be copied byte-for-byte from the pasted card.  The
+  // deterministic parser is intentionally preferred whenever it found a
+  // field; an LLM is only allowed to fill a gap. This is especially important
+  // for decorated Device ID labels, where a model can mistake prefix symbols
+  // for part of the hexadecimal value.
   const serial = fallback.serial || normalizedAi.serial
-  const deviceId = normalizedAi.deviceId || fallback.deviceId
-  const deviceId2 = normalizedAi.deviceId2 || fallback.deviceId2 || deviceId
+  const deviceId = fallback.deviceId || normalizedAi.deviceId
+  const deviceId2 = fallback.deviceId2 || normalizedAi.deviceId2 || deviceId
 
   return {
-    portalUrl: normalizePortalUrl(normalizedAi.portalUrl) || fallback.portalUrl,
-    mac: normalizedAi.mac || fallback.mac,
+    portalUrl: fallback.portalUrl || normalizePortalUrl(normalizedAi.portalUrl),
+    mac: fallback.mac || normalizedAi.mac,
     serial,
     deviceId,
     deviceId2,
-    signature: normalizedAi.signature || fallback.signature,
-    timezone: normalizedAi.timezone || fallback.timezone,
-    stbType: normalizedAi.stbType || fallback.stbType,
+    signature: fallback.signature || normalizedAi.signature,
+    timezone: fallback.timezone || normalizedAi.timezone,
+    stbType: fallback.stbType || normalizedAi.stbType,
     serverUrl:
       normalizedAi.serverUrl.replace(/\/+$/, "") || fallback.serverUrl,
     username: normalizedAi.username || fallback.username,

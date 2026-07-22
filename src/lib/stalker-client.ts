@@ -49,15 +49,26 @@ const USER_AGENT =
   "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG254 stbapp ver: 4 rev: 1812 Mobile Safari/533.3"
 const PROFILE_VERSION =
   "ImageDescription: 0.2.18-r23-250; ImageDate: Thu Sep 13 11:31:16 EEST 2018; PORTAL version: 5.6.2; API Version: JS API version: 343; STB API version: 146; Player Engine version: 0x58c"
+// Some Stalker deployments intermittently pause for 15–30 seconds while
+// servicing a MAG request. A 15-second client cutoff turns that temporary
+// delay into a misleading credentials/endpoint failure.
+const PORTAL_REQUEST_TIMEOUT_MS = 45_000
 
 export function normalizePortalRequest(body: PortalRequest) {
+  const deviceId = extractHex(body.deviceId)
+  const deviceId2 = extractHex(body.deviceId2)
+
   return {
     mac: normalizeMac(body.mac),
     timezone: body.timezone?.trim() || DEFAULT_TIMEZONE,
     stbType: body.stbType?.trim() || DEFAULT_STB_TYPE,
     serial: body.serial?.trim(),
-    deviceId: body.deviceId?.trim(),
-    deviceId2: body.deviceId2?.trim(),
+    // Most resellers only ever hand out a single "Device ID" value, but
+    // portals commonly validate device_id and device_id2 together and
+    // reject the pair if only one is present (seen as a "device conflict"
+    // on get_profile). Mirror whichever one was supplied into the other.
+    deviceId: deviceId || deviceId2,
+    deviceId2: deviceId2 || deviceId,
     signature: body.signature?.trim(),
   }
 }
@@ -232,6 +243,16 @@ export async function fetchPortalEpg(
   return readProviderEpg(epgEnvelope.js, channelId)
 }
 
+// Reseller "info cards" for these portals often stylize field labels with
+// bold Unicode letters and decorative symbols (e.g. "𝐃𝐞𝐯𝐢𝐜𝐞𝐈𝐃 ¹💥²28F8F8D6...")
+// glued directly onto the actual value. Device IDs are always plain hex, so
+// strip anything that isn't a hex digit rather than reject a value a user
+// copy-pasted verbatim from one of these cards.
+function extractHex(value: string | undefined) {
+  const stripped = value?.trim().replace(/[^0-9a-fA-F]/g, "")
+  return stripped || undefined
+}
+
 function normalizeMac(value: string | undefined) {
   const raw = value?.trim().toUpperCase()
 
@@ -308,7 +329,7 @@ async function stalkerRequest(
 
   const response = await fetch(url, {
     cache: "no-store",
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(PORTAL_REQUEST_TIMEOUT_MS),
     headers: {
       Accept: "*/*",
       "User-Agent": USER_AGENT,

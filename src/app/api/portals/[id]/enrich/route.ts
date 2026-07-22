@@ -12,6 +12,7 @@ import {
   buildEpgIndex,
   classifyMatch,
   nameKeys,
+  normalizeName,
   pickRegional,
   regionOf,
   type EpgChannelEntry,
@@ -33,6 +34,24 @@ export const maxDuration = 300
 // time is recovered by running more of them in parallel instead.
 const AI_BATCH_SIZE = 20
 const AI_BATCH_CONCURRENCY = 10
+
+// These describe presentation or distribution, not the broadcaster. They do
+// not provide useful regional evidence for another channel with the same name.
+const COUNTRY_EVIDENCE_IGNORED_TOKENS = new Set([
+  "tv",
+  "real",
+  "live",
+  "channel",
+  "network",
+  "east",
+  "west",
+  "north",
+  "south",
+  "central",
+  "pacific",
+  "ontario",
+  "sports",
+])
 
 interface EnrichRequest {
   settings?: EnrichAiSettings
@@ -70,6 +89,80 @@ type ProgressLine =
 function dedupKey(raw: string): string {
   const keys = nameKeys(raw)
   return keys.length ? keys[keys.length - 1] : ""
+}
+
+function broadcasterTokens(name: string) {
+  return [...new Set(normalizeName(name).split(" "))].filter(
+    (token) =>
+      token.length > 1 &&
+      !/^\d+$/.test(token) &&
+      !COUNTRY_EVIDENCE_IGNORED_TOKENS.has(token)
+  )
+}
+
+type CountryEvidence = Map<string, Map<string, number>>
+
+function recordCountryEvidence(
+  evidence: CountryEvidence,
+  name: string,
+  xmltvId: string
+) {
+  const country = regionOf(xmltvId)
+  if (!country) return
+
+  for (const token of broadcasterTokens(name)) {
+    const votes = evidence.get(token) ?? new Map<string, number>()
+    votes.set(country, (votes.get(country) ?? 0) + 1)
+    evidence.set(token, votes)
+  }
+}
+
+function strongestCountry(
+  votes: Map<string, number> | undefined
+): { country: string; count: number } | null {
+  if (!votes?.size) return null
+  const ranked = [...votes.entries()].sort(
+    ([aCountry, aCount], [bCountry, bCount]) =>
+      bCount - aCount || aCountry.localeCompare(bCountry)
+  )
+  const [country, count] = ranked[0]
+  const runnerUp = ranked[1]?.[1] ?? 0
+  return count > runnerUp ? { country, count } : null
+}
+
+function contextualCountryFor(
+  name: string,
+  candidates: MatchCandidate[],
+  evidence: CountryEvidence
+) {
+  const candidateCountries = new Set(
+    candidates.map((candidate) => candidate.countryCode?.toLowerCase()).filter(Boolean)
+  )
+  const countryScores = new Map<string, number>()
+
+  for (const token of broadcasterTokens(name)) {
+    for (const [country, count] of evidence.get(token) ?? []) {
+      if (candidateCountries.has(country)) {
+        countryScores.set(country, (countryScores.get(country) ?? 0) + count)
+      }
+    }
+  }
+
+  return strongestCountry(countryScores)?.country ?? ""
+}
+
+function sourceContextFor(name: string, evidence: CountryEvidence) {
+  const hints = broadcasterTokens(name)
+    .map((token) => ({ token, match: strongestCountry(evidence.get(token)) }))
+    .filter(
+      (hint): hint is { token: string; match: { country: string; count: number } } =>
+        Boolean(hint.match)
+    )
+    .sort((a, b) => b.match.count - a.match.count || a.token.localeCompare(b.token))
+    .slice(0, 3)
+    .map((hint) => `${hint.token.toUpperCase()} → ${hint.match.country.toUpperCase()} (${hint.match.count})`)
+
+  return hints.length ? `verified broadcaster country evidence: ${hints.join(", ")}` : ""
 }
 
 export async function POST(
@@ -137,14 +230,19 @@ export async function POST(
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (line: ProgressLine) => {
-        controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"))
-      }
+    start(controller) {
+      // Do not return the matching promise from start(). Web Streams await an
+      // async start hook before exposing the response, which previously meant
+      // a long enrich looked like a hung request and none of its progress
+      // lines reached the client until every AI batch had completed.
+      void (async () => {
+        const send = (line: ProgressLine) => {
+          controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"))
+        }
 
-      try {
-        const index = buildEpgIndex(epgChannels)
-        const rows = await selectSavedChannelRows(sourceId)
+        try {
+          const index = buildEpgIndex(epgChannels)
+          const rows = await selectSavedChannelRows(sourceId)
 
         // Group the rows that still need a valid id by their dedup key.
         const groups = new Map<
@@ -218,6 +316,7 @@ export async function POST(
           currentXmltvId?: string
         }[] = []
         const regionTally = new Map<string, number>()
+        const countryEvidence: CountryEvidence = new Map()
 
         let processed = 0
         for (const [key, group] of uniqueNames) {
@@ -233,6 +332,7 @@ export async function POST(
             if (region) {
               regionTally.set(region, (regionTally.get(region) ?? 0) + 1)
             }
+            recordCountryEvidence(countryEvidence, group.sampleName, match.xmltvId)
           } else if (match.kind === "regional") {
             regional.push({ key, sampleName: group.sampleName, candidates: match.candidates })
           } else if (match.kind === "ambiguous") {
@@ -247,6 +347,8 @@ export async function POST(
                   epgChannels[currentXmltvId.toLowerCase()]?.name ??
                   currentXmltvId,
                 score: 1,
+                countryCode:
+                  epgChannels[currentXmltvId.toLowerCase()]?.countryCode,
               })
             }
             ambiguous.push({
@@ -279,9 +381,18 @@ export async function POST(
         }
 
         for (const entry of regional) {
-          const xmltvId = pickRegional(entry.candidates, regionHint)
+          const contextualCountry = contextualCountryFor(
+            entry.sampleName,
+            entry.candidates,
+            countryEvidence
+          )
+          const xmltvId = pickRegional(
+            entry.candidates,
+            contextualCountry || regionHint
+          )
           if (xmltvId) {
             assignments.set(entry.key, xmltvId)
+            recordCountryEvidence(countryEvidence, entry.sampleName, xmltvId)
           }
         }
 
@@ -312,6 +423,7 @@ export async function POST(
                 name: entry.sampleName,
                 candidates: entry.candidates,
                 currentXmltvId: entry.currentXmltvId,
+                sourceContext: sourceContextFor(entry.sampleName, countryEvidence),
               }))
 
               try {
@@ -449,17 +561,18 @@ export async function POST(
           aiError,
           cleared,
         })
-      } catch (error) {
-        send({
-          type: "error",
-          error:
-            error instanceof Error
-              ? error.message
-              : "Could not enrich channel ids.",
-        })
-      } finally {
-        controller.close()
-      }
+        } catch (error) {
+          send({
+            type: "error",
+            error:
+              error instanceof Error
+                ? error.message
+                : "Could not enrich channel ids.",
+          })
+        } finally {
+          controller.close()
+        }
+      })()
     },
   })
 

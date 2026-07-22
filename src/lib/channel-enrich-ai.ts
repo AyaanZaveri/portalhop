@@ -18,6 +18,8 @@ export type RerankItem = {
   candidates: MatchCandidate[]
   /** A valid existing IPTV-EPG.org id that should be retained unless replaced. */
   currentXmltvId?: string
+  /** Verified country evidence for broadcaster tokens in this source. */
+  sourceContext?: string
 }
 
 const rerankSchema = z.object({
@@ -36,7 +38,8 @@ You are given a list of channels. Each has a numeric "key", the channel "name" a
 Rules:
 - Choose only from the provided candidate ids for that channel. Never invent an id.
 - If a current XMLTV id is supplied, keep it unless another listed candidate is clearly a better match.
-- Match the actual broadcaster/feed, accounting for regional variants (e.g. "CNN" is not "CNN International" or "CNN en Español"), language, and country. Prefer the candidate whose region/language best fits the channel name.
+- Match the actual broadcaster/feed, accounting for regional variants (e.g. "CNN" is not "CNN International" or "CNN en Español"), language, and country. Each candidate may state the country of the EPG source that supplied it; use that metadata to distinguish otherwise-identical names (for example, TSN is Canadian, not Maltese).
+- A source-context line, when present, summarizes country evidence from already verified channels with the same broadcaster tokens. Treat it as strong evidence, but choose only a listed candidate and do not force an unrelated channel to fit it.
 - Ignore quality tags (HD, FHD, 4K, SD, VIP, backup) and leading country/region prefixes when comparing. A name may carry several leading tags (country, region, city, provider) separated by | - :, e.g. "CA | USA Border | Buffalo - NBC 2 | WGRZ"; ignore all of them. Treat the leading country code as unreliable: a US station resold on a foreign portal still carries a foreign tag.
 - For a local broadcast station the call sign (3-4 letters such as WGRZ, WIVB, KDFX) identifies the channel; a small channel number like "NBC 2" or "CBS 4" does not. If a candidate's name contains the same call sign, choose that candidate.
 - Distinguish base channels from numbered/named variants ("2", "Plus", "Overflow 2", "International", "Español", "Deportes" are different feeds); pick the exact one the name denotes.
@@ -45,12 +48,16 @@ Rules:
 
 function formatItem(item: RerankItem): string {
   const candidates = item.candidates
-    .map((candidate) => `    - ${candidate.id} :: ${candidate.name}`)
+    .map(
+      (candidate) =>
+        `    - ${candidate.id} [country: ${candidate.countryCode ?? "unknown"}] :: ${candidate.name}`
+    )
     .join("\n")
   const current = item.currentXmltvId
     ? `\n  Current XMLTV id: ${item.currentXmltvId}`
     : ""
-  return `key ${item.key}: "${item.name}"${current}\n${candidates}`
+  const context = item.sourceContext ? `\n  Source context: ${item.sourceContext}` : ""
+  return `key ${item.key}: "${item.name}"${current}${context}\n${candidates}`
 }
 
 /**

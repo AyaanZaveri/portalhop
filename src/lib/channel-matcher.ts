@@ -19,6 +19,8 @@ export type MatchCandidate = {
   id: string
   name: string
   score: number
+  /** Country of the EPG source that supplied this candidate, when known. */
+  countryCode?: string
 }
 
 export type ClassifiedMatch =
@@ -105,6 +107,13 @@ function toTokens(value: string): string[] {
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
+    // Broadcasters commonly write numbered feeds both with and without a
+    // space ("TSN1" / "TSN 1", "BBC2" / "BBC 2"). Treat those as the
+    // same name so the regional resolver sees every variant instead of
+    // falsely treating one country's spelling as an unambiguous exact hit.
+    // Keep short quality tokens such as "4k" intact.
+    .replace(/([a-z]{2,})(\d+)/g, "$1 $2")
+    .replace(/(\d+)([a-z]{2,})/g, "$1 $2")
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -146,6 +155,7 @@ export type EpgIndex = {
   entries: {
     id: string
     name: string
+    countryCode?: string
     tokens: string[]
     tokenSet: Set<string>
     normalizedName: string
@@ -181,6 +191,7 @@ export function buildEpgIndex(
     const entry = {
       id: channel.id,
       name: channel.name,
+      countryCode: channel.countryCode?.toUpperCase(),
       tokens,
       tokenSet: new Set(tokens),
       normalizedName: tokens.join(" "),
@@ -286,7 +297,12 @@ export function retrieveCandidates(
     }
 
     if (score >= FUZZY_FLOOR) {
-      scored.push({ id: entry.id, name: entry.name, score })
+      scored.push({
+        id: entry.id,
+        name: entry.name,
+        score,
+        countryCode: entry.countryCode,
+      })
     }
   }
 
@@ -342,6 +358,7 @@ export function classifyMatch(raw: string, index: EpgIndex): ClassifiedMatch {
         id,
         name: index.byId.get(id)?.name ?? id,
         score: 1,
+        countryCode: index.byId.get(id)?.countryCode,
       })),
     }
   }
