@@ -17,12 +17,15 @@ import {
   AlertCircleIcon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   CopyIcon,
+  ListFilterIcon,
   LayoutGridIcon,
   Loader2Icon,
   RotateCcwIcon,
   RotateCwIcon,
   SearchIcon,
+  ShapesIcon,
   StarIcon,
   TvIcon,
 } from "lucide-react"
@@ -49,9 +52,17 @@ import {
 import {
   InputGroup,
   InputGroupAddon,
+  InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -80,15 +91,6 @@ import {
 import type { PortalChannel, PortalResponse } from "@/lib/stalker-types"
 import type { SavedSourceRecord, SourceRequest } from "@/lib/source-types"
 import type { EpgProgramme } from "@/lib/stalker-types"
-import {
-  Combobox,
-  ComboboxTrigger,
-  ComboboxInput,
-  ComboboxContent,
-  ComboboxList,
-  ComboboxItem,
-  ComboboxEmpty,
-} from "@/components/ui/combobox"
 import { AuthDialog } from "@/components/auth-dialog"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
@@ -154,19 +156,19 @@ const externalPlayers: Array<{
   label: string
   platforms: ClientPlatform[]
 }> = [
-  { id: "iina", label: "IINA", platforms: ["macos"] },
-  {
-    id: "vlc",
-    label: "VLC",
-    platforms: ["android", "ios", "linux", "macos", "windows"],
-  },
-  {
-    id: "mpv",
-    label: "mpv",
-    platforms: ["android", "linux", "macos", "windows"],
-  },
-  { id: "outplayer", label: "Outplayer", platforms: ["ios"] },
-]
+    { id: "iina", label: "IINA", platforms: ["macos"] },
+    {
+      id: "vlc",
+      label: "VLC",
+      platforms: ["android", "ios", "linux", "macos", "windows"],
+    },
+    {
+      id: "mpv",
+      label: "mpv",
+      platforms: ["android", "linux", "macos", "windows"],
+    },
+    { id: "outplayer", label: "Outplayer", platforms: ["ios"] },
+  ]
 
 function getExternalPlayerLabel(player: ExternalPlayer) {
   return externalPlayers.find(({ id }) => id === player)?.label ?? "player"
@@ -326,7 +328,7 @@ export default function Home() {
           })),
         )
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         if (!cancelled) setIptvOrgLoading(false)
       })
@@ -660,6 +662,7 @@ function ChannelBrowser({
   }, [allChannels, favorites, migrateFavoriteKeys])
 
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const [categorySearch, setCategorySearch] = useState("")
   const [selectedPortalIds, setSelectedPortalIds] = useState<Set<number>>(
     () => new Set(),
   )
@@ -708,10 +711,10 @@ function ChannelBrowser({
     const counts = new Map<string, number>()
     const channelsForCategories = selectedPortalIds.size
       ? allChannels.filter(
-          (channel) =>
-            channel.portalSource &&
-            selectedPortalIds.has(channel.portalSource.id),
-        )
+        (channel) =>
+          channel.portalSource &&
+          selectedPortalIds.has(channel.portalSource.id),
+      )
       : allChannels
 
     for (const channel of channelsForCategories) {
@@ -726,6 +729,14 @@ function ChannelBrowser({
       a.localeCompare(b, undefined, { sensitivity: "base" }),
     )
   }, [categoryCounts])
+
+  const filteredCategories = useMemo(() => {
+    const query = categorySearch.trim().toLowerCase()
+    if (!query) {
+      return categories
+    }
+    return categories.filter((genre) => genre.toLowerCase().includes(query))
+  }, [categories, categorySearch])
 
   const portals = useMemo(() => {
     const uniquePortals = new Map<number, PortalSource>()
@@ -759,10 +770,10 @@ function ChannelBrowser({
   const visibleChannels = useMemo(() => {
     const channelsForSelectedPortals = selectedPortalIds.size
       ? channels.filter(
-          (channel) =>
-            channel.portalSource &&
-            selectedPortalIds.has(channel.portalSource.id),
-        )
+        (channel) =>
+          channel.portalSource &&
+          selectedPortalIds.has(channel.portalSource.id),
+      )
       : channels
 
     if (browseFilter.type === "all") {
@@ -1448,8 +1459,10 @@ function ChannelBrowser({
     platforms.includes(clientPlatform),
   )
 
-  const activeCategoryGenre =
-    browseFilter.type === "category" ? browseFilter.genre : null
+  // "Everything selected" is either an empty set (no filter) or every portal
+  // ticked; both show every portal's channels, so both read as "All portals".
+  const isPortalFiltered =
+    selectedPortalIds.size > 0 && selectedPortalIds.size < portals.length
 
   const renderChannelContent = () => (
     <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl min-[940px]:min-w-80">
@@ -1464,101 +1477,83 @@ function ChannelBrowser({
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
+          {portals.length > 1 ? (
+            <InputGroupAddon align="inline-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <InputGroupButton
+                      aria-label="Filter by portal"
+                      className={cn(
+                        "gap-1",
+                      )}
+                    />
+                  }
+                >
+                  <ListFilterIcon />
+                  {isPortalFiltered ? (
+                    <span className="font-mono tabular-nums">
+                      {selectedPortalIds.size}
+                    </span>
+                  ) : null}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => setSelectedPortalIds(new Set())}
+                    >
+                      <LayoutGridIcon />
+                      All Portals
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    {portals.map((portal) => (
+                      <DropdownMenuCheckboxItem
+                        key={portal.id}
+                        checked={selectedPortalIds.has(portal.id)}
+                        onCheckedChange={(checked) =>
+                          togglePortal(portal.id, checked)
+                        }
+                      >
+                        <TvIcon />
+                        <span className="min-w-0 flex-1 truncate">
+                          {portal.name}
+                        </span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </InputGroupAddon>
+          ) : null}
         </InputGroup>
         <div className="flex flex-wrap items-center gap-1.5">
           <Button
             {...chipButtonProps(browseFilter.type === "favorites")}
-            onClick={() => {
-              chooseFilter({ type: "favorites" })
-              setSelectedPortalIds(new Set())
-            }}
+            onClick={() => chooseFilter({ type: "favorites" })}
           >
-            <StarIcon className="size-3" />
+            <StarIcon className="size-3.5" />
             Favorites
           </Button>
-          {portals.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    {...chipButtonProps(
-                      selectedPortalIds.size > 0 || browseFilter.type === "all",
-                      { wide: true },
-                    )}
-                    aria-label="Filter channels by portal"
-                  />
-                }
-              >
-                {selectedPortalIds.size ? (
-                  <TvIcon className="size-3.5" />
-                ) : (
-                  <LayoutGridIcon className="size-3" />
-                )}
-                <span className="min-w-0 truncate">
-                  {selectedPortalIds.size === 1
-                    ? portals.find((portal) => selectedPortalIds.has(portal.id))
-                        ?.name
-                    : selectedPortalIds.size > 1
-                      ? `${selectedPortalIds.size} portals`
-                      : "All"}
-                </span>
-                <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      chooseFilter({ type: "all" })
-                      setSelectedPortalIds(new Set())
-                    }}
-                  >
-                    <LayoutGridIcon />
-                    All
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Show portals</DropdownMenuLabel>
-                  {portals.map((portal) => (
-                    <DropdownMenuCheckboxItem
-                      key={portal.id}
-                      checked={selectedPortalIds.has(portal.id)}
-                      onCheckedChange={(checked) =>
-                        togglePortal(portal.id, checked)
-                      }
-                    >
-                      <TvIcon />
-                      <span className="min-w-0 flex-1 truncate">
-                        {portal.name}
-                      </span>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Button
-              {...chipButtonProps(browseFilter.type === "all")}
-              onClick={() => chooseFilter({ type: "all" })}
-            >
-              <LayoutGridIcon className="size-3" />
-              All
-            </Button>
-          )}
-          <Combobox
-            items={categories}
-            value={activeCategoryGenre}
-            onValueChange={(genre) => {
-              chooseFilter(
-                genre ? { type: "category", genre } : { type: "all" },
-              )
-              setSelectedPortalIds(new Set())
-            }}
-            open={categoryMenuOpen}
-            onOpenChange={setCategoryMenuOpen}
+          <Button
+            {...chipButtonProps(browseFilter.type === "all")}
+            onClick={() => chooseFilter({ type: "all" })}
           >
-            <ComboboxTrigger
-              showChevron={false}
+            <LayoutGridIcon className="size-3.5" />
+            All
+          </Button>
+          <Drawer
+            open={categoryMenuOpen}
+            onOpenChange={(open) => {
+              setCategoryMenuOpen(open)
+              if (!open) {
+                setCategorySearch("")
+              }
+            }}
+            swipeDirection={isMobileLayout ? "down" : "left"}
+          >
+            <DrawerTrigger
               render={
                 <Button
                   ref={categoryTriggerRef}
@@ -1566,62 +1561,105 @@ function ChannelBrowser({
                     wide: true,
                   })}
                 >
-                  {activeCategoryGenre ? (
-                    <CategoryVisual
-                      category={activeCategoryGenre}
-                      className="size-3.5 text-current"
-                    />
-                  ) : null}
-                  <span className="min-w-0 truncate">
-                    {activeCategoryGenre ?? "Categories"}
-                  </span>
-                  <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
+                  <ShapesIcon className="size-3.5" />
+                  <span className="min-w-0 truncate">Categories</span>
+                  <ChevronRightIcon className="size-4 shrink-0 opacity-70 -mr-0.5" />
                 </Button>
               }
             />
-            <ComboboxContent
-              align="start"
-              anchor={categoryTriggerRef}
-              className="flex w-72! flex-col gap-2 p-2"
-            >
-              <ComboboxInput
-                autoFocus
-                showTrigger={false}
-                placeholder="Find a category"
+            <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl border bg-background/95 backdrop-blur-md after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh] dark:bg-background/85">
+              <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
+                <DrawerTitle className="text-lg">Categories</DrawerTitle>
+              </DrawerHeader>
+              <div className="px-4 pt-4 pb-2">
+                <InputGroup>
+                  <InputGroupInput
+                    autoFocus
+                    placeholder="Find a category"
+                    value={categorySearch}
+                    onChange={(event) => setCategorySearch(event.target.value)}
+                  />
+                  <InputGroupAddon align="inline-start">
+                    <SearchIcon />
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+              <ScrollArea
+                className="min-h-0 flex-1"
+                viewportClassName="px-4 pb-2"
               >
-                <InputGroupAddon align="inline-start">
-                  <SearchIcon />
-                </InputGroupAddon>
-              </ComboboxInput>
-              <ComboboxList>
-                {(genre: string) => {
-                  const isActiveGenre =
-                    browseFilter.type === "category" &&
-                    browseFilter.genre === genre
-                  return (
-                    <ComboboxItem
-                      key={genre}
-                      value={genre}
-                      className={isActiveGenre ? undefined : "pr-2"}
-                    >
-                      <CategoryVisual category={genre} />
-                      <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
-                        {genre}
-                      </span>
-                      {isActiveGenre ? null : (
+                {/*{!categorySearch.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      chooseFilter({ type: "all" })
+                      setCategoryMenuOpen(false)
+                      setCategorySearch("")
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+                      browseFilter.type !== "category" && "bg-accent",
+                    )}
+                  >
+                    <LayoutGridIcon className="size-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                      All Categories
+                    </span>
+                  </button>
+                ) : null}*/}
+                {filteredCategories.length ? (
+                  filteredCategories.map((genre) => {
+                    const isActiveGenre =
+                      browseFilter.type === "category" &&
+                      browseFilter.genre === genre
+                    return (
+                      <button
+                        key={genre}
+                        type="button"
+                        onClick={() => {
+                          chooseFilter({ type: "category", genre })
+                          setCategoryMenuOpen(false)
+                          setCategorySearch("")
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+                          isActiveGenre && "bg-accent",
+                        )}
+                      >
+                        <CategoryVisual category={genre} />
+                        <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                          {genre}
+                        </span>
                         <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
                           {(categoryCounts.get(genre) ?? 0).toLocaleString()}
                         </span>
-                      )}
-                    </ComboboxItem>
-                  )
-                }}
-              </ComboboxList>
-              <ComboboxEmpty>No categories match.</ComboboxEmpty>
-            </ComboboxContent>
-          </Combobox>
+                      </button>
+                    )
+                  })
+                ) : (
+                  <p className="text-muted-foreground py-6 text-center text-sm">
+                    No categories match.
+                  </p>
+                )}
+              </ScrollArea>
+            </DrawerContent>
+          </Drawer>
         </div>
       </div>
+      {browseFilter.type === "category" ? (
+        <div className="flex items-center gap-2 px-4 py-2">
+          <CategoryVisual
+            category={browseFilter.genre}
+            className="size-4.5 shrink-0 text-muted-foreground"
+          />
+          <span className="min-w-0 flex-1 truncate text-md font-semibold">
+            {browseFilter.genre}
+          </span>
+          {/*<span className="text-muted-foreground shrink-0 text-sm tabular-nums">
+            {visibleChannels.length.toLocaleString()}
+          </span>*/}
+        </div>
+      ) : null}
       <ScrollArea
         ref={scrollAreaRef}
         className="min-h-0 flex-1 px-3 pb-2"
@@ -2311,9 +2349,9 @@ function EpgSchedule({
             const isLive = start <= now && stop > now
             const progress = isLive
               ? Math.min(
-                  100,
-                  Math.max(0, ((now - start) / (stop - start)) * 100),
-                )
+                100,
+                Math.max(0, ((now - start) / (stop - start)) * 100),
+              )
               : 0
 
             const posterUrl = programme.posterUrl
@@ -2324,7 +2362,7 @@ function EpgSchedule({
             const showDateSeparator =
               !previousProgramme ||
               scheduleDateKey(programme.startAt) !==
-                scheduleDateKey(previousProgramme.startAt)
+              scheduleDateKey(previousProgramme.startAt)
 
             return (
               <div key={programme.id} className="flex flex-col gap-3">
@@ -2580,7 +2618,7 @@ function getChannelLogoUrl(
       : null) ||
     (portalSource?.epgMode === "custom" && portalSource.epgSourceId && lookupId
       ? customEpgChannels[portalSource.epgSourceId]?.[lookupId.toLowerCase()]
-          ?.logoUrl
+        ?.logoUrl
       : null) ||
     channel.logoUrl ||
     ""
