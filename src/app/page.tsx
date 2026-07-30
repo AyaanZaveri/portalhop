@@ -838,6 +838,85 @@ function ChannelBrowser({
     rowVirtualizer.scrollToIndex(0)
   }, [visibleChannels, rowVirtualizer])
 
+  // Live streams snap to the live edge when playback resumes, so pausing and
+  // hitting play skips past whatever you paused over (e.g. paused at 30s of a
+  // 40s window, resumes at 40s and rebuffers). Remember where playback was
+  // paused and, if the player jumps forward on resume, pull it back — as long
+  // as that position is still inside the seekable (DVR) window.
+  useEffect(() => {
+    const video = playerElement
+    if (!video) {
+      return
+    }
+
+    let pausedAt: number | null = null
+    let restoreTimers: ReturnType<typeof setTimeout>[] = []
+
+    const clearRestoreTimers = () => {
+      restoreTimers.forEach((timer) => clearTimeout(timer))
+      restoreTimers = []
+    }
+
+    const onPause = () => {
+      if (video.seeking || video.ended) {
+        return
+      }
+      pausedAt = video.currentTime
+    }
+
+    // Track manual scrubbing while paused so resume honors the new position.
+    const onSeeked = () => {
+      if (video.paused && !video.ended) {
+        pausedAt = video.currentTime
+      }
+    }
+
+    const onPlay = () => {
+      const target = pausedAt
+      pausedAt = null
+      if (target === null) {
+        return
+      }
+
+      const restore = () => {
+        const seekable = video.seekable
+        if (seekable.length === 0) {
+          return
+        }
+        const start = seekable.start(0)
+        const end = seekable.end(seekable.length - 1)
+        // Paused position slid out of the DVR window — nothing to return to.
+        if (target < start - 1) {
+          return
+        }
+        const clamped = Math.min(target, end)
+        // Only undo a real forward jump (the snap to live), never the normal
+        // ~1s/s playback drift.
+        if (video.currentTime > clamped + 1.5) {
+          video.currentTime = clamped
+        }
+      }
+
+      // The snap can land a beat after `play` fires, so re-check briefly.
+      clearRestoreTimers()
+      restore()
+      restoreTimers = [80, 250, 500, 900].map((delay) =>
+        setTimeout(restore, delay),
+      )
+    }
+
+    video.addEventListener("pause", onPause)
+    video.addEventListener("seeked", onSeeked)
+    video.addEventListener("play", onPlay)
+
+    return () => {
+      clearRestoreTimers()
+      video.removeEventListener("pause", onPause)
+      video.removeEventListener("seeked", onSeeked)
+      video.removeEventListener("play", onPlay)
+    }
+  }, [playerElement])
+
   useEffect(() => {
     setStreamVariant({ resolutionLabel: "", frameRateLabel: "", bitrateLabel: "" })
     captionCuesRef.current.clear()
@@ -1647,10 +1726,10 @@ function ChannelBrowser({
         </div>
       </div>
       {browseFilter.type === "category" ? (
-        <div className="flex items-center gap-2 px-4 py-2">
+        <div className="flex items-center gap-2 px-4 py-1.5 ml-0.5">
           <CategoryVisual
             category={browseFilter.genre}
-            className="size-4.5 shrink-0 text-muted-foreground"
+            className="size-4 shrink-0 text-muted-foreground"
           />
           <span className="min-w-0 flex-1 truncate text-md font-semibold">
             {browseFilter.genre}
@@ -1908,6 +1987,20 @@ function ChannelBrowser({
                     _hlsConfig={{
                       enableCEA708Captions: true,
                       renderTextTracksNatively: false,
+                      // Keep a rewind buffer and stop hls.js from snapping back
+                      // to the live edge after a pause: by default a live
+                      // stream jumps to the edge on resume (liveSyncMode
+                      // "edge" + the player's latency catch-up), so pausing and
+                      // playing skips everything you paused over. A very large
+                      // max-latency window effectively disables the forced
+                      // catch-up (Infinity is rejected by hls.js validation),
+                      // so playback stays where the user left it, within the
+                      // buffer.
+                      liveSyncMode: "buffered",
+                      liveSyncDurationCount: 3,
+                      liveMaxLatencyDurationCount: 600,
+                      maxLiveSyncPlaybackRate: 1,
+                      backBufferLength: 90,
                     }}
                     preload="auto"
                     targetLiveWindow={30}
