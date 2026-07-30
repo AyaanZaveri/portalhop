@@ -11,6 +11,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 const Combobox = ComboboxPrimitive.Root
 
@@ -114,7 +115,7 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           className={cn(
-            "group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-lg bg-background/95 text-popover-foreground shadow-md ring-1 ring-foreground/10 backdrop-blur-md duration-200 ease-out data-closed:duration-150 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 *:data-[slot=input-group]:shadow-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-90 dark:bg-background/85",
+            "group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-lg bg-background/95 text-popover-foreground shadow-md ring-1 ring-foreground/10 backdrop-blur-md duration-200 ease-out data-closed:duration-150 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:mx-1 *:data-[slot=input-group]:mt-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 *:data-[slot=input-group]:shadow-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-90 dark:bg-background/85",
             className
           )}
           {...props}
@@ -126,14 +127,24 @@ function ComboboxContent({
 
 function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
   return (
-    <ComboboxPrimitive.List
-      data-slot="combobox-list"
-      className={cn(
-        "no-scrollbar max-h-[min(calc(--spacing(72)---spacing(9)),calc(var(--available-height)---spacing(9)))] scroll-py-1 overflow-y-auto overscroll-contain p-1 data-empty:p-0",
-        className
-      )}
-      {...props}
-    />
+    // Bleeds past ComboboxContent's own p-2 (-mx-2 cancels it) so the
+    // scrollbar sits flush with the popup's true edge instead of floating
+    // inside the padded content area. px-3 on the list re-adds an inset that
+    // clears the scrollbar's own footprint and matches ComboboxInput's inset
+    // (p-2 + its mx-1) so both share the same right edge.
+    <ScrollArea
+      className="-mx-2 flex max-h-[min(calc(--spacing(72)---spacing(9)),calc(var(--available-height)---spacing(9)))] flex-col"
+      viewportClassName="h-auto min-h-0 flex-1"
+    >
+      <ComboboxPrimitive.List
+        data-slot="combobox-list"
+        className={cn(
+          "scroll-py-1 overscroll-contain px-3 py-1 data-empty:p-0",
+          className
+        )}
+        {...props}
+      />
+    </ScrollArea>
   )
 }
 
