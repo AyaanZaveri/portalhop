@@ -52,6 +52,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Portal Hop" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#ffffff" />
+        <meta name="color-scheme" content="light" />
         <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body className="min-h-full flex flex-col font-sans">

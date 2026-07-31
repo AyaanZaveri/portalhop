@@ -29,10 +29,15 @@ function ThemeColor() {
 
   React.useEffect(() => {
     const color = resolvedTheme === "dark" ? "#0d0d0d" : "#ffffff";
+    const colorScheme = resolvedTheme === "dark" ? "dark" : "light";
 
     document
       .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
       .forEach((meta) => meta.setAttribute("content", color));
+    document
+      .querySelectorAll<HTMLMetaElement>('meta[name="color-scheme"]')
+      .forEach((meta) => meta.setAttribute("content", colorScheme));
+    document.documentElement.style.colorScheme = colorScheme;
   }, [resolvedTheme]);
 
   return null;

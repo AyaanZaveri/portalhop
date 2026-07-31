@@ -43,9 +43,9 @@ export function PwaClient() {
   return (
     <div
       role="status"
-      className="pointer-events-none fixed inset-x-0 bottom-3 z-[60] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4"
     >
-      <p className="rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background shadow-lg">
+      <p className="bg-background/95 text-foreground rounded-full border px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur-md dark:bg-background/85">
         You’re offline. Reconnect to load channels.
       </p>
     </div>
