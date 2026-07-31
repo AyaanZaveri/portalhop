@@ -32,17 +32,42 @@ export async function listFavoriteGroups(db: Db, userId: string) {
     .from(favoriteGroupChannels)
     .where(inArray(favoriteGroupChannels.favoriteGroupId, groups.map((group) => group.id)))
 
-  const keysByGroup = new Map<number, string[]>()
+  const keysByGroup = new Map<number, Set<string>>()
   for (const membership of memberships) {
-    const keys = keysByGroup.get(membership.favoriteGroupId) ?? []
-    keys.push(membership.channelKey)
+    const keys = keysByGroup.get(membership.favoriteGroupId) ?? new Set<string>()
+    // Saved-channel catalogue keys no longer include a stream command. Keep
+    // prior memberships valid by normalizing their permanent source/channel
+    // identity when a group is read; this also de-duplicates an old and new
+    // representation of the same channel.
+    keys.add(normalizeSavedChannelKey(membership.channelKey))
     keysByGroup.set(membership.favoriteGroupId, keys)
   }
 
   return groups.map((group) => ({
     ...group,
-    channelKeys: keysByGroup.get(group.id) ?? [],
+    channelKeys: [...(keysByGroup.get(group.id) ?? [])],
   }))
+}
+
+function normalizeSavedChannelKey(key: string) {
+  try {
+    const parsed = JSON.parse(key)
+    if (!Array.isArray(parsed) || !Number.isInteger(parsed[0]) || !Number.isInteger(parsed[1])) {
+      return key
+    }
+
+    // This is the same stable shape produced by getChannelKey() for saved
+    // channels after playback commands became on-demand.
+    return JSON.stringify([
+      parsed[0],
+      parsed[1],
+      typeof parsed[2] === "string" ? parsed[2] : "",
+      typeof parsed[3] === "string" ? parsed[3] : "",
+      "",
+    ])
+  } catch {
+    return key
+  }
 }
 
 export async function createFavoriteGroup(
