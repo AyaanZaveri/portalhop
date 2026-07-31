@@ -38,6 +38,7 @@ export type BrowseFilter =
   | { type: "favorites" }
   | { type: "all" }
   | { type: "category"; genre: string; sourceId?: number }
+  | { type: "favoriteGroup"; groupId: number }
 
 type TvContextValue = {
   // Channel data

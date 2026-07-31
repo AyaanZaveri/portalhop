@@ -9,8 +9,10 @@ import {
   CheckIcon,
   EyeIcon,
   EyeOffIcon,
+  FolderPlusIcon,
   LayoutGridIcon,
   ListFilterIcon,
+  MoreVerticalIcon,
   PencilIcon,
   SearchIcon,
   ShapesIcon,
@@ -53,6 +55,10 @@ import {
 } from "@/components/ui/drawer"
 import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
+import {
+  FavoriteGroupsDrawer,
+  GroupMembershipDrawer,
+} from "@/components/tv/favorite-groups-drawer"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import {
@@ -104,6 +110,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     setCategorySearch,
     isChannelFavorited,
     toggleFavorite,
+    favorites,
     epgChannels,
     customEpgChannels,
     useImageProxy,
@@ -131,10 +138,15 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   const suppressCategoryClickRef = useRef(false)
   const [contextChannel, setContextChannel] =
     useState<PortalChannelWithSource | null>(null)
+  const [groupMembershipChannel, setGroupMembershipChannel] =
+    useState<PortalChannelWithSource | null>(null)
   const [contextCategory, setContextCategory] = useState<CategoryEntry | null>(
     null,
   )
   const [isManagingCategories, setIsManagingCategories] = useState(false)
+  const [selectedFavoriteGroupKeys, setSelectedFavoriteGroupKeys] = useState<
+    Set<string>
+  >(() => new Set())
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
@@ -313,13 +325,18 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     if (browseFilter.type === "favorites") {
       return visibleCategoryChannels.filter(isChannelFavorited)
     }
+    if (browseFilter.type === "favoriteGroup") {
+      return visibleCategoryChannels.filter((channel) =>
+        selectedFavoriteGroupKeys.has(getChannelKey(channel)),
+      )
+    }
     return visibleCategoryChannels.filter(
       (channel) =>
         (channel.genre || "Uncategorized") === browseFilter.genre &&
         (browseFilter.sourceId == null ||
           (channel.portalSource?.id ?? 0) === browseFilter.sourceId),
     )
-  }, [browseFilter, channels, hiddenCategorySet, isChannelFavorited, selectedPortalIds])
+  }, [browseFilter, channels, hiddenCategorySet, isChannelFavorited, selectedFavoriteGroupKeys, selectedPortalIds])
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
@@ -612,6 +629,24 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               </ScrollArea>
             </DrawerContent>
           </Drawer>
+          <FavoriteGroupsDrawer
+            activeGroupId={
+              browseFilter.type === "favoriteGroup" ? browseFilter.groupId : null
+            }
+            isMobileLayout={isMobileLayout}
+            onDeleteGroup={(groupId) => {
+              if (browseFilter.type !== "favoriteGroup" || browseFilter.groupId !== groupId) {
+                return
+              }
+              setSelectedFavoriteGroupKeys(new Set())
+              chooseFilter({ type: "all" })
+            }}
+            onSelectGroup={(group) => {
+              setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
+              chooseFilter({ type: "favoriteGroup", groupId: group.id })
+            }}
+            userId={userId}
+          />
         </div>
         <Drawer
           open={contextCategory !== null}
@@ -723,7 +758,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 >
                   <div
                     className={cn(
-                      "group-hover:bg-accent/80 pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out group-active:scale-[0.99]",
+                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent/80 pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out group-active:scale-[0.99]",
                       isSelected && "bg-accent shadow-xs",
                     )}
                   >
@@ -811,30 +846,46 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                         ) : null}
                       </div>
                     </div>
-                    <div className="pointer-events-auto relative z-10 flex size-8 shrink-0 items-center justify-center">
-                      <button
-                        type="button"
-                        aria-label={
-                          isFavorited
-                            ? `Remove ${channel.name || "channel"} from favorites`
-                            : `Add ${channel.name || "channel"} to favorites`
-                        }
-                        aria-pressed={isFavorited}
-                        onClick={() => toggleFavorite(channelKey)}
-                        className={cn(
-                          "text-muted-foreground hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-[color,opacity,transform] duration-[160ms] ease-out active:scale-95",
-                          isFavorited
-                            ? "text-amber-500 opacity-100 hover:text-amber-500"
-                            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                        )}
-                      >
-                        <StarIcon
-                          className={cn(
-                            "size-4",
-                            isFavorited && "fill-current",
-                          )}
-                        />
-                      </button>
+                    <div className="pointer-events-auto relative z-10 hidden size-8 shrink-0 items-center justify-center min-[940px]:flex">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+                              aria-label={`Actions for ${channel.name || "channel"}`}
+                            />
+                          }
+                        >
+                          <MoreVerticalIcon />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-64">
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem
+                              className="py-1.5 whitespace-nowrap"
+                              onClick={() => toggleFavorite(channelKey)}
+                            >
+                              <StarIcon
+                                className={cn(
+                                  isFavorited && "fill-current text-amber-500",
+                                )}
+                              />
+                              {isFavorited ? "Remove from favorites" : "Add to favorites"}
+                            </DropdownMenuItem>
+                            {userId ? (
+                              <DropdownMenuItem
+                                className="py-1.5 whitespace-nowrap"
+                                onClick={() => setGroupMembershipChannel(channel)}
+                              >
+                                <FolderPlusIcon />
+                                Add to favorite groups
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </div>
@@ -954,10 +1005,42 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   ? "Remove from favorites"
                   : "Add to favorites"}
               </Button>
+              {userId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  onClick={() => {
+                    setGroupMembershipChannel(contextChannel)
+                    setContextChannel(null)
+                  }}
+                >
+                  <FolderPlusIcon />
+                  Add to favorite groups
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </DrawerContent>
       </Drawer>
+      <GroupMembershipDrawer
+        key={groupMembershipChannel ? getChannelKey(groupMembershipChannel) : "closed"}
+        channel={
+          groupMembershipChannel
+            ? {
+              key: getChannelKey(groupMembershipChannel),
+              name: groupMembershipChannel.name || "Channel",
+            }
+            : null
+        }
+        isMobileLayout={isMobileLayout}
+        onChannelFavorited={(channelKey) => {
+          if (!favorites.has(channelKey)) toggleFavorite(channelKey)
+        }}
+        onOpenChange={(open) => {
+          if (!open) setGroupMembershipChannel(null)
+        }}
+      />
     </div>
   )
 }
