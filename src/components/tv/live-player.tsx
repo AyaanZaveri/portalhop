@@ -588,7 +588,7 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
           <div className="flex items-center gap-2">
             <MediaPlayerVolume expandable />
             <MediaPlayerSettings />
-            <MediaPlayerPiP />
+            <MediaPlayerPiP className="max-[939px]:hidden" />
             <MediaPlayerFullscreen />
           </div>
         </div>

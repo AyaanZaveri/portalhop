@@ -146,6 +146,19 @@ export const favorites = pgTable("favorites", {
   createdAt: timestamp("created_at").notNull(),
 })
 
+export const hiddenCategoryGroups = pgTable(
+  "hidden_category_groups",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sourceId: integer("source_id").notNull(),
+    category: text("category").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.sourceId, table.category] })],
+)
+
 export const savedStalkerSources = pgTable("saved_stalker_sources", {
   sourceId: integer("source_id")
     .primaryKey()

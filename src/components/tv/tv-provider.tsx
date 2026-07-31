@@ -35,7 +35,9 @@ import {
 } from "@/lib/tv-channels"
 
 export type BrowseFilter =
-  { type: "favorites" } | { type: "all" } | { type: "category"; genre: string }
+  | { type: "favorites" }
+  | { type: "all" }
+  | { type: "category"; genre: string; sourceId?: number }
 
 type TvContextValue = {
   // Channel data
@@ -56,6 +58,11 @@ type TvContextValue = {
   useImageProxy: boolean
   iptvOrgEnabled: boolean
   enabledSourceIds: number[]
+  hiddenCategories: { sourceId: number; category: string }[]
+  setCategoryHidden: (
+    category: { sourceId: number; category: string },
+    hidden: boolean,
+  ) => void
   updateSettings: ReturnType<typeof useUserSettings>["updateSettings"]
 
   // Preview (unsaved "View" source)
@@ -107,7 +114,12 @@ export function useTv() {
 export function TvProvider({ children }: { children: ReactNode }) {
   useFavoritesSync()
   const { settings, settingsLoaded, userId, updateSettings } = useUserSettings()
-  const { enabledSourceIds, iptvOrgEnabled, useProxy, useImageProxy } = settings
+  const {
+    enabledSourceIds,
+    iptvOrgEnabled,
+    useProxy,
+    useImageProxy,
+  } = settings
   const { favorites, isFavorite, toggleFavorite, migrateFavoriteKeys } =
     useFavorites()
 
@@ -124,12 +136,55 @@ export function TvProvider({ children }: { children: ReactNode }) {
   >([])
   const [iptvOrgLoading, setIptvOrgLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [hiddenCategories, setHiddenCategories] = useState<
+    { sourceId: number; category: string }[]
+  >([])
   const [epgChannels, setEpgChannels] = useState<
     Record<string, { name: string; logoUrl?: string; countryCode?: string }>
   >({})
   const [customEpgChannels, setCustomEpgChannels] = useState<
     Record<number, Record<string, { logoUrl?: string }>>
   >({})
+
+  useEffect(() => {
+    if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHiddenCategories([])
+      return
+    }
+
+    fetch("/api/hidden-categories", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (Array.isArray(body?.hiddenCategories)) {
+          setHiddenCategories(body.hiddenCategories)
+        }
+      })
+      .catch(() => {})
+  }, [userId])
+
+  const setCategoryHidden = useCallback(
+    (category: { sourceId: number; category: string }, hidden: boolean) => {
+      if (!userId) return
+
+      setHiddenCategories((current) =>
+        hidden
+          ? [...current, category]
+          : current.filter(
+            (entry) =>
+              entry.sourceId !== category.sourceId ||
+              entry.category !== category.category,
+          ),
+      )
+
+      fetch("/api/hidden-categories", {
+        method: hidden ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(category),
+      }).catch(() => {})
+    },
+    [userId],
+  )
 
   // Filters (previously split between Home and ChannelBrowser)
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
@@ -429,6 +484,8 @@ export function TvProvider({ children }: { children: ReactNode }) {
       useImageProxy,
       iptvOrgEnabled,
       enabledSourceIds,
+      hiddenCategories,
+      setCategoryHidden,
       updateSettings,
       endpoint: result?.endpoint ?? "",
       previewSourceRequest,
@@ -466,6 +523,8 @@ export function TvProvider({ children }: { children: ReactNode }) {
       useImageProxy,
       iptvOrgEnabled,
       enabledSourceIds,
+      hiddenCategories,
+      setCategoryHidden,
       updateSettings,
       result,
       previewSourceRequest,

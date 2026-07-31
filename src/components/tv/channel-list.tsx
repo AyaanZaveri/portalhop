@@ -6,9 +6,12 @@ import { useParams, useRouter } from "next/navigation"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useWebHaptics } from "web-haptics/react"
 import {
-  ChevronRightIcon,
+  CheckIcon,
+  EyeIcon,
+  EyeOffIcon,
   LayoutGridIcon,
   ListFilterIcon,
+  PencilIcon,
   SearchIcon,
   ShapesIcon,
   StarIcon,
@@ -43,6 +46,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -59,6 +63,17 @@ import {
   type PortalSource,
 } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
+
+type CategoryEntry = {
+  sourceId: number
+  sourceName: string
+  genre: string
+  count: number
+}
+
+function categoryPreferenceKey(sourceId: number, genre: string) {
+  return `${sourceId}\u0000${genre}`
+}
 
 function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
   return {
@@ -93,6 +108,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     customEpgChannels,
     useImageProxy,
     channelSlug,
+    hiddenCategories,
+    setCategoryHidden,
+    userId,
   } = useTv()
 
   const params = useParams<{ channelId?: string }>()
@@ -107,8 +125,16 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     null,
   )
   const suppressChannelClickRef = useRef(false)
+  const categoryLongPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
+  const suppressCategoryClickRef = useRef(false)
   const [contextChannel, setContextChannel] =
     useState<PortalChannelWithSource | null>(null)
+  const [contextCategory, setContextCategory] = useState<CategoryEntry | null>(
+    null,
+  )
+  const [isManagingCategories, setIsManagingCategories] = useState(false)
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
@@ -128,16 +154,38 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     }, 500)
   }
 
+  const clearCategoryLongPress = () => {
+    if (categoryLongPressTimeoutRef.current) {
+      clearTimeout(categoryLongPressTimeoutRef.current)
+      categoryLongPressTimeoutRef.current = null
+    }
+  }
+
+  const startCategoryLongPress = (category: CategoryEntry) => {
+    if (!isMobileLayout || !userId || isManagingCategories) return
+
+    clearCategoryLongPress()
+    categoryLongPressTimeoutRef.current = setTimeout(() => {
+      suppressCategoryClickRef.current = true
+      setCategoryMenuOpen(false)
+      setContextCategory(category)
+      categoryLongPressTimeoutRef.current = null
+    }, 500)
+  }
+
   useEffect(() => {
     return () => {
       if (longPressTimeoutRef.current) {
         clearTimeout(longPressTimeoutRef.current)
       }
+      if (categoryLongPressTimeoutRef.current) {
+        clearTimeout(categoryLongPressTimeoutRef.current)
+      }
     }
   }, [])
 
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>()
+  const categoryEntries = useMemo(() => {
+    const entries = new Map<string, CategoryEntry>()
     const channelsForCategories = selectedPortalIds.size
       ? allChannels.filter(
         (channel) =>
@@ -148,22 +196,85 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
 
     for (const channel of channelsForCategories) {
       const genre = channel.genre || "Uncategorized"
-      counts.set(genre, (counts.get(genre) ?? 0) + 1)
+      const sourceId = channel.portalSource?.id ?? 0
+      const key = categoryPreferenceKey(sourceId, genre)
+      const current = entries.get(key)
+      entries.set(key, {
+        sourceId,
+        sourceName: channel.portalSource?.name ?? "Manual",
+        genre,
+        count: (current?.count ?? 0) + 1,
+      })
     }
-    return counts
-  }, [allChannels, selectedPortalIds])
-
-  const categories = useMemo(() => {
-    return [...categoryCounts.keys()].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    return [...entries.values()].sort(
+      (a, b) =>
+        a.genre.localeCompare(b.genre, undefined, { sensitivity: "base" }) ||
+        a.sourceName.localeCompare(b.sourceName, undefined, {
+          sensitivity: "base",
+        }),
     )
-  }, [categoryCounts])
+  }, [allChannels, selectedPortalIds])
 
   const filteredCategories = useMemo(() => {
     const q = categorySearch.trim().toLowerCase()
-    if (!q) return categories
-    return categories.filter((genre) => genre.toLowerCase().includes(q))
-  }, [categories, categorySearch])
+    if (!q) return categoryEntries
+    return categoryEntries.filter(
+      (entry) =>
+        entry.genre.toLowerCase().includes(q) ||
+        entry.sourceName.toLowerCase().includes(q),
+    )
+  }, [categoryEntries, categorySearch])
+
+  const hiddenCategorySet = useMemo(
+    () =>
+      new Set(
+        hiddenCategories.map((entry) =>
+          categoryPreferenceKey(entry.sourceId, entry.category),
+        ),
+      ),
+    [hiddenCategories],
+  )
+
+  const visibleCategories = useMemo(
+    () =>
+      filteredCategories.filter(
+        (entry) =>
+          !hiddenCategorySet.has(
+            categoryPreferenceKey(entry.sourceId, entry.genre),
+          ),
+      ),
+    [filteredCategories, hiddenCategorySet],
+  )
+
+  const hiddenCategoriesInList = useMemo(
+    () =>
+      filteredCategories.filter((entry) =>
+        hiddenCategorySet.has(
+          categoryPreferenceKey(entry.sourceId, entry.genre),
+        ),
+      ),
+    [filteredCategories, hiddenCategorySet],
+  )
+
+  const toggleCategoryVisibility = (category: CategoryEntry) => {
+    if (!userId) return
+
+    const categoryKey = categoryPreferenceKey(category.sourceId, category.genre)
+    const isHidden = hiddenCategorySet.has(categoryKey)
+    setCategoryHidden(
+      { sourceId: category.sourceId, category: category.genre },
+      !isHidden,
+    )
+
+    if (
+      !isHidden &&
+      browseFilter.type === "category" &&
+      browseFilter.genre === category.genre &&
+      browseFilter.sourceId === category.sourceId
+    ) {
+      chooseFilter({ type: "all" })
+    }
+  }
 
   const portals = useMemo(() => {
     const uniquePortals = new Map<number, PortalSource>()
@@ -186,16 +297,29 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       )
       : channels
 
+    const visibleCategoryChannels = channelsForSelectedPortals.filter(
+      (channel) =>
+        !hiddenCategorySet.has(
+          categoryPreferenceKey(
+            channel.portalSource?.id ?? 0,
+            channel.genre || "Uncategorized",
+          ),
+        ),
+    )
+
     if (browseFilter.type === "all") {
-      return channelsForSelectedPortals
+      return visibleCategoryChannels
     }
     if (browseFilter.type === "favorites") {
-      return channelsForSelectedPortals.filter(isChannelFavorited)
+      return visibleCategoryChannels.filter(isChannelFavorited)
     }
-    return channelsForSelectedPortals.filter(
-      (channel) => (channel.genre || "Uncategorized") === browseFilter.genre,
+    return visibleCategoryChannels.filter(
+      (channel) =>
+        (channel.genre || "Uncategorized") === browseFilter.genre &&
+        (browseFilter.sourceId == null ||
+          (channel.portalSource?.id ?? 0) === browseFilter.sourceId),
     )
-  }, [browseFilter, channels, isChannelFavorited, selectedPortalIds])
+  }, [browseFilter, channels, hiddenCategorySet, isChannelFavorited, selectedPortalIds])
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
@@ -331,7 +455,30 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             />
             <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
               <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
-                <DrawerTitle className="text-lg">Categories</DrawerTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <DrawerTitle className="text-lg">Categories</DrawerTitle>
+                  {userId ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={
+                        isManagingCategories
+                          ? "Finish managing categories"
+                          : "Manage categories"
+                      }
+                      onClick={() =>
+                        setIsManagingCategories((current) => !current)
+                      }
+                    >
+                      {isManagingCategories ? (
+                        <CheckIcon className="size-4 stroke-[2.25]" />
+                      ) : (
+                        <PencilIcon className="size-4 stroke-[2.25]" />
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
               </DrawerHeader>
               <div className="px-4 pt-4 pb-2">
                 <InputGroup>
@@ -349,37 +496,72 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 className="min-h-0 flex-1"
                 viewportClassName="px-4 pb-2"
               >
-                {filteredCategories.length ? (
-                  filteredCategories.map((genre) => {
+                {visibleCategories.length ? (
+                  visibleCategories.map((category) => {
                     const isActiveGenre =
                       browseFilter.type === "category" &&
-                      browseFilter.genre === genre
+                      browseFilter.genre === category.genre &&
+                      browseFilter.sourceId === category.sourceId
                     return (
-                      <button
-                        key={genre}
-                        type="button"
-                        onClick={() => {
-                          chooseFilter({ type: "category", genre })
-                          setCategoryMenuOpen(false)
-                          setCategorySearch("")
-                        }}
+                      <div
+                        key={categoryPreferenceKey(category.sourceId, category.genre)}
                         className={cn(
-                          "hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
+                          "hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-2 text-left text-sm",
+                          isManagingCategories ? "py-1" : "py-2",
                           isActiveGenre && "bg-accent",
                         )}
                       >
-                        <CategoryVisual
-                          category={genre}
-                          className="text-primary"
-                          iconClassName="dark:brightness-90 brightness-75"
-                        />
-                        <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
-                          {genre}
-                        </span>
-                        <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
-                          {(categoryCounts.get(genre) ?? 0).toLocaleString()}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          onPointerDown={(event) => {
+                            if (event.pointerType === "touch") {
+                              startCategoryLongPress(category)
+                            }
+                          }}
+                          onPointerUp={clearCategoryLongPress}
+                          onPointerCancel={clearCategoryLongPress}
+                          onContextMenu={(event) => event.preventDefault()}
+                          onClick={() => {
+                            if (suppressCategoryClickRef.current) {
+                              suppressCategoryClickRef.current = false
+                              return
+                            }
+                            chooseFilter({
+                              type: "category",
+                              genre: category.genre,
+                              sourceId: category.sourceId,
+                            })
+                            setCategoryMenuOpen(false)
+                            setCategorySearch("")
+                          }}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          <CategoryVisual
+                            category={category.genre}
+                            className="text-primary"
+                            iconClassName="dark:brightness-90 brightness-75"
+                          />
+                          <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                            {category.genre}
+                          </span>
+                        </button>
+                        {isManagingCategories ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="-mr-1 shrink-0"
+                            aria-label={`Hide ${category.genre} from ${category.sourceName}`}
+                            onClick={() => toggleCategoryVisibility(category)}
+                          >
+                            <EyeIcon className="size-4" />
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
+                            {category.count.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                     )
                   })
                 ) : (
@@ -387,10 +569,107 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     No categories match.
                   </p>
                 )}
+                {isManagingCategories && hiddenCategoriesInList.length ? (
+                  <div className="mt-4 border-t pt-3">
+                    <p className="text-muted-foreground px-2 pb-1 text-xs font-medium">
+                      Hidden categories
+                    </p>
+                    {hiddenCategoriesInList.map((category) => (
+                      <div
+                        key={categoryPreferenceKey(category.sourceId, category.genre)}
+                        className="text-muted-foreground flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm"
+                      >
+                        <CategoryVisual category={category.genre} />
+                        <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                          {category.genre}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="-mr-1 shrink-0"
+                          aria-label={`Show ${category.genre} from ${category.sourceName}`}
+                          onClick={() => toggleCategoryVisibility(category)}
+                        >
+                          <EyeOffIcon className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {!isManagingCategories && hiddenCategoriesInList.length ? (
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground mt-3 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm"
+                    onClick={() => setIsManagingCategories(true)}
+                  >
+                    <EyeOffIcon className="size-4" />
+                    <span>
+                      Hidden categories ({hiddenCategoriesInList.length})
+                    </span>
+                  </button>
+                ) : null}
               </ScrollArea>
             </DrawerContent>
           </Drawer>
         </div>
+        <Drawer
+          open={contextCategory !== null}
+          onOpenChange={(open) => {
+            if (!open) setContextCategory(null)
+          }}
+          showSwipeHandle
+        >
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
+            {contextCategory ? (
+              <div className="flex flex-col gap-4 p-4 pt-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <CategoryVisual
+                    category={contextCategory.genre}
+                    className="text-primary size-8"
+                    iconClassName="dark:brightness-90 brightness-75"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <DrawerTitle className="truncate text-left">
+                      {contextCategory.genre}
+                    </DrawerTitle>
+                    <DrawerDescription className="text-left">
+                      {contextCategory.sourceName} · {contextCategory.count.toLocaleString()} channels
+                    </DrawerDescription>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  onClick={() => {
+                    toggleCategoryVisibility(contextCategory)
+                    setContextCategory(null)
+                  }}
+                >
+                  {hiddenCategorySet.has(
+                    categoryPreferenceKey(
+                      contextCategory.sourceId,
+                      contextCategory.genre,
+                    ),
+                  ) ? (
+                    <EyeOffIcon />
+                  ) : (
+                    <EyeIcon />
+                  )}
+                  {hiddenCategorySet.has(
+                    categoryPreferenceKey(
+                      contextCategory.sourceId,
+                      contextCategory.genre,
+                    ),
+                  )
+                    ? "Show category"
+                    : "Hide category"}
+                </Button>
+              </div>
+            ) : null}
+          </DrawerContent>
+        </Drawer>
       </div>
       {browseFilter.type === "category" ? (
         <div className="ml-0.5 flex items-center gap-2 px-4 pb-1 pt-2">
