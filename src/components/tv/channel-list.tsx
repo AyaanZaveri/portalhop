@@ -1024,7 +1024,6 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         </DrawerContent>
       </Drawer>
       <GroupMembershipDrawer
-        key={groupMembershipChannel ? getChannelKey(groupMembershipChannel) : "closed"}
         channel={
           groupMembershipChannel
             ? {

@@ -63,6 +63,33 @@ type FavoriteGroup = {
   channelKeys: string[]
 }
 
+let cachedFavoriteGroups: FavoriteGroup[] | null = null
+let favoriteGroupsRequest: Promise<FavoriteGroup[]> | null = null
+
+function cacheFavoriteGroups(groups: FavoriteGroup[] | null) {
+  cachedFavoriteGroups = groups
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("favorite-groups-updated"))
+  }
+}
+
+async function loadFavoriteGroups() {
+  if (cachedFavoriteGroups) return cachedFavoriteGroups
+  if (!favoriteGroupsRequest) {
+    favoriteGroupsRequest = fetch("/api/favorite-groups", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load favorite groups.")
+        const body = (await response.json()) as { groups?: FavoriteGroup[] }
+        cacheFavoriteGroups(Array.isArray(body.groups) ? body.groups : [])
+        return cachedFavoriteGroups ?? []
+      })
+      .finally(() => {
+        favoriteGroupsRequest = null
+      })
+  }
+  return favoriteGroupsRequest
+}
+
 type GroupIcon = {
   id: string
   label: string
@@ -159,13 +186,9 @@ export function FavoriteGroupsDrawer({
 
     let cancelled = false
 
-    fetch("/api/favorite-groups", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load favorite groups.")
-        return response.json() as Promise<{ groups?: FavoriteGroup[] }>
-      })
-      .then((body) => {
-        if (!cancelled) setGroups(Array.isArray(body.groups) ? body.groups : [])
+    loadFavoriteGroups()
+      .then((loadedGroups) => {
+        if (!cancelled) setGroups(loadedGroups)
       })
       .catch(() => {
         if (!cancelled) toast.error("Could not load favorite groups.")
@@ -178,6 +201,14 @@ export function FavoriteGroupsDrawer({
       cancelled = true
     }
   }, [userId])
+
+  useEffect(() => {
+    const syncCachedGroups = () => {
+      if (cachedFavoriteGroups) setGroups(cachedFavoriteGroups)
+    }
+    window.addEventListener("favorite-groups-updated", syncCachedGroups)
+    return () => window.removeEventListener("favorite-groups-updated", syncCachedGroups)
+  }, [])
 
   const isLoading = loadedUserId !== userId
 
@@ -212,6 +243,7 @@ export function FavoriteGroupsDrawer({
       }
 
       setGroups((current) => [...current, body.group as FavoriteGroup])
+      cacheFavoriteGroups([...(cachedFavoriteGroups ?? []), body.group])
       setCreateOpen(false)
       setName("")
       setIcon("star")
@@ -238,6 +270,9 @@ export function FavoriteGroupsDrawer({
 
       const deletedGroupId = groupPendingDelete.id
       setGroups((current) => current.filter((group) => group.id !== deletedGroupId))
+      cacheFavoriteGroups(
+        (cachedFavoriteGroups ?? []).filter((group) => group.id !== deletedGroupId),
+      )
       onDeleteGroup(deletedGroupId)
       setDeleteDialogOpen(false)
       setGroupPendingDelete(null)
@@ -511,19 +546,15 @@ export function GroupMembershipDrawer({
   onChannelFavorited: (channelKey: string) => void
   onOpenChange: (open: boolean) => void
 }) {
-  const [groups, setGroups] = useState<FavoriteGroup[] | null>(null)
+  const [groups, setGroups] = useState<FavoriteGroup[] | null>(cachedFavoriteGroups)
 
   useEffect(() => {
     if (!channel) return
 
     let cancelled = false
-    fetch("/api/favorite-groups", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load favorite groups.")
-        return response.json() as Promise<{ groups?: FavoriteGroup[] }>
-      })
-      .then((body) => {
-        if (!cancelled) setGroups(Array.isArray(body.groups) ? body.groups : [])
+    loadFavoriteGroups()
+      .then((loadedGroups) => {
+        if (!cancelled) setGroups(loadedGroups)
       })
       .catch(() => {
         if (!cancelled) toast.error("Could not load favorite groups.")
@@ -534,31 +565,33 @@ export function GroupMembershipDrawer({
     }
   }, [channel])
 
-  const toggleGroup = async (group: FavoriteGroup) => {
+  const addToGroup = async (group: FavoriteGroup) => {
     if (!channel) return
-    const included = group.channelKeys.includes(channel.key)
     const nextGroups = (groups ?? []).map((entry) =>
       entry.id !== group.id
         ? entry
         : {
             ...entry,
-            channelKeys: included
-              ? entry.channelKeys.filter((key) => key !== channel.key)
+            channelKeys: entry.channelKeys.includes(channel.key)
+              ? entry.channelKeys
               : [...entry.channelKeys, channel.key],
           },
     )
     setGroups(nextGroups)
+    cacheFavoriteGroups(nextGroups)
+    onOpenChange(false)
 
     try {
       const response = await fetch(`/api/favorite-groups/${group.id}/channels`, {
-        method: included ? "DELETE" : "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelKey: channel.key }),
       })
       if (!response.ok) throw new Error("Could not update favorite group.")
-      if (!included) onChannelFavorited(channel.key)
+      onChannelFavorited(channel.key)
     } catch (error) {
       setGroups(groups)
+      cacheFavoriteGroups(groups)
       toast.error(
         error instanceof Error ? error.message : "Could not update favorite group.",
       )
@@ -592,22 +625,19 @@ export function GroupMembershipDrawer({
             <div className="flex flex-col gap-1">
               {groups.map((group) => {
                 const Icon = groupIcon(group.icon)
-                const included = channel ? group.channelKeys.includes(channel.key) : false
                 return (
                   <button
                     key={group.id}
                     type="button"
-                    onClick={() => toggleGroup(group)}
+                    onClick={() => addToGroup(group)}
                     className={cn(
                       "hover:bg-accent hover:text-accent-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm",
-                      included && "bg-accent",
                     )}
                   >
                     <Icon className="text-primary size-4 shrink-0 brightness-85 dark:brightness-100" />
                     <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                       {group.name}
                     </span>
-                    {included ? <CheckIcon className="size-4 shrink-0" /> : null}
                   </button>
                 )
               })}
