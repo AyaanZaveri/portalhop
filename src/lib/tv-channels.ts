@@ -139,22 +139,34 @@ export async function resolveChannelLink(
     signal?: AbortSignal
   },
 ): Promise<string> {
+  const sourceId = channel.portalSource?.id
+  const savedChannelId = channel.savedChannelId
   const sourceRequest = channel.portalSource?.request ?? opts.portalRequest
   const sourceEndpoint = channel.portalSource?.endpoint ?? opts.endpoint
+
+  // Persisted channels resolve on the server, where both the source
+  // credentials and its stream command remain private. The browser only ever
+  // receives the compact catalogue fields until playback is requested.
+  const savedChannelRequest =
+    typeof sourceId === "number" && sourceId > 0 && typeof savedChannelId === "number"
+      ? { sourceId, savedChannelId }
+      : null
 
   const response = await fetch("/api/channel-link", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
     signal: opts.signal,
-    body: JSON.stringify({
-      ...sourceRequest,
-      endpoint: sourceEndpoint,
-      cmd: channel.cmd,
-      channelId: channel.id,
-      channelNumber: channel.number,
-      channelName: channel.name,
-    }),
+    body: JSON.stringify(
+      savedChannelRequest ?? {
+        ...sourceRequest,
+        endpoint: sourceEndpoint,
+        cmd: channel.cmd,
+        channelId: channel.id,
+        channelNumber: channel.number,
+        channelName: channel.name,
+      },
+    ),
   })
   const data = await response.json().catch(() => ({}))
 

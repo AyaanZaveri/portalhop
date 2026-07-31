@@ -58,6 +58,35 @@ export async function getUserEpgChannelMaps(userId: string, sourceIds: number[])
   return result
 }
 
+/** Logo mappings for a portal's actual channel ids, rather than its whole EPG. */
+export async function getUserEpgChannelLogos(
+  userId: string,
+  epgSourceId: number,
+  channelIds: string[],
+) {
+  const ids = [...new Set(channelIds.map(normalizeXmltvId).filter(Boolean))]
+  const result: Record<string, { logoUrl?: string }> = {}
+
+  for (let index = 0; index < ids.length; index += 2_000) {
+    const rows = await getDb()
+      .select({
+        channelIdLower: userEpgChannels.channelIdLower,
+        logoUrl: userEpgChannels.logoUrl,
+      })
+      .from(userEpgChannels)
+      .innerJoin(userEpgSources, eq(userEpgChannels.epgSourceId, userEpgSources.id))
+      .where(and(
+        eq(userEpgSources.userId, userId),
+        eq(userEpgChannels.epgSourceId, epgSourceId),
+        inArray(userEpgChannels.channelIdLower, ids.slice(index, index + 2_000)),
+      ))
+
+    for (const row of rows) result[row.channelIdLower] = { logoUrl: row.logoUrl ?? undefined }
+  }
+
+  return result
+}
+
 export function normalizeChannelName(value: string) {
   return value.toLowerCase().replace(/\b(hd|fhd|uhd|4k|sd|cc)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim()
 }

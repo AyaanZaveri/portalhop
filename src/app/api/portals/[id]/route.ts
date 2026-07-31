@@ -13,6 +13,7 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
+import { getEpgChannelLogos } from "@/lib/epg-store"
 import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 import {
   nullableString,
@@ -22,6 +23,8 @@ import {
   stringValue,
 } from "@/lib/portal-form-utils"
 import { requireUser } from "@/lib/session"
+import { getUserEpgChannelLogos } from "@/lib/user-epg-store"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
 
 export const runtime = "nodejs"
 
@@ -49,9 +52,28 @@ export async function GET(
   }
 
   const channels = await db
-    .select()
+    .select({
+      id: savedChannels.id,
+      channelId: savedChannels.channelId,
+      xmltvId: savedChannels.xmltvId,
+      number: savedChannels.number,
+      name: savedChannels.name,
+      genreId: savedChannels.genreId,
+      genre: savedChannels.genre,
+      logo: savedChannels.logo,
+      logoUrl: savedChannels.logoUrl,
+    })
     .from(savedChannels)
     .where(eq(savedChannels.sourceId, sourceId))
+
+  const channelIds = channels.map((channel) => channel.xmltvId)
+  const epgLogos = portal.epgMode === "iptv-org"
+    ? await getEpgChannelLogos(channelIds)
+    : {}
+  const customEpgLogos =
+    portal.epgMode === "custom" && portal.epgSourceId
+      ? await getUserEpgChannelLogos(user.id, portal.epgSourceId, channelIds)
+      : {}
 
   return NextResponse.json({
     portal,
@@ -63,9 +85,15 @@ export async function GET(
       name: channel.name,
       genreId: channel.genreId,
       genre: channel.genre,
-      cmd: channel.cmd,
+      // Stream commands can be very large and are only needed after the user
+      // chooses a channel. They stay in Postgres until /api/channel-link
+      // resolves this specific saved-channel id.
+      cmd: "",
       logo: channel.logo,
-      logoUrl: channel.logoUrl,
+      logoUrl:
+        epgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
+        customEpgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
+        channel.logoUrl,
     })),
   })
 }

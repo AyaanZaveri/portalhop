@@ -399,12 +399,29 @@ export function TvProvider({ children }: { children: ReactNode }) {
   // to multiple current keys (duplicate guide metadata), so values are arrays.
   useEffect(() => {
     const mappings = new Map<string, string[]>()
+    const savedChannelKeys = new Map<number, string>()
     for (const channel of browserChannels) {
+      if (typeof channel.savedChannelId === "number") {
+        savedChannelKeys.set(channel.savedChannelId, getChannelKey(channel))
+      }
       const legacyKey = getLegacyChannelKey(channel)
       if (!favorites.has(legacyKey)) continue
       const current = mappings.get(legacyKey) ?? []
       current.push(getChannelKey(channel))
       mappings.set(legacyKey, current)
+    }
+
+    // Older saved-channel keys included the full stream command. Catalogues
+    // now deliberately omit that command, so replace those keys with the
+    // stable database row id without making existing favorites disappear.
+    for (const key of favorites) {
+      try {
+        const parsed = JSON.parse(key)
+        const savedChannelId = Array.isArray(parsed) ? parsed[1] : null
+        if (typeof savedChannelId !== "number") continue
+        const current = savedChannelKeys.get(savedChannelId)
+        if (current && current !== key) mappings.set(key, [current])
+      } catch {}
     }
     if (mappings.size) migrateFavoriteKeys(mappings)
   }, [browserChannels, favorites, migrateFavoriteKeys])

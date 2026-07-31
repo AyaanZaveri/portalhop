@@ -6,8 +6,9 @@ import type { PortalChannel } from "@/lib/stalker-types"
 // source's own `updatedAt` (set whenever it's re-synced/edited), not a TTL.
 
 const DB_NAME = "portalhop"
-// Version 3 adds a separate, persistent cache for the public IPTV-org catalogue.
-const DB_VERSION = 3
+// Version 4 refreshes saved catalogues whose provider logos are now replaced
+// with their configured EPG logos before being cached.
+const DB_VERSION = 4
 const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 
@@ -29,9 +30,8 @@ function openDb(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
-      }
+      if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME)
+      db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
       if (!db.objectStoreNames.contains(IPTV_ORG_STORE_NAME)) {
         db.createObjectStore(IPTV_ORG_STORE_NAME, { keyPath: "id" })
       }

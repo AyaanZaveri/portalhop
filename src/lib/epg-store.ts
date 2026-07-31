@@ -117,6 +117,33 @@ export async function getEpgChannels(): Promise<
   return merged;
 }
 
+/** Returns logo metadata only for channel ids the UI is actually displaying. */
+export async function getEpgChannelLogos(channelIds: string[]) {
+  const ids = [...new Set(channelIds.map(normalizeXmltvId).filter(Boolean))]
+  const result: Record<string, { logoUrl?: string; countryCode: string }> = {}
+
+  // Keep SQL bind counts comfortable for large portals.
+  for (let index = 0; index < ids.length; index += 2_000) {
+    const rows = await getDb()
+      .select({
+        channelIdLower: epgChannels.channelIdLower,
+        logoUrl: epgChannels.logoUrl,
+        countryCode: epgChannels.countryCode,
+      })
+      .from(epgChannels)
+      .where(inArray(epgChannels.channelIdLower, ids.slice(index, index + 2_000)))
+
+    for (const row of rows) {
+      result[row.channelIdLower] = {
+        logoUrl: row.logoUrl ?? undefined,
+        countryCode: row.countryCode,
+      }
+    }
+  }
+
+  return result
+}
+
 export async function findEpgSourceForChannel(
   candidates: { id?: string; name?: string }[]
 ) {
