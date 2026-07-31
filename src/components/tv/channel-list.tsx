@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { useWebHaptics } from "web-haptics/react"
 import {
   ChevronRightIcon,
   LayoutGridIcon,
@@ -95,8 +96,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   } = useTv()
 
   const params = useParams<{ channelId?: string }>()
+  const router = useRouter()
   const activeSlug = params?.channelId
   const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
+  const { trigger: triggerHaptic } = useWebHaptics()
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
@@ -414,6 +417,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               const slug = channelSlug(channel)
               const isSelected = activeSlug === slug
               const isFavorited = isChannelFavorited(channel)
+              const channelLabel = `Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`
               const logoUrl = getChannelLogoUrl(
                 channel,
                 channel.portalSource,
@@ -442,24 +446,33 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     )}
                   >
                     {canResolve ? (
-                      <Link
-                        href={`/tv/${slug}`}
-                        aria-label={`Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`}
-                        onPointerDown={(event) => {
-                          if (event.pointerType === "touch") {
-                            startLongPress(channel)
-                          }
-                        }}
-                        onPointerUp={clearLongPress}
-                        onPointerCancel={clearLongPress}
-                        onClick={(event) => {
-                          if (suppressChannelClickRef.current) {
-                            event.preventDefault()
-                            suppressChannelClickRef.current = false
-                          }
-                        }}
-                        className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset"
-                      />
+                      <>
+                        <button
+                          type="button"
+                          aria-label={channelLabel}
+                          onPointerDown={(event) => {
+                            if (event.pointerType === "touch") {
+                              startLongPress(channel)
+                            }
+                          }}
+                          onPointerUp={clearLongPress}
+                          onPointerCancel={clearLongPress}
+                          onContextMenu={(event) => event.preventDefault()}
+                          onClick={() => {
+                            if (suppressChannelClickRef.current) {
+                              suppressChannelClickRef.current = false
+                              return
+                            }
+                            router.push(`/tv/${slug}`)
+                          }}
+                          className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl border-0 bg-transparent p-0 focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset min-[940px]:hidden"
+                        />
+                        <Link
+                          href={`/tv/${slug}`}
+                          aria-label={channelLabel}
+                          className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 hidden rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset min-[940px]:block"
+                        />
+                      </>
                     ) : null}
                     <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
                       <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
@@ -641,7 +654,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => {
+                  const isFavorited = isChannelFavorited(contextChannel)
                   toggleFavorite(getChannelKey(contextChannel))
+                  if (!isFavorited) {
+                    void triggerHaptic("success")
+                  }
                   setContextChannel(null)
                 }}
               >
