@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
+import { PwaClient } from "@/components/pwa-client";
 
 function ThemeProvider({
   children,
@@ -17,6 +18,7 @@ function ThemeProvider({
     >
       <ThemeHotkey />
       <ThemeColor />
+      <PwaClient />
       {children}
     </NextThemesProvider>
   );
