@@ -487,7 +487,6 @@ export function FavoriteGroupsDrawer({
                     }}
                     placeholder="e.g. Weekend sports"
                     maxLength={60}
-                    autoFocus
                     required
                   />
                 </Field>
