@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { SearchIcon, TvIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -66,11 +67,22 @@ export function NoPortalsSelected({
   )
 }
 
-function ChannelListSkeleton() {
+function ChannelListSkeleton({
+  headerControls,
+}: {
+  headerControls?: ReactNode
+}) {
   return (
-    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl min-[940px]:min-w-80">
-      <div className="flex flex-col gap-3 p-4 pb-2">
-        <PortalHopWordmark className="mb-1" />
+    <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden min-[940px]:min-w-80 min-[940px]:rounded-2xl min-[940px]:bg-card">
+      <div className="flex flex-col gap-3 p-5 pb-2 min-[940px]:p-4 min-[940px]:pb-2">
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <PortalHopWordmark />
+          {headerControls ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {headerControls}
+            </div>
+          ) : null}
+        </div>
         <InputGroup>
           <InputGroupInput placeholder="Search channels" />
           <InputGroupAddon align="inline-start">
@@ -78,13 +90,13 @@ function ChannelListSkeleton() {
           </InputGroupAddon>
         </InputGroup>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
+      <div className="min-h-0 flex-1 overflow-hidden px-3 pt-[3px] pb-2">
         {Array.from({ length: 14 }).map((_, index) => (
           <div
             key={index}
-            className="mb-2 flex h-14 items-center gap-3 rounded-xl px-3"
+            className="mb-1.5 flex h-[78px] items-center gap-3 rounded-xl pr-1 pl-2"
           >
-            <Skeleton className="size-10 shrink-0 rounded-lg" />
+            <Skeleton className="size-11 shrink-0 rounded-lg" />
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-3 w-2/5" />
@@ -98,7 +110,7 @@ function ChannelListSkeleton() {
 
 function PlayerSkeleton() {
   return (
-    <div className="bg-background relative flex h-full flex-col overflow-hidden rounded-2xl">
+    <div className="bg-background relative flex h-full flex-col overflow-hidden min-[940px]:rounded-2xl">
       <PrimaryMeshGradientBackdrop />
       <div className="relative z-10 flex min-h-16 items-center justify-between gap-3 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
         <div className="flex min-w-0 items-center gap-3">
@@ -115,30 +127,48 @@ function PlayerSkeleton() {
   )
 }
 
-export function LoadingShell() {
+export function LoadingShell({
+  headerControls,
+}: {
+  headerControls?: ReactNode
+}) {
   const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
   const isReady = useHydratedLayout()
 
   // Mobile lands on the channel list, so its loading state is just the list.
   if (isReady && isMobileLayout) {
     return (
-      <div className="bg-muted/30 h-full overflow-hidden p-3">
-        <ChannelListSkeleton />
+      <div className="bg-background h-full overflow-hidden min-[940px]:bg-muted/30 min-[940px]:p-3">
+        <ChannelListSkeleton headerControls={headerControls} />
       </div>
     )
   }
 
   return (
-    <div className="bg-muted/30 flex h-full w-full gap-1.5 overflow-hidden p-3">
-      <ResizablePanelGroup orientation="horizontal" className="h-full gap-1.5">
-        <ResizablePanel defaultSize="360px" minSize="320px" maxSize="520px">
-          <ChannelListSkeleton />
-        </ResizablePanel>
-        <ResizableHandle className="bg-transparent focus-visible:ring-0" />
-        <ResizablePanel minSize="560px">
-          <PlayerSkeleton />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+    <>
+      <div className="bg-background h-full overflow-hidden min-[940px]:hidden">
+        <ChannelListSkeleton headerControls={headerControls} />
+      </div>
+      <div className="bg-muted/30 hidden h-full w-full gap-1.5 overflow-hidden p-3 min-[940px]:flex">
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="h-full gap-1.5"
+          resizeTargetMinimumSize={{ coarse: 44, fine: 12 }}
+        >
+          <ResizablePanel
+            key="channels"
+            defaultSize="360px"
+            minSize="320px"
+            maxSize="520px"
+          >
+            <ChannelListSkeleton />
+          </ResizablePanel>
+          <ResizableHandle className="bg-transparent focus-visible:ring-0" />
+          <ResizablePanel key="player" minSize="560px">
+            <PlayerSkeleton />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </>
   )
 }

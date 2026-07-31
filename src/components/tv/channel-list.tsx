@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -54,6 +54,7 @@ import {
   canResolveChannel,
   getChannelKey,
   getChannelLogoUrl,
+  type PortalChannelWithSource,
   type PortalSource,
 } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
@@ -70,7 +71,7 @@ function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
   }
 }
 
-export function ChannelList() {
+export function ChannelList({ headerControls }: { headerControls?: ReactNode }) {
   const {
     browserChannels: allChannels,
     filteredChannels: channels,
@@ -99,15 +100,47 @@ export function ChannelList() {
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
+  const suppressChannelClickRef = useRef(false)
+  const [contextChannel, setContextChannel] =
+    useState<PortalChannelWithSource | null>(null)
+
+  const clearLongPress = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current)
+      longPressTimeoutRef.current = null
+    }
+  }
+
+  const startLongPress = (channel: PortalChannelWithSource) => {
+    if (!isMobileLayout) return
+
+    clearLongPress()
+    longPressTimeoutRef.current = setTimeout(() => {
+      suppressChannelClickRef.current = true
+      setContextChannel(channel)
+      longPressTimeoutRef.current = null
+    }, 500)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
     const channelsForCategories = selectedPortalIds.size
       ? allChannels.filter(
-          (channel) =>
-            channel.portalSource &&
-            selectedPortalIds.has(channel.portalSource.id),
-        )
+        (channel) =>
+          channel.portalSource &&
+          selectedPortalIds.has(channel.portalSource.id),
+      )
       : allChannels
 
     for (const channel of channelsForCategories) {
@@ -144,10 +177,10 @@ export function ChannelList() {
   const visibleChannels = useMemo(() => {
     const channelsForSelectedPortals = selectedPortalIds.size
       ? channels.filter(
-          (channel) =>
-            channel.portalSource &&
-            selectedPortalIds.has(channel.portalSource.id),
-        )
+        (channel) =>
+          channel.portalSource &&
+          selectedPortalIds.has(channel.portalSource.id),
+      )
       : channels
 
     if (browseFilter.type === "all") {
@@ -178,11 +211,27 @@ export function ChannelList() {
 
   const isPortalFiltered =
     selectedPortalIds.size > 0 && selectedPortalIds.size < portals.length
+  const contextLogoUrl = contextChannel
+    ? getChannelLogoUrl(
+      contextChannel,
+      contextChannel.portalSource,
+      epgChannels,
+      customEpgChannels,
+      useImageProxy,
+    )
+    : ""
 
   return (
-    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl min-[940px]:min-w-80">
-      <div className="flex flex-col gap-3 p-4 pb-2">
-        <PortalHopWordmark className="mb-1" />
+    <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden min-[940px]:min-w-80 min-[940px]:rounded-2xl min-[940px]:bg-card">
+      <div className="flex flex-col gap-3 p-5 pb-2 min-[940px]:p-4 min-[940px]:pb-2">
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <PortalHopWordmark />
+          {headerControls ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {headerControls}
+            </div>
+          ) : null}
+        </div>
         <InputGroup>
           <InputGroupInput
             placeholder={`Search ${visibleChannels.length.toLocaleString()} channels`}
@@ -274,7 +323,6 @@ export function ChannelList() {
                 >
                   <ShapesIcon className="size-3.5" />
                   <span className="min-w-0 truncate">Categories</span>
-                  <ChevronRightIcon className="-mr-0.5 size-4 shrink-0 opacity-70" />
                 </Button>
               }
             />
@@ -318,7 +366,7 @@ export function ChannelList() {
                           isActiveGenre && "bg-accent",
                         )}
                       >
-                        <CategoryVisual category={genre} />
+                        <CategoryVisual category={genre} className="text-primary dark:brightness-90 brightness-75" />
                         <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                           {genre}
                         </span>
@@ -339,7 +387,7 @@ export function ChannelList() {
         </div>
       </div>
       {browseFilter.type === "category" ? (
-        <div className="ml-0.5 flex items-center gap-2 px-4 py-1.5">
+        <div className="ml-0.5 flex items-center gap-2 px-4 pb-1 pt-2">
           <CategoryVisual
             category={browseFilter.genre}
             className="text-muted-foreground size-4 shrink-0"
@@ -397,6 +445,19 @@ export function ChannelList() {
                       <Link
                         href={`/tv/${slug}`}
                         aria-label={`Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`}
+                        onPointerDown={(event) => {
+                          if (event.pointerType === "touch") {
+                            startLongPress(channel)
+                          }
+                        }}
+                        onPointerUp={clearLongPress}
+                        onPointerCancel={clearLongPress}
+                        onClick={(event) => {
+                          if (suppressChannelClickRef.current) {
+                            event.preventDefault()
+                            suppressChannelClickRef.current = false
+                          }
+                        }}
                         className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset"
                       />
                     ) : null}
@@ -509,6 +570,95 @@ export function ChannelList() {
           </Empty>
         )}
       </ScrollArea>
+      <Drawer
+        open={Boolean(contextChannel)}
+        onOpenChange={(open) => {
+          if (!open) setContextChannel(null)
+        }}
+        showSwipeHandle
+      >
+        <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl border after:hidden">
+          <DrawerHeader>
+            <DrawerTitle className="sr-only">Channel options</DrawerTitle>
+          </DrawerHeader>
+          {contextChannel ? (
+            <div className="flex flex-col gap-4 p-4 pt-0">
+              <div className="flex min-w-0 items-center gap-3 text-left">
+                <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
+                  {contextLogoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                    <img
+                      src={contextLogoUrl}
+                      alt=""
+                      className="size-full rounded-[6px] object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <TvIcon className="text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="truncate font-medium">
+                    {contextChannel.name || "Channel"}
+                  </span>
+                  <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                    <CategoryVisual
+                      category={contextChannel.genre || "Uncategorized"}
+                      className="size-3 shrink-0"
+                    />
+                    <span className="truncate">
+                      {contextChannel.genre || "Uncategorized"}
+                    </span>
+                  </span>
+                  {contextChannel.portalSource || contextChannel.xmltvId ? (
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {contextChannel.portalSource ? (
+                        <Badge
+                          variant="outline"
+                          className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                        >
+                          <span className="truncate">
+                            {contextChannel.portalSource.name}
+                          </span>
+                        </Badge>
+                      ) : null}
+                      {contextChannel.xmltvId ? (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                        >
+                          <span className="truncate">
+                            {contextChannel.xmltvId}
+                          </span>
+                        </Badge>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => {
+                  toggleFavorite(getChannelKey(contextChannel))
+                  setContextChannel(null)
+                }}
+              >
+                <StarIcon
+                  className={cn(
+                    "size-4",
+                    isChannelFavorited(contextChannel) && "fill-current",
+                  )}
+                />
+                {isChannelFavorited(contextChannel)
+                  ? "Remove from favorites"
+                  : "Add to favorites"}
+              </Button>
+            </div>
+          ) : null}
+        </DrawerContent>
+      </Drawer>
     </div>
   )
 }

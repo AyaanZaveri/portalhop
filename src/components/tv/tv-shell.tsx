@@ -82,7 +82,11 @@ export function TvShell({ children }: { children: ReactNode }) {
 
   let content: ReactNode
   if (isLoading) {
-    content = <LoadingShell />
+    content = (
+      <LoadingShell
+        headerControls={segment ? undefined : utilityControls}
+      />
+    )
   } else if (!hasChannels) {
     content = (
       <NoPortalsSelected
@@ -96,8 +100,8 @@ export function TvShell({ children }: { children: ReactNode }) {
     )
   } else if (isReady && isMobileLayout) {
     content = (
-      <div className="bg-muted/30 h-full overflow-hidden p-3">
-        {segment ? children : <ChannelList />}
+      <div className="bg-background h-full overflow-hidden min-[940px]:bg-muted/30 min-[940px]:p-3">
+        {segment ? children : <ChannelList headerControls={utilityControls} />}
       </div>
     )
   } else if (isReady) {
@@ -124,16 +128,21 @@ export function TvShell({ children }: { children: ReactNode }) {
       </div>
     )
   } else {
-    // Pre-hydration: a plain split (no resizable) to avoid layout thrash.
+    // Before hydration, let CSS choose the viewport-specific shell so mobile
+    // never briefly renders the desktop split. The hydrated version swaps in
+    // the resizable desktop layout without changing the visible structure.
     content = (
-      <div className="bg-muted/30 flex h-full w-full flex-col gap-1.5 overflow-hidden p-3 min-[940px]:flex-row">
-        <div className="min-h-0 min-[940px]:w-[360px] min-[940px]:max-w-[520px] min-[940px]:min-w-80 min-[940px]:shrink-0">
-          <ChannelList />
+      <>
+        <div className="bg-background h-full overflow-hidden min-[940px]:hidden">
+          {segment ? children : <ChannelList headerControls={utilityControls} />}
         </div>
-        <div className="order-first min-h-0 flex-1 min-[940px]:order-none">
-          {children}
+        <div className="bg-muted/30 hidden h-full w-full gap-1.5 overflow-hidden p-3 min-[940px]:flex">
+          <div className="min-h-0 w-[360px] max-w-[520px] min-w-80 shrink-0">
+            <ChannelList />
+          </div>
+          <div className="min-h-0 flex-1">{children}</div>
         </div>
-      </div>
+      </>
     )
   }
 
@@ -147,14 +156,16 @@ export function TvShell({ children }: { children: ReactNode }) {
           onView={onSheetView}
         />
 
-        <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+        <div className="absolute top-3.5 right-4 z-20 flex items-center gap-2 min-[940px]:top-6 min-[940px]:right-6">
           {currentChannel ? (
             <StreamActionsMenu
               channel={currentChannel}
               isMobileLayout={isMobileLayout}
             />
           ) : null}
-          <div className="flex items-center gap-1">{utilityControls}</div>
+          <div className={segment ? "flex items-center gap-1" : "hidden min-[940px]:flex min-[940px]:items-center min-[940px]:gap-1"}>
+            {utilityControls}
+          </div>
         </div>
 
         {content}

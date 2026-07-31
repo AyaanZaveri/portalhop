@@ -41,7 +41,7 @@ export default function ChannelPage() {
 
   if (!channel) {
     return (
-      <div className="bg-background flex h-full items-center justify-center rounded-2xl">
+      <div className="bg-background flex h-full items-center justify-center min-[940px]:rounded-2xl">
         <Spinner />
       </div>
     )
@@ -56,7 +56,7 @@ export default function ChannelPage() {
   )
 
   return (
-    <div className="bg-background relative flex h-full flex-col overflow-hidden rounded-2xl">
+    <div className="bg-background relative flex h-full flex-col overflow-hidden min-[940px]:rounded-2xl">
       <div className="relative z-10 flex min-h-16 items-center gap-2 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
         <Link
           href="/tv"
