@@ -19,6 +19,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark";
+import { AuthDialog } from "@/components/auth-dialog";
 import { Dock, DockIcon } from "@/components/ui/dock";
 import { cn } from "@/lib/utils";
 
@@ -99,17 +100,22 @@ export default function SettingsLayout({
       </Sidebar>
 
       <SidebarInset className="overflow-y-auto">
-        {/* Logo at the top on mobile (the sidebar is hidden there). */}
-        <div className="flex justify-center px-5 pt-8 pb-2 md:hidden">
-          <Link
-            href="/"
-            aria-label="Back to Portal Hop"
-            className="inline-flex transition-[opacity,transform] duration-[160ms] ease-out hover:opacity-80 active:scale-[0.985]"
-          >
-            <PortalHopWordmark className="scale-125" />
-          </Link>
+        {/* Match the TV home header while the settings navigation lives in the dock. */}
+        <div className="flex flex-col gap-3 p-5 pb-2 md:hidden">
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <Link
+              href="/tv"
+              aria-label="Go to TV home"
+              className="rounded-md transition-[opacity,transform] duration-[160ms] ease-out hover:opacity-80 active:scale-[0.985]"
+            >
+              <PortalHopWordmark />
+            </Link>
+            <div className="-mr-1">
+              <AuthDialog hideSettings showAvatarControls />
+            </div>
+          </div>
         </div>
-        <div className="min-w-0 max-w-3xl flex-1 p-5 pb-28 sm:p-6 md:pb-8 lg:p-8">
+        <div className="min-w-0 max-w-3xl flex-1 px-5 pt-3 pb-28 sm:p-6 md:pb-8 lg:p-8">
           {children}
         </div>
       </SidebarInset>

@@ -256,10 +256,14 @@ function AccountMenu({
   user,
   onSignedOut,
   onProfileUpdated,
+  hideSettings,
+  showAvatarControls,
 }: {
   user: SessionUser
   onSignedOut: () => Promise<void>
   onProfileUpdated: () => Promise<void>
+  hideSettings: boolean
+  showAvatarControls: boolean
 }) {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isShuffling, setIsShuffling] = React.useState(false)
@@ -332,26 +336,30 @@ function AccountMenu({
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem
-            closeOnClick={false}
-            disabled={isShuffling}
-            onClick={shuffleAvatar}
-            className="py-1.5"
-          >
-            {isShuffling ? (
-              <Loader2Icon className="animate-spin" />
-            ) : (
-              <DicesIcon />
-            )}
-            <span>Shuffle avatar</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            render={<Link href="/settings" />}
-            className="py-1.5"
-          >
-            <SettingsIcon />
-            <span>Settings</span>
-          </DropdownMenuItem>
+          {showAvatarControls ? (
+            <DropdownMenuItem
+              closeOnClick={false}
+              disabled={isShuffling}
+              onClick={shuffleAvatar}
+              className="py-1.5"
+            >
+              {isShuffling ? (
+                <Loader2Icon className="animate-spin" />
+              ) : (
+                <DicesIcon />
+              )}
+              <span>Shuffle avatar</span>
+            </DropdownMenuItem>
+          ) : null}
+          {!hideSettings ? (
+            <DropdownMenuItem
+              render={<Link href="/settings" />}
+              className="py-1.5"
+            >
+              <SettingsIcon />
+              <span>Settings</span>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="py-1.5">
               <SunMoonIcon />
@@ -406,10 +414,14 @@ export function AuthDialog({
   open: controlledOpen,
   onOpenChange,
   hideTrigger = false,
+  hideSettings = false,
+  showAvatarControls = false,
 }: {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
+  hideSettings?: boolean
+  showAvatarControls?: boolean
 } = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
   const open = controlledOpen ?? uncontrolledOpen
@@ -429,6 +441,8 @@ export function AuthDialog({
         user={user}
         onSignedOut={session.refetch}
         onProfileUpdated={session.refetch}
+        hideSettings={hideSettings}
+        showAvatarControls={showAvatarControls}
       />
     )
   }

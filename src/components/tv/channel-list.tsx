@@ -230,7 +230,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         <div className="mb-1 flex items-center justify-between gap-3">
           <PortalHopWordmark />
           {headerControls ? (
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="-mr-1 flex shrink-0 items-center gap-1 min-[940px]:mr-0">
               {headerControls}
             </div>
           ) : null}
