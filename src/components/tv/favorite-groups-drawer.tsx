@@ -367,7 +367,7 @@ export function FavoriteGroupsDrawer({
                 aria-label="Create group"
                 onClick={() => setCreateOpen(true)}
               >
-                <PlusIcon className="size-4 stroke-[2.25]" />
+                <PlusIcon className="size-4.5 stroke-[2.25]" />
               </Button>
             </div>
           </div>
