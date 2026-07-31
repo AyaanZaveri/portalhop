@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2Icon, TvIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ProgrammeCategoryIcon } from "@/components/programme-category-icon"
 import { proxyImageUrl } from "@/lib/image-proxy"
 import { cn } from "@/lib/utils"
@@ -196,6 +197,10 @@ function EpgSchedule({
     }
   }, [hasMore, onLoadMore])
 
+  const visibleProgrammes = programmes.filter(
+    (programme) => new Date(programme.stopAt).getTime() > now,
+  )
+
   return (
     <section className="mt-4 flex flex-col gap-4">
       <div className="flex items-center gap-2 px-1 md:gap-2.5">
@@ -206,17 +211,14 @@ function EpgSchedule({
       </div>
 
       {isLoading ? (
-        <div className="bg-muted/20 text-muted-foreground flex h-28 items-center justify-center rounded-md text-sm">
-          <Loader2Icon className="mr-2 size-4 animate-spin" />
-          Loading EPG
-        </div>
+        <ProgrammeGuideSkeleton />
       ) : error ? (
         <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border p-4 text-sm">
           {error}
         </div>
-      ) : programmes.length ? (
+      ) : visibleProgrammes.length ? (
         <div className="flex flex-col gap-3">
-          {programmes.map((programme, index) => {
+          {visibleProgrammes.map((programme, index) => {
             const start = new Date(programme.startAt).getTime()
             const stop = new Date(programme.stopAt).getTime()
             const isLive = start <= now && stop > now
@@ -231,7 +233,7 @@ function EpgSchedule({
               ? proxyImageUrl(programme.posterUrl, useImageProxy)
               : ""
 
-            const previousProgramme = programmes[index - 1]
+            const previousProgramme = visibleProgrammes[index - 1]
             const showDateSeparator =
               !previousProgramme ||
               scheduleDateKey(programme.startAt) !==
@@ -304,6 +306,34 @@ function EpgSchedule({
         </div>
       )}
     </section>
+  )
+}
+
+function ProgrammeGuideSkeleton() {
+  return (
+    <div
+      className="flex flex-col gap-3"
+      aria-busy="true"
+      aria-label="Loading programme guide"
+    >
+      <Skeleton className="ml-1 h-4 w-24" />
+      {Array.from({ length: 3 }).map((_, index) => (
+        <article
+          key={index}
+          className="bg-muted/20 flex min-h-28 flex-col gap-3 rounded-md p-4"
+        >
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-5 w-3/5" />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-4/5" />
+          </div>
+        </article>
+      ))}
+    </div>
   )
 }
 

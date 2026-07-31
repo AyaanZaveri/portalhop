@@ -42,9 +42,11 @@ const CATEGORY_ICONS: Record<CategoryIcon, LucideIcon> = {
 export function CategoryVisual({
   category,
   className,
+  iconClassName,
 }: {
   category: string
   className?: string
+  iconClassName?: string
 }) {
   const visual = resolveCategoryVisual(category)
 
@@ -64,6 +66,12 @@ export function CategoryVisual({
   const Icon = visual?.kind === "icon" ? CATEGORY_ICONS[visual.icon] : TagIcon
 
   return (
-    <Icon className={cn("size-4 shrink-0 text-muted-foreground", className)} />
+    <Icon
+      className={cn(
+        "size-4 shrink-0 text-muted-foreground",
+        className,
+        iconClassName,
+      )}
+    />
   )
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { AlertCircleIcon, RotateCcwIcon, RotateCwIcon } from "lucide-react"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
+import { useTheme } from "next-themes"
 
 import { Badge } from "@/components/ui/badge"
 import {
@@ -42,6 +43,7 @@ import {
 import { useTv } from "@/components/tv/tv-provider"
 
 export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
+  const { resolvedTheme } = useTheme()
   const {
     endpoint,
     previewSourceRequest,
@@ -519,7 +521,14 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
       />
       {activeCaption ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-[5%] z-20 flex justify-center px-8">
-          <p className="max-w-[85%] rounded-xl bg-black/70 px-4 py-2 text-center text-[clamp(0.875rem,1.4vw,1.125rem)] leading-tight font-medium whitespace-pre-line text-white shadow-xl backdrop-blur-md group-data-[state=fullscreen]/player:text-[clamp(1rem,2.2vw,1.875rem)]">
+          <p
+            className={cn(
+              "max-w-[85%] rounded-xl px-4 py-2 text-center text-[clamp(0.875rem,1.4vw,1.125rem)] leading-tight font-medium whitespace-pre-line shadow-xl backdrop-blur-md group-data-[state=fullscreen]/player:text-[clamp(1rem,2.2vw,1.875rem)]",
+              resolvedTheme === "dark"
+                ? "bg-black/70 text-white"
+                : "bg-white/70 text-black",
+            )}
+          >
             {activeCaption}
           </p>
         </div>

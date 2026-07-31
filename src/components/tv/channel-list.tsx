@@ -368,7 +368,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                           isActiveGenre && "bg-accent",
                         )}
                       >
-                        <CategoryVisual category={genre} className="text-primary dark:brightness-90 brightness-75" />
+                        <CategoryVisual
+                          category={genre}
+                          className="text-primary"
+                          iconClassName="dark:brightness-90 brightness-75"
+                        />
                         <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                           {genre}
                         </span>
@@ -517,7 +521,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                             {channelBadgeId ? (
                               <Badge
                                 variant="secondary"
-                                className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                                className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
                               >
                                 <span className="truncate">
                                   {channelBadgeId}
@@ -637,7 +641,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       {contextChannel.xmltvId ? (
                         <Badge
                           variant="secondary"
-                          className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                          className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
                         >
                           <span className="truncate">
                             {contextChannel.xmltvId}
