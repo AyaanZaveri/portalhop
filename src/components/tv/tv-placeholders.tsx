@@ -26,6 +26,7 @@ import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import type { BrowseFilter } from "@/components/tv/tv-provider"
 
 export function EmptyPlayerPanel({
   showBackdrop = true,
@@ -76,8 +77,10 @@ export function NoPortalsSelected({
 
 function ChannelListSkeleton({
   headerControls,
+  browseFilter = { type: "all" },
 }: {
   headerControls?: ReactNode
+  browseFilter?: BrowseFilter
 }) {
   return (
     <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden min-[940px]:min-w-80 min-[940px]:rounded-2xl min-[940px]:bg-card">
@@ -98,37 +101,53 @@ function ChannelListSkeleton({
         </InputGroup>
         <div className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
           <Button
-            variant="outline"
+            variant={browseFilter.type === "favorites" ? "default" : "outline"}
             size="sm"
             tabIndex={-1}
-            className="rounded-full text-muted-foreground"
+            className={
+              browseFilter.type === "favorites"
+                ? "rounded-full"
+                : "rounded-full text-muted-foreground"
+            }
           >
             <StarIcon className="size-3.5" />
             Favorites
           </Button>
           <Button
-            variant="default"
+            variant={browseFilter.type === "all" ? "default" : "outline"}
             size="sm"
             tabIndex={-1}
-            className="rounded-full"
+            className={
+              browseFilter.type === "all"
+                ? "rounded-full"
+                : "rounded-full text-muted-foreground"
+            }
           >
             <LayoutGridIcon className="size-3.5" />
             All
           </Button>
           <Button
-            variant="outline"
+            variant={browseFilter.type === "category" ? "default" : "outline"}
             size="sm"
             tabIndex={-1}
-            className="rounded-full text-muted-foreground"
+            className={
+              browseFilter.type === "category"
+                ? "rounded-full"
+                : "rounded-full text-muted-foreground"
+            }
           >
             <ShapesIcon className="size-3.5" />
             Categories
           </Button>
           <Button
-            variant="outline"
+            variant={browseFilter.type === "favoriteGroup" ? "default" : "outline"}
             size="sm"
             tabIndex={-1}
-            className="h-8 rounded-full px-3 text-muted-foreground min-[940px]:size-8 min-[940px]:px-0"
+            className={
+              browseFilter.type === "favoriteGroup"
+                ? "h-8 rounded-full px-3 min-[940px]:size-8 min-[940px]:px-0"
+                : "h-8 rounded-full px-3 text-muted-foreground min-[940px]:size-8 min-[940px]:px-0"
+            }
           >
             <FolderHeartIcon className="size-3.5" />
             <span className="min-[940px]:sr-only">Groups</span>
@@ -174,8 +193,10 @@ function PlayerSkeleton() {
 
 export function LoadingShell({
   headerControls,
+  browseFilter,
 }: {
   headerControls?: ReactNode
+  browseFilter?: BrowseFilter
 }) {
   const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
   const isReady = useHydratedLayout()
@@ -184,7 +205,7 @@ export function LoadingShell({
   if (isReady && isMobileLayout) {
     return (
       <div className="bg-background h-full overflow-hidden min-[940px]:bg-muted/30 min-[940px]:p-3">
-        <ChannelListSkeleton headerControls={headerControls} />
+        <ChannelListSkeleton headerControls={headerControls} browseFilter={browseFilter} />
       </div>
     )
   }
@@ -192,7 +213,7 @@ export function LoadingShell({
   return (
     <>
       <div className="bg-background h-full overflow-hidden min-[940px]:hidden">
-        <ChannelListSkeleton headerControls={headerControls} />
+        <ChannelListSkeleton headerControls={headerControls} browseFilter={browseFilter} />
       </div>
       <div className="bg-muted/30 hidden h-full w-full gap-1.5 overflow-hidden p-3 min-[940px]:flex">
         <ResizablePanelGroup
@@ -206,7 +227,7 @@ export function LoadingShell({
             minSize="320px"
             maxSize="520px"
           >
-            <ChannelListSkeleton />
+            <ChannelListSkeleton browseFilter={browseFilter} />
           </ResizablePanel>
           <ResizableHandle className="bg-transparent focus-visible:ring-0" />
           <ResizablePanel key="player" minSize="560px">

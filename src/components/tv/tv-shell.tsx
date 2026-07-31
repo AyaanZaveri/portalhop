@@ -63,6 +63,7 @@ export function TvShell({ children }: { children: ReactNode }) {
     onSheetSaved,
     onSheetView,
     channelIndex,
+    browseFilter,
   } = useTv()
 
   const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
@@ -85,6 +86,7 @@ export function TvShell({ children }: { children: ReactNode }) {
     content = (
       <LoadingShell
         headerControls={segment ? undefined : utilityControls}
+        browseFilter={browseFilter}
       />
     )
   } else if (!hasChannels) {

@@ -44,6 +44,19 @@ export type BrowseFilter =
   | { type: "category"; genre: string; sourceId?: number }
   | { type: "favoriteGroup"; groupId: number }
 
+const browseFilterStoragePrefix = "portalhop-browse-filter:"
+
+function readSavedBrowseFilter(userId: string | null): BrowseFilter | null {
+  if (typeof window === "undefined") return null
+  try {
+    const value = JSON.parse(localStorage.getItem(`${browseFilterStoragePrefix}${userId ?? "guest"}`) ?? "")
+    if (value?.type === "all" || value?.type === "favorites") return value
+    if (value?.type === "category" && typeof value.genre === "string") return value
+    if (value?.type === "favoriteGroup" && Number.isInteger(value.groupId)) return value
+  } catch {}
+  return null
+}
+
 type TvContextValue = {
   // Channel data
   browserChannels: PortalChannelWithSource[]
@@ -436,10 +449,37 @@ export function TvProvider({ children }: { children: ReactNode }) {
     type: "all",
   })
   const userChoseFilter = useRef(false)
+  const [browseFilterRestored, setBrowseFilterRestored] = useState(false)
+
   useEffect(() => {
-    if (userChoseFilter.current) return
+    if (!settingsLoaded) return
+    const saved = readSavedBrowseFilter(userId)
+    const restore = window.setTimeout(() => {
+      if (saved) {
+        userChoseFilter.current = true
+        setBrowseFilter(saved)
+      } else {
+        userChoseFilter.current = false
+      }
+      setBrowseFilterRestored(true)
+    }, 0)
+    return () => window.clearTimeout(restore)
+  }, [settingsLoaded, userId])
+
+  useEffect(() => {
+    if (!browseFilterRestored || userChoseFilter.current) return
     setBrowseFilter(favoriteCount > 0 ? { type: "favorites" } : { type: "all" })
-  }, [favoriteCount])
+  }, [browseFilterRestored, favoriteCount])
+
+  useEffect(() => {
+    if (!browseFilterRestored || typeof window === "undefined") return
+    try {
+      localStorage.setItem(
+        `${browseFilterStoragePrefix}${userId ?? "guest"}`,
+        JSON.stringify(browseFilter),
+      )
+    } catch {}
+  }, [browseFilter, browseFilterRestored, userId])
 
   const chooseFilter = useCallback((filter: BrowseFilter) => {
     userChoseFilter.current = true
