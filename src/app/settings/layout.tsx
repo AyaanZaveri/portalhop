@@ -52,7 +52,7 @@ export default function SettingsLayout({
   // they're useless signed out. Bounce anyone who lands here without a session.
   React.useEffect(() => {
     if (!isPending && !signedIn) {
-      router.replace("/");
+      router.replace("/tv");
     }
   }, [isPending, signedIn, router]);
 

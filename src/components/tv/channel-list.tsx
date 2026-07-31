@@ -1,0 +1,514 @@
+"use client"
+
+import { useEffect, useMemo, useRef } from "react"
+import Link from "next/link"
+import { useParams } from "next/navigation"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import {
+  ChevronRightIcon,
+  LayoutGridIcon,
+  ListFilterIcon,
+  SearchIcon,
+  ShapesIcon,
+  StarIcon,
+  TvIcon,
+} from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
+import { CategoryVisual } from "@/components/category-visual"
+import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
+import { cn } from "@/lib/utils"
+import { useMediaQuery } from "@/hooks/use-media-query"
+import {
+  canResolveChannel,
+  getChannelKey,
+  getChannelLogoUrl,
+  type PortalSource,
+} from "@/lib/tv-channels"
+import { useTv } from "@/components/tv/tv-provider"
+
+function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
+  return {
+    variant: active ? ("default" as const) : ("outline" as const),
+    size: "sm" as const,
+    className: cn(
+      "rounded-full",
+      options?.wide ? "min-w-0 max-w-full shrink!" : "max-w-40 shrink-0",
+      !active && "text-muted-foreground",
+    ),
+  }
+}
+
+export function ChannelList() {
+  const {
+    browserChannels: allChannels,
+    filteredChannels: channels,
+    query,
+    setQuery,
+    browseFilter,
+    chooseFilter,
+    selectedPortalIds,
+    setSelectedPortalIds,
+    togglePortal,
+    categoryMenuOpen,
+    setCategoryMenuOpen,
+    categorySearch,
+    setCategorySearch,
+    isChannelFavorited,
+    toggleFavorite,
+    epgChannels,
+    customEpgChannels,
+    useImageProxy,
+    channelSlug,
+  } = useTv()
+
+  const params = useParams<{ channelId?: string }>()
+  const activeSlug = params?.channelId
+  const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
+
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
+  const categoryTriggerRef = useRef<HTMLButtonElement>(null)
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    const channelsForCategories = selectedPortalIds.size
+      ? allChannels.filter(
+          (channel) =>
+            channel.portalSource &&
+            selectedPortalIds.has(channel.portalSource.id),
+        )
+      : allChannels
+
+    for (const channel of channelsForCategories) {
+      const genre = channel.genre || "Uncategorized"
+      counts.set(genre, (counts.get(genre) ?? 0) + 1)
+    }
+    return counts
+  }, [allChannels, selectedPortalIds])
+
+  const categories = useMemo(() => {
+    return [...categoryCounts.keys()].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    )
+  }, [categoryCounts])
+
+  const filteredCategories = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase()
+    if (!q) return categories
+    return categories.filter((genre) => genre.toLowerCase().includes(q))
+  }, [categories, categorySearch])
+
+  const portals = useMemo(() => {
+    const uniquePortals = new Map<number, PortalSource>()
+    for (const channel of allChannels) {
+      if (channel.portalSource) {
+        uniquePortals.set(channel.portalSource.id, channel.portalSource)
+      }
+    }
+    return [...uniquePortals.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    )
+  }, [allChannels])
+
+  const visibleChannels = useMemo(() => {
+    const channelsForSelectedPortals = selectedPortalIds.size
+      ? channels.filter(
+          (channel) =>
+            channel.portalSource &&
+            selectedPortalIds.has(channel.portalSource.id),
+        )
+      : channels
+
+    if (browseFilter.type === "all") {
+      return channelsForSelectedPortals
+    }
+    if (browseFilter.type === "favorites") {
+      return channelsForSelectedPortals.filter(isChannelFavorited)
+    }
+    return channelsForSelectedPortals.filter(
+      (channel) => (channel.genre || "Uncategorized") === browseFilter.genre,
+    )
+  }, [browseFilter, channels, isChannelFavorited, selectedPortalIds])
+
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
+  const rowVirtualizer = useVirtualizer({
+    count: visibleChannels.length,
+    getScrollElement: () =>
+      scrollAreaRef.current?.querySelector<HTMLElement>(
+        "[data-slot='scroll-area-viewport']",
+      ) ?? null,
+    estimateSize: () => 84,
+    overscan: 12,
+  })
+
+  useEffect(() => {
+    rowVirtualizer.scrollToIndex(0)
+  }, [visibleChannels, rowVirtualizer])
+
+  const isPortalFiltered =
+    selectedPortalIds.size > 0 && selectedPortalIds.size < portals.length
+
+  return (
+    <div className="bg-card flex h-full min-w-0 flex-col overflow-hidden rounded-2xl min-[940px]:min-w-80">
+      <div className="flex flex-col gap-3 p-4 pb-2">
+        <PortalHopWordmark className="mb-1" />
+        <InputGroup>
+          <InputGroupInput
+            placeholder={`Search ${visibleChannels.length.toLocaleString()} channels`}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <InputGroupAddon align="inline-start">
+            <SearchIcon />
+          </InputGroupAddon>
+          {portals.length > 1 ? (
+            <InputGroupAddon align="inline-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <InputGroupButton
+                      aria-label="Filter by portal"
+                      className="gap-1"
+                    />
+                  }
+                >
+                  <ListFilterIcon />
+                  {isPortalFiltered ? (
+                    <span className="font-mono tabular-nums">
+                      {selectedPortalIds.size}
+                    </span>
+                  ) : null}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => setSelectedPortalIds(new Set())}
+                    >
+                      <LayoutGridIcon />
+                      All Portals
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    {portals.map((portal) => (
+                      <DropdownMenuCheckboxItem
+                        key={portal.id}
+                        checked={selectedPortalIds.has(portal.id)}
+                        onCheckedChange={(checked) =>
+                          togglePortal(portal.id, checked)
+                        }
+                      >
+                        <TvIcon />
+                        <span className="min-w-0 flex-1 truncate">
+                          {portal.name}
+                        </span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </InputGroupAddon>
+          ) : null}
+        </InputGroup>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            {...chipButtonProps(browseFilter.type === "favorites")}
+            onClick={() => chooseFilter({ type: "favorites" })}
+          >
+            <StarIcon className="size-3.5" />
+            Favorites
+          </Button>
+          <Button
+            {...chipButtonProps(browseFilter.type === "all")}
+            onClick={() => chooseFilter({ type: "all" })}
+          >
+            <LayoutGridIcon className="size-3.5" />
+            All
+          </Button>
+          <Drawer
+            open={categoryMenuOpen}
+            onOpenChange={(open) => {
+              setCategoryMenuOpen(open)
+              if (!open) setCategorySearch("")
+            }}
+            swipeDirection={isMobileLayout ? "down" : "left"}
+          >
+            <DrawerTrigger
+              render={
+                <Button
+                  ref={categoryTriggerRef}
+                  {...chipButtonProps(browseFilter.type === "category", {
+                    wide: true,
+                  })}
+                >
+                  <ShapesIcon className="size-3.5" />
+                  <span className="min-w-0 truncate">Categories</span>
+                  <ChevronRightIcon className="-mr-0.5 size-4 shrink-0 opacity-70" />
+                </Button>
+              }
+            />
+            <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
+              <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
+                <DrawerTitle className="text-lg">Categories</DrawerTitle>
+              </DrawerHeader>
+              <div className="px-4 pt-4 pb-2">
+                <InputGroup>
+                  <InputGroupInput
+                    autoFocus
+                    placeholder="Find a category"
+                    value={categorySearch}
+                    onChange={(event) => setCategorySearch(event.target.value)}
+                  />
+                  <InputGroupAddon align="inline-start">
+                    <SearchIcon />
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+              <ScrollArea
+                className="min-h-0 flex-1"
+                viewportClassName="px-4 pb-2"
+              >
+                {filteredCategories.length ? (
+                  filteredCategories.map((genre) => {
+                    const isActiveGenre =
+                      browseFilter.type === "category" &&
+                      browseFilter.genre === genre
+                    return (
+                      <button
+                        key={genre}
+                        type="button"
+                        onClick={() => {
+                          chooseFilter({ type: "category", genre })
+                          setCategoryMenuOpen(false)
+                          setCategorySearch("")
+                        }}
+                        className={cn(
+                          "hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
+                          isActiveGenre && "bg-accent",
+                        )}
+                      >
+                        <CategoryVisual category={genre} />
+                        <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                          {genre}
+                        </span>
+                        <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
+                          {(categoryCounts.get(genre) ?? 0).toLocaleString()}
+                        </span>
+                      </button>
+                    )
+                  })
+                ) : (
+                  <p className="text-muted-foreground py-6 text-center text-sm">
+                    No categories match.
+                  </p>
+                )}
+              </ScrollArea>
+            </DrawerContent>
+          </Drawer>
+        </div>
+      </div>
+      {browseFilter.type === "category" ? (
+        <div className="ml-0.5 flex items-center gap-2 px-4 py-1.5">
+          <CategoryVisual
+            category={browseFilter.genre}
+            className="text-muted-foreground size-4 shrink-0"
+          />
+          <span className="text-md min-w-0 flex-1 truncate font-semibold">
+            {browseFilter.genre}
+          </span>
+        </div>
+      ) : null}
+      <ScrollArea
+        ref={scrollAreaRef}
+        className="min-h-0 flex-1 px-3 pb-2"
+        aria-rowcount={visibleChannels.length}
+      >
+        {visibleChannels.length ? (
+          <div
+            className="relative"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const channel = visibleChannels[virtualRow.index]
+              const channelKey = getChannelKey(channel)
+              const canResolve = canResolveChannel(channel)
+              const slug = channelSlug(channel)
+              const isSelected = activeSlug === slug
+              const isFavorited = isChannelFavorited(channel)
+              const logoUrl = getChannelLogoUrl(
+                channel,
+                channel.portalSource,
+                epgChannels,
+                customEpgChannels,
+                useImageProxy,
+              )
+              const channelBadgeId = channel.xmltvId ?? ""
+
+              return (
+                <div
+                  key={`${channel.id}-${channel.number}-${virtualRow.index}`}
+                  className={cn(
+                    "group absolute inset-x-0",
+                    isSelected && "z-10",
+                  )}
+                  style={{
+                    height: `${virtualRow.size - 6}px`,
+                    transform: `translateY(${virtualRow.start + 3}px)`,
+                  }}
+                >
+                  <div
+                    className={cn(
+                      "group-hover:bg-accent/80 pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out group-active:scale-[0.99]",
+                      isSelected && "bg-accent shadow-xs",
+                    )}
+                  >
+                    {canResolve ? (
+                      <Link
+                        href={`/tv/${slug}`}
+                        aria-label={`Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`}
+                        className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset"
+                      />
+                    ) : null}
+                    <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
+                      <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
+                        {logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                          <img
+                            src={logoUrl}
+                            alt=""
+                            className="size-full rounded-[6px] object-contain"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <TvIcon className="text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate font-medium">
+                          {channel.name ||
+                            `Channel ${channel.number || virtualRow.index + 1}`}
+                        </span>
+                        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                          <CategoryVisual
+                            category={channel.genre || "Uncategorized"}
+                            className="size-3 shrink-0"
+                          />
+                          <span className="truncate">
+                            {channel.genre || "Uncategorized"}
+                          </span>
+                        </span>
+                        {channel.portalSource || channelBadgeId ? (
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {channel.portalSource ? (
+                              <Badge
+                                variant="outline"
+                                className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                              >
+                                <span className="truncate">
+                                  {channel.portalSource.name}
+                                </span>
+                              </Badge>
+                            ) : null}
+                            {channelBadgeId ? (
+                              <Badge
+                                variant="secondary"
+                                className="h-4 max-w-28 rounded px-1.5 font-mono text-[10px]"
+                              >
+                                <span className="truncate">
+                                  {channelBadgeId}
+                                </span>
+                              </Badge>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="pointer-events-auto relative z-10 flex size-8 shrink-0 items-center justify-center">
+                      <button
+                        type="button"
+                        aria-label={
+                          isFavorited
+                            ? `Remove ${channel.name || "channel"} from favorites`
+                            : `Add ${channel.name || "channel"} to favorites`
+                        }
+                        aria-pressed={isFavorited}
+                        onClick={() => toggleFavorite(channelKey)}
+                        className={cn(
+                          "text-muted-foreground hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-[color,opacity,transform] duration-[160ms] ease-out active:scale-95",
+                          isFavorited
+                            ? "text-amber-500 opacity-100 hover:text-amber-500"
+                            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                        )}
+                      >
+                        <StarIcon
+                          className={cn(
+                            "size-4",
+                            isFavorited && "fill-current",
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <Empty className="h-40">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                {browseFilter.type === "favorites" ? (
+                  <StarIcon />
+                ) : (
+                  <SearchIcon />
+                )}
+              </EmptyMedia>
+              <EmptyTitle>
+                {browseFilter.type === "favorites"
+                  ? "No favorites yet"
+                  : "No channels found"}
+              </EmptyTitle>
+              <EmptyDescription>
+                {browseFilter.type === "favorites"
+                  ? "Star channels to see them here."
+                  : "No channels matched the current filter."}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </ScrollArea>
+    </div>
+  )
+}
