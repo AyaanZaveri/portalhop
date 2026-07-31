@@ -59,6 +59,7 @@ import {
   FavoriteGroupsDrawer,
   getFavoriteGroupIcon,
   GroupMembershipDrawer,
+  loadFavoriteGroups,
   type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
 import { cn } from "@/lib/utils"
@@ -151,6 +152,28 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   >(() => new Set())
   const [selectedFavoriteGroup, setSelectedFavoriteGroup] =
     useState<FavoriteGroup | null>(null)
+
+  // The provider preserves the selected group id while opening a channel, but
+  // this list remounts on the detail route. Rehydrate the group membership so
+  // Back returns to the same collection instead of an empty key set.
+  useEffect(() => {
+    if (browseFilter.type !== "favoriteGroup") return
+    if (selectedFavoriteGroup?.id === browseFilter.groupId) return
+
+    let cancelled = false
+    loadFavoriteGroups()
+      .then((groups) => {
+        const group = groups.find((entry) => entry.id === browseFilter.groupId)
+        if (cancelled || !group) return
+        setSelectedFavoriteGroup(group)
+        setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [browseFilter, selectedFavoriteGroup])
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {

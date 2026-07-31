@@ -73,7 +73,7 @@ function cacheFavoriteGroups(groups: FavoriteGroup[] | null) {
   }
 }
 
-async function loadFavoriteGroups() {
+export async function loadFavoriteGroups() {
   if (cachedFavoriteGroups) return cachedFavoriteGroups
   if (!favoriteGroupsRequest) {
     favoriteGroupsRequest = fetch("/api/favorite-groups", { cache: "no-store" })
