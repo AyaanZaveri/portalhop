@@ -6,7 +6,6 @@ import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 
 import { Badge } from "@/components/ui/badge"
-import { Spinner } from "@/components/ui/spinner"
 import {
   MediaPlayer,
   MediaPlayerControls,
@@ -477,9 +476,7 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
 
   if (!streamUrl) {
     return (
-      <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black">
-        <Spinner className="text-white" />
-      </div>
+      <div className="aspect-video w-full rounded-lg bg-black" />
     )
   }
 
