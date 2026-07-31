@@ -460,7 +460,7 @@ export function AuthDialog({
 
       {isMobile ? (
         <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
-          <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl after:hidden">
+          <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl dark:border after:hidden">
             <DrawerHeader>
               <DrawerTitle>Sign in</DrawerTitle>
               <DrawerDescription>

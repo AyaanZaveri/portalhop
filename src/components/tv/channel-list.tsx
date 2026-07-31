@@ -498,7 +498,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 </Button>
               }
             />
-            <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
+            <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
               <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
                 <div className="flex items-center justify-between gap-3">
                   <DrawerTitle className="text-lg">Categories</DrawerTitle>
@@ -685,7 +685,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           }}
           showSwipeHandle
         >
-          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
             {contextCategory ? (
               <div className="flex flex-col gap-4 p-4 pt-2">
                 <div className="flex min-w-0 items-center gap-3">
@@ -964,7 +964,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         }}
         showSwipeHandle
       >
-        <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl after:hidden">
+        <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl dark:border after:hidden">
           <DrawerHeader>
             <DrawerTitle className="sr-only">Channel options</DrawerTitle>
           </DrawerHeader>

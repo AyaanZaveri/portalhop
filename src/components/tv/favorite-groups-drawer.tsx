@@ -324,7 +324,7 @@ export function FavoriteGroupsDrawer({
             variant={activeGroupId === null ? "outline" : "default"}
             size="sm"
             className={cn(
-              "h-8 gap-1 rounded-full px-3 min-[940px]:size-8 min-[940px]:px-0",
+              "h-8 gap-1 rounded-full px-3 min-[940px]:size-7 min-[940px]:px-0",
               activeGroupId === null && "text-muted-foreground",
             )}
             aria-label="Favorite groups"
@@ -334,7 +334,7 @@ export function FavoriteGroupsDrawer({
           </Button>
         }
       />
-      <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
+      <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -466,7 +466,7 @@ export function FavoriteGroupsDrawer({
           onOpenChange={closeCreateDrawer}
           swipeDirection={isMobileLayout ? "down" : "left"}
         >
-          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
             <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
               <DrawerTitle className="text-lg">
                 {editingGroup ? "Edit group" : "New group"}
@@ -648,7 +648,7 @@ export function GroupMembershipDrawer({
       onOpenChange={onOpenChange}
       swipeDirection={isMobileLayout ? "down" : "left"}
     >
-      <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
+      <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
           <DrawerTitle className="text-lg">Groups</DrawerTitle>
           <DrawerDescription className="truncate">
