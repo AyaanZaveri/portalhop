@@ -56,7 +56,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
-type FavoriteGroup = {
+export type FavoriteGroup = {
   id: number
   name: string
   icon: string
@@ -124,7 +124,7 @@ const groupIcons: GroupIcon[] = [
   { id: "sparkles", label: "Highlights", Icon: SparklesIcon },
 ]
 
-function groupIcon(iconId: string) {
+export function getFavoriteGroupIcon(iconId: string) {
   return groupIcons.find((icon) => icon.id === iconId)?.Icon ?? StarIcon
 }
 
@@ -320,9 +320,12 @@ export function FavoriteGroupsDrawer({
         render={
           <Button
             type="button"
-            variant="outline"
+            variant={activeGroupId === null ? "outline" : "default"}
             size="icon-sm"
-            className="text-muted-foreground rounded-full"
+            className={cn(
+              "rounded-full",
+              activeGroupId === null && "text-muted-foreground",
+            )}
             aria-label="Favorite groups"
           >
             <FolderHeartIcon className="size-3.5" />
@@ -376,7 +379,7 @@ export function FavoriteGroupsDrawer({
           ) : groups.length ? (
             <div className="flex flex-col gap-1">
               {groups.map((group) => {
-                const Icon = groupIcon(group.icon)
+                        const Icon = getFavoriteGroupIcon(group.icon)
                 return (
                   <div
                     key={group.id}
@@ -660,7 +663,7 @@ export function GroupMembershipDrawer({
           ) : groups.length ? (
             <div className="flex flex-col gap-1">
               {groups.map((group) => {
-                const Icon = groupIcon(group.icon)
+                const Icon = getFavoriteGroupIcon(group.icon)
                 return (
                   <button
                     key={group.id}

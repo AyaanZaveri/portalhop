@@ -57,7 +57,9 @@ import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import {
   FavoriteGroupsDrawer,
+  getFavoriteGroupIcon,
   GroupMembershipDrawer,
+  type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
 import { cn } from "@/lib/utils"
 import { useMediaQuery } from "@/hooks/use-media-query"
@@ -147,6 +149,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   const [selectedFavoriteGroupKeys, setSelectedFavoriteGroupKeys] = useState<
     Set<string>
   >(() => new Set())
+  const [selectedFavoriteGroup, setSelectedFavoriteGroup] =
+    useState<FavoriteGroup | null>(null)
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
@@ -639,10 +643,12 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 return
               }
               setSelectedFavoriteGroupKeys(new Set())
+              setSelectedFavoriteGroup(null)
               chooseFilter({ type: "all" })
             }}
             onSelectGroup={(group) => {
               setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
+              setSelectedFavoriteGroup(group)
               chooseFilter({ type: "favoriteGroup", groupId: group.id })
             }}
             userId={userId}
@@ -717,6 +723,17 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           </span>
         </div>
       ) : null}
+      {browseFilter.type === "favoriteGroup" && selectedFavoriteGroup ? (() => {
+        const GroupIcon = getFavoriteGroupIcon(selectedFavoriteGroup.icon)
+        return (
+          <div className="ml-0.5 flex items-center gap-2 px-4 pb-1 pt-2">
+            <GroupIcon className="text-muted-foreground size-4 shrink-0" />
+            <span className="text-md min-w-0 flex-1 truncate font-semibold">
+              {selectedFavoriteGroup.name}
+            </span>
+          </div>
+        )
+      })() : null}
       <ScrollArea
         ref={scrollAreaRef}
         className="min-h-0 flex-1 px-3 pb-2"
