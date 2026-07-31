@@ -1,7 +1,14 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { LayoutGridIcon, SearchIcon, ShapesIcon, StarIcon, TvIcon } from "lucide-react"
+import {
+  FolderHeartIcon,
+  LayoutGridIcon,
+  SearchIcon,
+  ShapesIcon,
+  StarIcon,
+  TvIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -78,7 +85,7 @@ function ChannelListSkeleton({
         <div className="mb-1 flex items-center justify-between gap-3">
           <PortalHopWordmark />
           {headerControls ? (
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="-mr-1 flex shrink-0 items-center gap-1 min-[940px]:mr-0">
               {headerControls}
             </div>
           ) : null}
@@ -116,6 +123,14 @@ function ChannelListSkeleton({
           >
             <ShapesIcon className="size-3.5" />
             Categories
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            tabIndex={-1}
+            className="rounded-full text-muted-foreground"
+          >
+            <FolderHeartIcon className="size-3.5" />
           </Button>
         </div>
       </div>
