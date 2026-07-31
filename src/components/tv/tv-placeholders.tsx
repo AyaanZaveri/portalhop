@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { SearchIcon, TvIcon } from "lucide-react"
+import { LayoutGridIcon, SearchIcon, ShapesIcon, StarIcon, TvIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -89,6 +89,35 @@ function ChannelListSkeleton({
             <SearchIcon />
           </InputGroupAddon>
         </InputGroup>
+        <div className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
+          <Button
+            variant="outline"
+            size="sm"
+            tabIndex={-1}
+            className="rounded-full text-muted-foreground"
+          >
+            <StarIcon className="size-3.5" />
+            Favorites
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            tabIndex={-1}
+            className="rounded-full"
+          >
+            <LayoutGridIcon className="size-3.5" />
+            All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            tabIndex={-1}
+            className="rounded-full text-muted-foreground"
+          >
+            <ShapesIcon className="size-3.5" />
+            Categories
+          </Button>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-3 pt-[3px] pb-2">
         {Array.from({ length: 14 }).map((_, index) => (
