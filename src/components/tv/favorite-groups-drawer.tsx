@@ -345,7 +345,7 @@ export function FavoriteGroupsDrawer({
                       }}
                       className="flex min-w-0 flex-1 items-center gap-2 text-left"
                     >
-                      <Icon className="text-primary size-4 shrink-0" />
+                      <Icon className="text-primary size-4 shrink-0 brightness-85 dark:brightness-100" />
                       <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                         {group.name}
                       </span>
@@ -603,7 +603,7 @@ export function GroupMembershipDrawer({
                       included && "bg-accent",
                     )}
                   >
-                    <Icon className="text-primary size-4 shrink-0" />
+                    <Icon className="text-primary size-4 shrink-0 brightness-85 dark:brightness-100" />
                     <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                       {group.name}
                     </span>
