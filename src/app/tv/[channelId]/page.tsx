@@ -142,7 +142,7 @@ export default function ChannelPage() {
       </ScrollArea>
       {isMobile ? (
         <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
             <div className="flex items-center gap-3 p-4 pb-5">
               {logoUrl ? (
                 <div className="border-border/60 flex size-12 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
