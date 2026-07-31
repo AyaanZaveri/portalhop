@@ -321,14 +321,15 @@ export function FavoriteGroupsDrawer({
           <Button
             type="button"
             variant={activeGroupId === null ? "outline" : "default"}
-            size="icon-sm"
+            size="sm"
             className={cn(
-              "rounded-full",
+              "h-8 gap-1 rounded-full px-3 min-[940px]:size-8 min-[940px]:px-0",
               activeGroupId === null && "text-muted-foreground",
             )}
             aria-label="Favorite groups"
           >
             <FolderHeartIcon className="size-3.5" />
+            <span className="min-[940px]:sr-only">Groups</span>
           </Button>
         }
       />
@@ -336,18 +337,9 @@ export function FavoriteGroupsDrawer({
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <DrawerTitle className="text-lg">Favorite Groups</DrawerTitle>
+              <DrawerTitle className="text-lg">Groups</DrawerTitle>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Create favorite group"
-                onClick={() => setCreateOpen(true)}
-              >
-                <PlusIcon />
-              </Button>
               {groups.length ? (
                 <Button
                   type="button"
@@ -360,9 +352,22 @@ export function FavoriteGroupsDrawer({
                   }
                   onClick={() => setIsManagingGroups((current) => !current)}
                 >
-                  {isManagingGroups ? <CheckIcon /> : <PencilIcon />}
+                  {isManagingGroups ? (
+                    <CheckIcon className="size-4 stroke-[2.25]" />
+                  ) : (
+                    <PencilIcon className="size-4 stroke-[2.25]" />
+                  )}
                 </Button>
               ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Create group"
+                onClick={() => setCreateOpen(true)}
+              >
+                <PlusIcon className="size-4 stroke-[2.25]" />
+              </Button>
             </div>
           </div>
         </DrawerHeader>
@@ -463,7 +468,7 @@ export function FavoriteGroupsDrawer({
           <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
             <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
               <DrawerTitle className="text-lg">
-                {editingGroup ? "Edit favorite group" : "New favorite group"}
+                {editingGroup ? "Edit group" : "New group"}
               </DrawerTitle>
               <DrawerDescription>
                 {editingGroup
@@ -542,7 +547,7 @@ export function FavoriteGroupsDrawer({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete favorite group?</AlertDialogTitle>
+            <AlertDialogTitle>Delete group?</AlertDialogTitle>
             <AlertDialogDescription>
               {groupPendingDelete
                 ? `“${groupPendingDelete.name}” and its channel list will be permanently removed.`
@@ -644,7 +649,7 @@ export function GroupMembershipDrawer({
     >
       <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
-          <DrawerTitle className="text-lg">Favorite groups</DrawerTitle>
+          <DrawerTitle className="text-lg">Groups</DrawerTitle>
           <DrawerDescription className="truncate">
             {channel?.name ?? "Channel"}
           </DrawerDescription>

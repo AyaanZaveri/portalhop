@@ -920,7 +920,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                                 onClick={() => setGroupMembershipChannel(channel)}
                               >
                                 <FolderPlusIcon />
-                                Add to favorite groups
+                                Add to groups
                               </DropdownMenuItem>
                             ) : null}
                           </DropdownMenuGroup>
@@ -1056,7 +1056,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   }}
                 >
                   <FolderPlusIcon />
-                  Add to favorite groups
+                  Add to groups
                 </Button>
               ) : null}
             </div>
