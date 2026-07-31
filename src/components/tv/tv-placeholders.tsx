@@ -126,11 +126,12 @@ function ChannelListSkeleton({
           </Button>
           <Button
             variant="outline"
-            size="icon-sm"
+            size="sm"
             tabIndex={-1}
-            className="rounded-full text-muted-foreground"
+            className="h-8 rounded-full px-3 text-muted-foreground min-[940px]:size-8 min-[940px]:px-0"
           >
             <FolderHeartIcon className="size-3.5" />
+            <span className="min-[940px]:sr-only">Groups</span>
           </Button>
         </div>
       </div>
