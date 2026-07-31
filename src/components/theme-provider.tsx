@@ -16,9 +16,24 @@ function ThemeProvider({
       {...props}
     >
       <ThemeHotkey />
+      <ThemeColor />
       {children}
     </NextThemesProvider>
   );
+}
+
+function ThemeColor() {
+  const { resolvedTheme } = useTheme();
+
+  React.useEffect(() => {
+    const color = resolvedTheme === "dark" ? "#0d0d0d" : "#ffffff";
+
+    document
+      .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+      .forEach((meta) => meta.setAttribute("content", color));
+  }, [resolvedTheme]);
+
+  return null;
 }
 
 function isTypingTarget(target: EventTarget | null) {

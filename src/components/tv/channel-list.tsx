@@ -657,7 +657,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   const isFavorited = isChannelFavorited(contextChannel)
                   toggleFavorite(getChannelKey(contextChannel))
                   if (!isFavorited) {
-                    void triggerHaptic("success")
+                    void triggerHaptic([{ duration: 15 }], { intensity: 0.4 })
                   }
                   setContextChannel(null)
                 }}
