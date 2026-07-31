@@ -26,6 +26,7 @@ import {
   MediaPlayerVolumeIndicator,
 } from "@/components/ui/media-player"
 import { cn } from "@/lib/utils"
+import { proxyImageUrl } from "@/lib/image-proxy"
 import {
   canResolveChannel,
   formatBitrateLabel,
@@ -41,6 +42,7 @@ import {
   type StreamVariant,
 } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
+import { useChannelEpg } from "@/components/tv/channel-epg-provider"
 
 export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
   const { resolvedTheme } = useTheme()
@@ -52,6 +54,7 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
     epgChannels,
     customEpgChannels,
   } = useTv()
+  const { currentProgramme } = useChannelEpg()
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [resolveError, setResolveError] = useState("")
@@ -75,6 +78,86 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
     customEpgChannels,
     useImageProxy,
   )
+
+  // Native media controls on Android and iPhone use this metadata for their
+  // Now Playing surfaces. Programme art is more useful when present; the
+  // channel logo remains a reliable fallback for sparse EPG sources.
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return
+
+    const artworkSource = currentProgramme?.posterUrl
+      ? proxyImageUrl(currentProgramme.posterUrl, useImageProxy)
+      : logoUrl
+    let artwork: MediaImage[] | undefined
+    if (artworkSource) {
+      try {
+        artwork = [
+          {
+            src: new URL(artworkSource, window.location.href).href,
+            sizes: "512x512",
+          },
+        ]
+      } catch {
+        // A malformed provider logo should not prevent native controls.
+      }
+    }
+    const title = currentProgramme?.title || channel.name || "Live stream"
+    const artist = currentProgramme ? channel.name || "Live stream" : "Portal Hop"
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist,
+      album: channel.portalSource?.name || "Portal Hop",
+      artwork,
+    })
+
+    const video = playerElement
+    const updatePlaybackState = () => {
+      navigator.mediaSession.playbackState = video?.paused ? "paused" : "playing"
+    }
+    const seekBy = (seconds: number) => {
+      if (!video || video.seekable.length === 0) return
+      const start = video.seekable.start(0)
+      const end = video.seekable.end(video.seekable.length - 1)
+      video.currentTime = Math.min(end, Math.max(start, video.currentTime + seconds))
+    }
+    const setActionHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler)
+      } catch {
+        // Some browsers expose MediaSession but omit individual actions.
+      }
+    }
+
+    setActionHandler("play", () => void video?.play())
+    setActionHandler("pause", () => video?.pause())
+    setActionHandler("stop", () => video?.pause())
+    setActionHandler("seekbackward", (details) =>
+      seekBy(-(details.seekOffset ?? 10)),
+    )
+    setActionHandler("seekforward", (details) =>
+      seekBy(details.seekOffset ?? 10),
+    )
+
+    video?.addEventListener("play", updatePlaybackState)
+    video?.addEventListener("pause", updatePlaybackState)
+    updatePlaybackState()
+
+    return () => {
+      video?.removeEventListener("play", updatePlaybackState)
+      video?.removeEventListener("pause", updatePlaybackState)
+      setActionHandler("play", null)
+      setActionHandler("pause", null)
+      setActionHandler("stop", null)
+      setActionHandler("seekbackward", null)
+      setActionHandler("seekforward", null)
+      navigator.mediaSession.metadata = null
+      navigator.mediaSession.playbackState = "none"
+    }
+  }, [channel.name, channel.portalSource?.name, currentProgramme, logoUrl, playerElement, useImageProxy])
 
   // Resolve the latest playable stream for this channel. The component is keyed
   // by channel id upstream, so it remounts (fresh state) on channel change.

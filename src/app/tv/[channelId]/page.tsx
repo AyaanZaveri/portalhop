@@ -18,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { getChannelLogoUrl } from "@/lib/tv-channels"
 import { LivePlayer } from "@/components/tv/live-player"
 import { ProgrammeGuide } from "@/components/tv/programme-guide"
+import { ChannelEpgProvider } from "@/components/tv/channel-epg-provider"
 import { useTv } from "@/components/tv/tv-provider"
 
 export default function ChannelPage() {
@@ -132,10 +133,12 @@ export default function ChannelPage() {
         className="min-h-0 flex-1 px-4 pb-4"
         viewportClassName="focus-visible:ring-0 focus-visible:outline-none"
       >
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-2">
-          <LivePlayer key={channelId} channel={channel} />
-          <ProgrammeGuide channel={channel} />
-        </div>
+        <ChannelEpgProvider channel={channel}>
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-2">
+            <LivePlayer key={channelId} channel={channel} />
+            <ProgrammeGuide />
+          </div>
+        </ChannelEpgProvider>
       </ScrollArea>
       {isMobile ? (
         <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>

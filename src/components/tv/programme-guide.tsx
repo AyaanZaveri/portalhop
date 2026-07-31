@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Loader2Icon, TvIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,146 +13,39 @@ import {
   formatScheduleDate,
   formatTimeRange,
   scheduleDateKey,
-  type PortalChannelWithSource,
 } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
+import { useChannelEpg } from "@/components/tv/channel-epg-provider"
 
-export function ProgrammeGuide({
-  channel,
-}: {
-  channel: PortalChannelWithSource
-}) {
-  const { endpoint, previewSourceRequest, useImageProxy } = useTv()
-
-  const [epgProgrammes, setEpgProgrammes] = useState<EpgProgramme[]>([])
-  const [isLoadingEpg, setIsLoadingEpg] = useState(false)
-  const [isLoadingMoreEpg, setIsLoadingMoreEpg] = useState(false)
-  const [epgHasMore, setEpgHasMore] = useState(false)
-  const [epgError, setEpgError] = useState("")
-  const epgRequestRef = useRef<Record<string, unknown> | null>(null)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    const sourceRequest = channel.portalSource?.request ?? previewSourceRequest
-    const sourceEndpoint = channel.portalSource?.endpoint ?? endpoint
-    const requestBody = {
-      ...sourceRequest,
-      epgMode: channel.portalSource?.epgMode ?? "portal",
-      epgSourceId: channel.portalSource?.epgSourceId ?? null,
-      endpoint: sourceEndpoint,
-      channelId: channel.id,
-      channelName: channel.name,
-      xmltvId: channel.xmltvId,
-    }
-    epgRequestRef.current = requestBody
-
-    async function loadChannelEpg() {
-      setIsLoadingEpg(true)
-      setEpgError("")
-      setEpgHasMore(false)
-
-      try {
-        const response = await fetch("/api/channel-epg", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          signal: controller.signal,
-          body: JSON.stringify(requestBody),
-        })
-        const data = await response.json().catch(() => ({}))
-
-        if (!response.ok) {
-          throw new Error(data.error || "Could not load EPG data.")
-        }
-
-        setEpgProgrammes(
-          Array.isArray(data.programmes)
-            ? (data.programmes as EpgProgramme[])
-            : [],
-        )
-        setEpgHasMore(Boolean(data.hasMore))
-      } catch (error) {
-        if (controller.signal.aborted) return
-        setEpgProgrammes([])
-        setEpgHasMore(false)
-        setEpgError(
-          error instanceof Error ? error.message : "Could not load EPG data.",
-        )
-      } finally {
-        if (!controller.signal.aborted) setIsLoadingEpg(false)
-      }
-    }
-
-    loadChannelEpg()
-
-    return () => {
-      controller.abort()
-    }
-  }, [channel, endpoint, previewSourceRequest])
-
-  const loadMoreEpg = useCallback(async () => {
-    const baseRequest = epgRequestRef.current
-    const lastProgramme = epgProgrammes[epgProgrammes.length - 1]
-
-    if (!baseRequest || !lastProgramme || isLoadingMoreEpg || !epgHasMore) {
-      return
-    }
-
-    setIsLoadingMoreEpg(true)
-
-    try {
-      const response = await fetch("/api/channel-epg", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({ ...baseRequest, from: lastProgramme.stopAt }),
-      })
-      const data = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        setEpgHasMore(false)
-        return
-      }
-
-      const nextProgrammes = Array.isArray(data.programmes)
-        ? (data.programmes as EpgProgramme[])
-        : []
-
-      if (!nextProgrammes.length) {
-        setEpgHasMore(false)
-        return
-      }
-
-      setEpgProgrammes((current) => {
-        const seenIds = new Set(current.map((programme) => programme.id))
-        const deduped = nextProgrammes.filter(
-          (programme) => !seenIds.has(programme.id),
-        )
-        return [...current, ...deduped]
-      })
-      setEpgHasMore(Boolean(data.hasMore))
-    } catch {
-      // Silent: the user can keep scrolling to retry.
-    } finally {
-      setIsLoadingMoreEpg(false)
-    }
-  }, [epgHasMore, epgProgrammes, isLoadingMoreEpg])
+export function ProgrammeGuide() {
+  const { useImageProxy } = useTv()
+  const {
+    programmes,
+    now,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    error,
+    loadMore,
+  } = useChannelEpg()
 
   return (
     <EpgSchedule
-      programmes={epgProgrammes}
-      isLoading={isLoadingEpg}
-      error={epgError}
+      programmes={programmes}
+      now={now}
+      isLoading={isLoading}
+      error={error}
       useImageProxy={useImageProxy}
-      hasMore={epgHasMore}
-      isLoadingMore={isLoadingMoreEpg}
-      onLoadMore={loadMoreEpg}
+      hasMore={hasMore}
+      isLoadingMore={isLoadingMore}
+      onLoadMore={loadMore}
     />
   )
 }
 
 function EpgSchedule({
   programmes,
+  now,
   isLoading,
   error,
   useImageProxy,
@@ -161,6 +54,7 @@ function EpgSchedule({
   onLoadMore,
 }: {
   programmes: EpgProgramme[]
+  now: number
   isLoading: boolean
   error: string
   useImageProxy: boolean
@@ -168,15 +62,7 @@ function EpgSchedule({
   isLoadingMore: boolean
   onLoadMore: () => void
 }) {
-  const [now, setNow] = useState(() => Date.now())
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => setNow(Date.now()), 30000)
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [])
 
   useEffect(() => {
     const sentinel = sentinelRef.current
