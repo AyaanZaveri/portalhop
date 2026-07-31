@@ -29,7 +29,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -365,31 +364,29 @@ function AccountMenu({
               <SunMoonIcon />
               <span>Theme</span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem onClick={() => setTheme("light")} className="py-1.5">
-                  <SunIcon />
-                  <span>Light</span>
-                  {currentTheme === "light" ? (
-                    <CheckIcon className="ml-auto" />
-                  ) : null}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark")} className="py-1.5">
-                  <MoonIcon />
-                  <span>Dark</span>
-                  {currentTheme === "dark" ? (
-                    <CheckIcon className="ml-auto" />
-                  ) : null}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("system")} className="py-1.5">
-                  <LaptopMinimalIcon />
-                  <span>System</span>
-                  {currentTheme === "system" ? (
-                    <CheckIcon className="ml-auto" />
-                  ) : null}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onClick={() => setTheme("light")} className="py-1.5">
+                <SunIcon />
+                <span>Light</span>
+                {currentTheme === "light" ? (
+                  <CheckIcon className="ml-auto" />
+                ) : null}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")} className="py-1.5">
+                <MoonIcon />
+                <span>Dark</span>
+                {currentTheme === "dark" ? (
+                  <CheckIcon className="ml-auto" />
+                ) : null}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")} className="py-1.5">
+                <LaptopMinimalIcon />
+                <span>System</span>
+                {currentTheme === "system" ? (
+                  <CheckIcon className="ml-auto" />
+                ) : null}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
           </DropdownMenuSub>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
