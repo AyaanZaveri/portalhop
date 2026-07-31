@@ -6,14 +6,20 @@ import type { PortalChannel } from "@/lib/stalker-types"
 // source's own `updatedAt` (set whenever it's re-synced/edited), not a TTL.
 
 const DB_NAME = "portalhop"
-// Version 2 clears legacy entries that lack the persisted saved-channel ID.
-// They previously could collide when an M3U provider reused an XMLTV ID.
-const DB_VERSION = 2
+// Version 3 adds a separate, persistent cache for the public IPTV-org catalogue.
+const DB_VERSION = 3
 const STORE_NAME = "portalChannels"
+const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 
 type CachedPortalChannels = {
   sourceId: number
   updatedAt: number
+  channels: PortalChannel[]
+}
+
+type CachedIptvOrgChannels = {
+  id: "catalogue"
+  expiresAt: number
   channels: PortalChannel[]
 }
 
@@ -23,8 +29,12 @@ function openDb(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result
-      if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME)
-      db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
+      }
+      if (!db.objectStoreNames.contains(IPTV_ORG_STORE_NAME)) {
+        db.createObjectStore(IPTV_ORG_STORE_NAME, { keyPath: "id" })
+      }
     }
 
     request.onsuccess = () => resolve(request.result)
@@ -37,6 +47,7 @@ function openDb(): Promise<IDBDatabase> {
 // every entry point swallows failures and just falls back to a network
 // fetch rather than surfacing an error to the user.
 async function withStore<T>(
+  storeName: string,
   mode: IDBTransactionMode,
   run: (store: IDBObjectStore) => IDBRequest<T>
 ): Promise<T | null> {
@@ -48,8 +59,8 @@ async function withStore<T>(
     const db = await openDb()
 
     return await new Promise<T | null>((resolve) => {
-      const tx = db.transaction(STORE_NAME, mode)
-      const request = run(tx.objectStore(STORE_NAME))
+      const tx = db.transaction(storeName, mode)
+      const request = run(tx.objectStore(storeName))
 
       request.onsuccess = () => resolve(request.result ?? null)
       request.onerror = () => resolve(null)
@@ -63,13 +74,13 @@ async function withStore<T>(
 export async function getCachedPortalChannels(
   sourceId: number
 ): Promise<CachedPortalChannels | null> {
-  return withStore("readonly", (store) => store.get(sourceId))
+  return withStore(STORE_NAME, "readonly", (store) => store.get(sourceId))
 }
 
 export async function setCachedPortalChannels(
   entry: CachedPortalChannels
 ): Promise<void> {
-  await withStore("readwrite", (store) => store.put(entry))
+  await withStore(STORE_NAME, "readwrite", (store) => store.put(entry))
 }
 
 // Drops any cached entries for sources that no longer exist (deleted
@@ -79,7 +90,7 @@ export async function prunePortalChannelsCache(
 ): Promise<void> {
   const keep = new Set(keepSourceIds)
 
-  const allKeys = await withStore("readonly", (store) => store.getAllKeys())
+  const allKeys = await withStore(STORE_NAME, "readonly", (store) => store.getAllKeys())
 
   if (!allKeys) {
     return
@@ -93,10 +104,28 @@ export async function prunePortalChannelsCache(
     return
   }
 
-  await withStore("readwrite", (store) => {
+  await withStore(STORE_NAME, "readwrite", (store) => {
     staleKeys.forEach((key) => store.delete(key))
     // The caller only awaits completion, not the deleted values, so any of
     // the delete requests can stand in as the tracked request.
     return store.delete(staleKeys[0])
   })
+}
+
+export async function getCachedIptvOrgChannels(): Promise<PortalChannel[] | null> {
+  const cached = await withStore<CachedIptvOrgChannels>(
+    IPTV_ORG_STORE_NAME,
+    "readonly",
+    (store) => store.get("catalogue"),
+  )
+  return cached && cached.expiresAt > Date.now() ? cached.channels : null
+}
+
+export async function setCachedIptvOrgChannels(
+  channels: PortalChannel[],
+  expiresAt: number,
+): Promise<void> {
+  await withStore(IPTV_ORG_STORE_NAME, "readwrite", (store) =>
+    store.put({ id: "catalogue", expiresAt, channels }),
+  )
 }

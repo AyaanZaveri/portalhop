@@ -19,7 +19,11 @@ import { normalizeXmltvId } from "@/lib/xmltv-id"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
-import { prunePortalChannelsCache } from "@/lib/portal-channels-cache"
+import {
+  getCachedIptvOrgChannels,
+  prunePortalChannelsCache,
+  setCachedIptvOrgChannels,
+} from "@/lib/portal-channels-cache"
 import {
   buildChannelIndex,
   channelSlug as channelSlugFor,
@@ -103,6 +107,11 @@ type TvContextValue = {
 }
 
 const TvContext = createContext<TvContextValue | null>(null)
+const emptyEpgChannels: Record<
+  string,
+  { name: string; logoUrl?: string; countryCode?: string }
+> = {}
+const emptyCustomEpgChannels: Record<number, Record<string, { logoUrl?: string }>> = {}
 
 export function useTv() {
   const context = useContext(TvContext)
@@ -140,12 +149,8 @@ export function TvProvider({ children }: { children: ReactNode }) {
   const [hiddenCategories, setHiddenCategories] = useState<
     { sourceId: number; category: string }[]
   >([])
-  const [epgChannels, setEpgChannels] = useState<
-    Record<string, { name: string; logoUrl?: string; countryCode?: string }>
-  >({})
-  const [customEpgChannels, setCustomEpgChannels] = useState<
-    Record<number, Record<string, { logoUrl?: string }>>
-  >({})
+  const epgChannels = emptyEpgChannels
+  const customEpgChannels = emptyCustomEpgChannels
 
   useEffect(() => {
     if (!userId) {
@@ -194,30 +199,6 @@ export function TvProvider({ children }: { children: ReactNode }) {
     () => new Set(),
   )
 
-  const fetchEpgChannels = useCallback(async () => {
-    try {
-      const customIds = Object.values(loadedPortals)
-        .map(({ portal }) =>
-          portal.epgMode === "custom" ? portal.epgSourceId : null,
-        )
-        .filter((id): id is number => Number.isInteger(id))
-      const res = await fetch(
-        `/api/epg/channels${customIds.length ? `?sourceIds=${customIds.join(",")}` : ""}`,
-      )
-      if (!res.ok) throw new Error("Failed to fetch EPG channels")
-      const channels = await res.json()
-      setEpgChannels(channels.builtin ?? channels)
-      setCustomEpgChannels(channels.custom ?? {})
-    } catch (err) {
-      console.error("Failed to load EPG channels:", err)
-    }
-  }, [loadedPortals])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchEpgChannels()
-  }, [fetchEpgChannels])
-
   const deferredQuery = useDeferredValue(query)
 
   // Built-in free iptv-org playlist. Fetched once when enabled; shown to all.
@@ -230,27 +211,42 @@ export function TvProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false
-    setIptvOrgLoading(true)
 
-    fetch("/api/iptv-org")
-      .then((res) => (res.ok ? res.json() : null))
+    const portalSource: PortalSource = {
+      id: IPTV_ORG_SOURCE_ID,
+      name: IPTV_ORG_SOURCE_NAME,
+      endpoint: "",
+      request: { sourceType: "m3u", playlistUrl: "" },
+      epgMode: "iptv-org",
+      epgSourceId: null,
+    }
+    const applyChannels = (channels: PortalChannel[]) => {
+      setIptvOrgChannels(
+        channels.map((channel) => ({
+          ...channel,
+          xmltvId: normalizeXmltvId(channel.xmltvId),
+          portalSource,
+        })),
+      )
+    }
+
+    getCachedIptvOrgChannels()
+      .then((cached) => {
+        if (cancelled || !cached) return false
+        applyChannels(cached)
+        setIptvOrgLoading(false)
+        return true
+      })
+      .then((usedCache) => {
+        if (!usedCache && !cancelled) setIptvOrgLoading(true)
+        return usedCache ? null : fetch("/api/iptv-org")
+      })
+      .then((res) => (res?.ok ? res.json() : null))
       .then((body) => {
         if (cancelled || !Array.isArray(body?.channels)) return
-        const portalSource: PortalSource = {
-          id: IPTV_ORG_SOURCE_ID,
-          name: IPTV_ORG_SOURCE_NAME,
-          endpoint: "",
-          request: { sourceType: "m3u", playlistUrl: "" },
-          epgMode: "iptv-org",
-          epgSourceId: null,
-        }
-        setIptvOrgChannels(
-          (body.channels as PortalChannel[]).map((channel) => ({
-            ...channel,
-            xmltvId: normalizeXmltvId(channel.xmltvId),
-            portalSource,
-          })),
-        )
+        const channels = body.channels as PortalChannel[]
+        applyChannels(channels)
+        setCachedIptvOrgChannels(channels, Date.now() + 6 * 60 * 60 * 1000)
       })
       .catch(() => {})
       .finally(() => {
