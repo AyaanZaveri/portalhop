@@ -336,7 +336,6 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               <div className="px-4 pt-4 pb-2">
                 <InputGroup>
                   <InputGroupInput
-                    autoFocus
                     placeholder="Find a category"
                     value={categorySearch}
                     onChange={(event) => setCategorySearch(event.target.value)}
