@@ -146,6 +146,28 @@ export const favorites = pgTable("favorites", {
   createdAt: timestamp("created_at").notNull(),
 })
 
+export const favoriteGroups = pgTable("favorite_groups", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  icon: text("icon").notNull().default("star"),
+  createdAt: timestamp("created_at").notNull(),
+})
+
+export const favoriteGroupChannels = pgTable(
+  "favorite_group_channels",
+  {
+    favoriteGroupId: integer("favorite_group_id")
+      .notNull()
+      .references(() => favoriteGroups.id, { onDelete: "cascade" }),
+    channelKey: text("channel_key").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.favoriteGroupId, table.channelKey] })],
+)
+
 export const hiddenCategoryGroups = pgTable(
   "hidden_category_groups",
   {
@@ -390,6 +412,8 @@ export type SavedChannel = typeof savedChannels.$inferSelect
 export type NewSavedChannel = typeof savedChannels.$inferInsert
 export type Favorite = typeof favorites.$inferSelect
 export type NewFavorite = typeof favorites.$inferInsert
+export type FavoriteGroup = typeof favoriteGroups.$inferSelect
+export type NewFavoriteGroup = typeof favoriteGroups.$inferInsert
 export type UserSettings = typeof userSettings.$inferSelect
 export type NewUserSettings = typeof userSettings.$inferInsert
 export type EpgCountry = typeof epgCountries.$inferSelect
