@@ -68,6 +68,25 @@ export async function deleteFavoriteGroup(db: Db, userId: string, groupId: numbe
   )
 }
 
+export async function updateFavoriteGroup(
+  db: Db,
+  userId: string,
+  groupId: number,
+  group: Omit<FavoriteGroup, "id" | "channelKeys">,
+) {
+  const [updated] = await db
+    .update(favoriteGroups)
+    .set(group)
+    .where(and(eq(favoriteGroups.id, groupId), eq(favoriteGroups.userId, userId)))
+    .returning({
+      id: favoriteGroups.id,
+      name: favoriteGroups.name,
+      icon: favoriteGroups.icon,
+    })
+
+  return updated ?? null
+}
+
 export async function setFavoriteGroupChannel(
   db: Db,
   userId: string,

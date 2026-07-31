@@ -169,6 +169,7 @@ export function FavoriteGroupsDrawer({
 }) {
   const [open, setOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<FavoriteGroup | null>(null)
   const [groups, setGroups] = useState<FavoriteGroup[]>([])
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -218,6 +219,7 @@ export function FavoriteGroupsDrawer({
       setName("")
       setIcon("star")
       setIconSelectedManually(false)
+      setEditingGroup(null)
     }
   }
 
@@ -228,11 +230,16 @@ export function FavoriteGroupsDrawer({
 
     setIsCreating(true)
     try {
-      const response = await fetch("/api/favorite-groups", {
-        method: "POST",
+      const response = await fetch(
+        editingGroup
+          ? `/api/favorite-groups?groupId=${editingGroup.id}`
+          : "/api/favorite-groups",
+        {
+        method: editingGroup ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmedName, icon }),
-      })
+        },
+      )
       const body = (await response.json().catch(() => null)) as {
         group?: FavoriteGroup
         error?: string
@@ -242,12 +249,19 @@ export function FavoriteGroupsDrawer({
         throw new Error(body?.error ?? "Could not create favorite group.")
       }
 
-      setGroups((current) => [...current, body.group as FavoriteGroup])
-      cacheFavoriteGroups([...(cachedFavoriteGroups ?? []), body.group])
+      const nextGroup = editingGroup
+        ? { ...body.group, channelKeys: editingGroup.channelKeys }
+        : (body.group as FavoriteGroup)
+      const nextGroups = editingGroup
+        ? groups.map((group) => (group.id === editingGroup.id ? nextGroup : group))
+        : [...groups, nextGroup]
+      setGroups(nextGroups)
+      cacheFavoriteGroups(nextGroups)
       setCreateOpen(false)
       setName("")
       setIcon("star")
       setIconSelectedManually(false)
+      setEditingGroup(null)
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not create favorite group.",
@@ -386,7 +400,24 @@ export function FavoriteGroupsDrawer({
                       </span>
                     </button>
                     {isManagingGroups ? (
-                      <Button
+                      <>
+                        <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0"
+                        aria-label={`Edit ${group.name}`}
+                        onClick={() => {
+                          setEditingGroup(group)
+                          setName(group.name)
+                          setIcon(group.icon)
+                          setIconSelectedManually(true)
+                          setCreateOpen(true)
+                        }}
+                      >
+                        <PencilIcon className="size-4" />
+                        </Button>
+                        <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
@@ -398,7 +429,8 @@ export function FavoriteGroupsDrawer({
                         }}
                       >
                         <Trash2Icon className="size-4" />
-                      </Button>
+                        </Button>
+                      </>
                     ) : (
                       <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
                         {group.channelKeys.length.toLocaleString()}
@@ -427,9 +459,13 @@ export function FavoriteGroupsDrawer({
         >
           <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
             <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
-              <DrawerTitle className="text-lg">New favorite group</DrawerTitle>
+              <DrawerTitle className="text-lg">
+                {editingGroup ? "Edit favorite group" : "New favorite group"}
+              </DrawerTitle>
               <DrawerDescription>
-                Give this collection a name and icon.
+                {editingGroup
+                  ? "Update this collection’s name or icon."
+                  : "Give this collection a name and icon."}
               </DrawerDescription>
             </DrawerHeader>
             <form className="flex flex-col gap-5 p-4 pt-4" onSubmit={createGroup}>
@@ -490,7 +526,7 @@ export function FavoriteGroupsDrawer({
                 </Field>
               </FieldGroup>
               <Button type="submit" disabled={!name.trim() || isCreating}>
-                Create group
+                {editingGroup ? "Save changes" : "Create group"}
               </Button>
             </form>
           </DrawerContent>

@@ -4,6 +4,7 @@ import {
   createFavoriteGroup,
   deleteFavoriteGroup,
   listFavoriteGroups,
+  updateFavoriteGroup,
 } from "@/db/favorite-groups"
 import { getDb } from "@/db/client"
 import { requireUser } from "@/lib/session"
@@ -77,4 +78,19 @@ export async function DELETE(request: Request) {
 
   await deleteFavoriteGroup(getDb(), user.id, groupId)
   return NextResponse.json({ ok: true })
+}
+
+export async function PATCH(request: Request) {
+  const user = await requireUser()
+  if (user instanceof NextResponse) return user
+
+  const groupId = Number(new URL(request.url).searchParams.get("groupId"))
+  const group = readGroup(await request.json().catch(() => null))
+  if (!Number.isInteger(groupId) || groupId <= 0 || !group) {
+    return NextResponse.json({ error: "A valid group name and icon are required." }, { status: 400 })
+  }
+
+  const updated = await updateFavoriteGroup(getDb(), user.id, groupId, group)
+  if (!updated) return NextResponse.json({ error: "Group not found." }, { status: 404 })
+  return NextResponse.json({ group: updated })
 }
