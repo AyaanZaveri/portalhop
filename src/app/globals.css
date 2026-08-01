@@ -159,9 +159,13 @@
   body {
     @apply bg-background text-foreground;
     padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+    /* No pull-to-refresh reload and no whole-page rubber band: the app shell is
+       fixed, and only the lists inside it should scroll. */
+    overscroll-behavior-y: none;
   }
   html {
     @apply font-sans;
+    overscroll-behavior-y: none;
   }
 }
 
