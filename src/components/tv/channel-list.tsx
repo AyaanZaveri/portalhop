@@ -66,7 +66,7 @@ import {
   subscribeToFavoriteGroups,
   type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
-import { chipButtonProps } from "@/components/tv/chip-button"
+import { chipButtonProps, chipLabelCollapse } from "@/components/tv/chip-button"
 import { cn } from "@/lib/utils"
 import {
   TV_MOBILE_LAYOUT_QUERY,
@@ -511,7 +511,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             </InputGroupAddon>
           ) : null}
         </InputGroup>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="@container flex items-center gap-1.5">
           <Button
             {...chipButtonProps(browseFilter.type === "favorites")}
             onClick={() => chooseFilter({ type: "favorites" })}
@@ -541,10 +541,14 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   ref={categoryTriggerRef}
                   {...chipButtonProps(browseFilter.type === "category", {
                     wide: true,
+                    collapsible: true,
                   })}
+                  aria-label="Categories"
                 >
                   <ShapesIcon className="size-3.5" />
-                  <span className="min-w-0 truncate">Categories</span>
+                  <span className={cn("min-w-0 truncate", chipLabelCollapse)}>
+                    Categories
+                  </span>
                 </Button>
               }
             />

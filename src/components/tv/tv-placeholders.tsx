@@ -22,7 +22,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { Skeleton } from "@/components/ui/skeleton"
-import { chipButtonProps } from "@/components/tv/chip-button"
+import { chipButtonProps, chipLabelCollapse } from "@/components/tv/chip-button"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
@@ -131,7 +131,7 @@ function ChannelListSkeleton({
             <SearchIcon />
           </InputGroupAddon>
         </InputGroup>
-        <div className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
+        <div className="@container flex items-center gap-1.5" aria-hidden="true">
           <Button
             {...chipButtonProps(browseFilter.type === "favorites")}
             tabIndex={-1}
@@ -144,11 +144,13 @@ function ChannelListSkeleton({
             All
           </Button>
           <Button
-            {...chipButtonProps(browseFilter.type === "category")}
+            {...chipButtonProps(browseFilter.type === "category", {
+              collapsible: true,
+            })}
             tabIndex={-1}
           >
             <ShapesIcon className="size-3.5" />
-            Categories
+            <span className={chipLabelCollapse}>Categories</span>
           </Button>
           <Button
             {...chipButtonProps(browseFilter.type === "favoriteGroup", {
