@@ -164,6 +164,10 @@ function ChannelListSkeleton({
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-3 w-2/5" />
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-4 w-10 rounded" />
+                <Skeleton className="h-4 w-20 rounded" />
+              </div>
             </div>
           </div>
         ))}
