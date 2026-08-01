@@ -16,6 +16,11 @@ import { toast } from "sonner"
 import type { PortalChannel, PortalResponse } from "@/lib/stalker-types"
 import type { SourceRequest } from "@/lib/source-types"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
+import {
+  browseFilterCookieName,
+  parseBrowseFilter,
+  type BrowseFilter,
+} from "@/lib/browse-filter"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
@@ -38,23 +43,15 @@ import {
   type SavedPortalRecord,
 } from "@/lib/tv-channels"
 
-export type BrowseFilter =
-  | { type: "favorites" }
-  | { type: "all" }
-  | { type: "category"; genre: string; sourceId?: number }
-  | { type: "favoriteGroup"; groupId: number }
+export type { BrowseFilter } from "@/lib/browse-filter"
 
 const browseFilterStoragePrefix = "portalhop-browse-filter:"
 
 function readSavedBrowseFilter(userId: string | null): BrowseFilter | null {
   if (typeof window === "undefined") return null
-  try {
-    const value = JSON.parse(localStorage.getItem(`${browseFilterStoragePrefix}${userId ?? "guest"}`) ?? "")
-    if (value?.type === "all" || value?.type === "favorites") return value
-    if (value?.type === "category" && typeof value.genre === "string") return value
-    if (value?.type === "favoriteGroup" && Number.isInteger(value.groupId)) return value
-  } catch {}
-  return null
+  return parseBrowseFilter(
+    localStorage.getItem(`${browseFilterStoragePrefix}${userId ?? "guest"}`) ?? undefined,
+  )
 }
 
 type TvContextValue = {
@@ -134,7 +131,13 @@ export function useTv() {
   return context
 }
 
-export function TvProvider({ children }: { children: ReactNode }) {
+export function TvProvider({
+  children,
+  initialBrowseFilter = null,
+}: {
+  children: ReactNode
+  initialBrowseFilter?: BrowseFilter | null
+}) {
   useFavoritesSync()
   const { settings, settingsLoaded, userId, updateSettings } = useUserSettings()
   const {
@@ -445,11 +448,13 @@ export function TvProvider({ children }: { children: ReactNode }) {
   )
 
   // Auto-default the filter to favorites/all until the user picks one.
-  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>({
-    type: "all",
-  })
-  const userChoseFilter = useRef(false)
-  const [browseFilterRestored, setBrowseFilterRestored] = useState(false)
+  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(
+    initialBrowseFilter ?? { type: "all" },
+  )
+  const userChoseFilter = useRef(initialBrowseFilter !== null)
+  const [browseFilterRestored, setBrowseFilterRestored] = useState(
+    initialBrowseFilter !== null,
+  )
 
   useEffect(() => {
     if (!settingsLoaded) return
@@ -478,6 +483,7 @@ export function TvProvider({ children }: { children: ReactNode }) {
         `${browseFilterStoragePrefix}${userId ?? "guest"}`,
         JSON.stringify(browseFilter),
       )
+      document.cookie = `${browseFilterCookieName}=${encodeURIComponent(JSON.stringify(browseFilter))}; Path=/; Max-Age=31536000; SameSite=Lax`
     } catch {}
   }, [browseFilter, browseFilterRestored, userId])
 

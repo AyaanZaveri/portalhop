@@ -45,6 +45,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Drawer,
   DrawerContent,
@@ -152,6 +153,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   >(() => new Set())
   const [selectedFavoriteGroup, setSelectedFavoriteGroup] =
     useState<FavoriteGroup | null>(null)
+  const [isRestoringFavoriteGroup, setIsRestoringFavoriteGroup] = useState(
+    () => browseFilter.type === "favoriteGroup",
+  )
 
   // The provider preserves the selected group id while opening a channel, but
   // this list remounts on the detail route. Rehydrate the group membership so
@@ -169,6 +173,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
       })
       .catch(() => { })
+      .finally(() => {
+        if (!cancelled) setIsRestoringFavoriteGroup(false)
+      })
 
     return () => {
       cancelled = true
@@ -932,6 +939,18 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 </div>
               )
             })}
+          </div>
+        ) : isRestoringFavoriteGroup && browseFilter.type === "favoriteGroup" ? (
+          <div className="flex flex-col gap-1.5 px-2 pt-1" aria-label="Loading group channels">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className="flex h-[78px] items-center gap-3">
+                <Skeleton className="size-11 shrink-0 rounded-lg" />
+                <div className="flex flex-1 flex-col gap-2">
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-3 w-2/5" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <Empty className="h-40">
