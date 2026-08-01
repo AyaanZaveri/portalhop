@@ -76,6 +76,17 @@ type ButtonClickHandler = NonNullable<
   React.ComponentProps<typeof Button>["onClick"]
 >;
 
+/**
+ * Whether a click came from an actual mouse. Click events carry a pointerType
+ * in every current browser; the media query is the fallback for the rest, and
+ * it keeps hybrid laptops working -- their mouse clicks still report "mouse".
+ */
+function isMouseClick(event: React.MouseEvent) {
+  const pointerType = (event.nativeEvent as Partial<PointerEvent>).pointerType;
+  if (pointerType) return pointerType === "mouse";
+  return !window.matchMedia("(pointer: coarse)").matches;
+}
+
 type IOSFullscreenVideoElement = HTMLVideoElement & {
   webkitDisplayingFullscreen?: boolean;
   webkitEnterFullscreen?: () => void;
@@ -360,6 +371,21 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
       }
     },
     [autoHide, rootImplProps.onMouseMove, onControlsShow],
+  );
+
+  // Touch has no hover, so a tap is the only way back to the controls. It also
+  // restarts the auto-hide timer, the way a mouse move does.
+  const onPointerDown = React.useCallback(
+    (event: React.PointerEvent<RootElement>) => {
+      rootImplProps.onPointerDown?.(event);
+
+      if (event.defaultPrevented) return;
+
+      if (autoHide && event.pointerType !== "mouse") {
+        onControlsShow();
+      }
+    },
+    [autoHide, rootImplProps.onPointerDown, onControlsShow],
   );
 
   React.useEffect(() => {
@@ -761,6 +787,7 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
             ref: composedRef,
             onMouseLeave,
             onMouseMove,
+            onPointerDown,
             onKeyDown,
             onKeyUp,
             className: cn(
@@ -816,6 +843,11 @@ function MediaPlayerVideo(props: MediaPlayerVideoProps) {
       props.onClick?.(event);
 
       if (event.defaultPrevented) return;
+
+      // A tap on the surface is how a touch user reveals the controls, so it
+      // must not also toggle playback -- they pause with the pause button.
+      // Click-to-pause stays for mouse users, who reveal controls by hovering.
+      if (!isMouseClick(event)) return;
 
       const mediaElement = event.currentTarget;
       if (!mediaElement) return;
