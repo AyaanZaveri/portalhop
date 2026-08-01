@@ -58,9 +58,11 @@ import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import {
   FavoriteGroupsDrawer,
+  getCachedFavoriteGroups,
   getFavoriteGroupIcon,
   GroupMembershipDrawer,
   loadFavoriteGroups,
+  subscribeToFavoriteGroups,
   type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
 import { cn } from "@/lib/utils"
@@ -117,7 +119,6 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     setCategorySearch,
     isChannelFavorited,
     toggleFavorite,
-    favorites,
     epgChannels,
     customEpgChannels,
     useImageProxy,
@@ -184,6 +185,20 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       cancelled = true
     }
   }, [browseFilter, selectedFavoriteGroup])
+
+  // Membership edits go through the shared cache, so a channel removed from the
+  // group currently being browsed leaves the list immediately.
+  useEffect(() => {
+    if (browseFilter.type !== "favoriteGroup") return
+
+    const groupId = browseFilter.groupId
+    return subscribeToFavoriteGroups(() => {
+      const group = getCachedFavoriteGroups()?.find((entry) => entry.id === groupId)
+      if (!group) return
+      setSelectedFavoriteGroup(group)
+      setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
+    })
+  }, [browseFilter])
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
@@ -1116,9 +1131,6 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             : null
         }
         isMobileLayout={isMobileLayout}
-        onChannelFavorited={(channelKey) => {
-          if (!favorites.has(channelKey)) toggleFavorite(channelKey)
-        }}
         onOpenChange={(open) => {
           if (!open) setGroupMembershipChannel(null)
         }}

@@ -73,6 +73,17 @@ function cacheFavoriteGroups(groups: FavoriteGroup[] | null) {
   }
 }
 
+export function getCachedFavoriteGroups() {
+  return cachedFavoriteGroups
+}
+
+/** Notifies when the shared favorite-group cache changes, so views filtered by
+ * a group can drop or add rows without a refetch. */
+export function subscribeToFavoriteGroups(listener: () => void) {
+  window.addEventListener("favorite-groups-updated", listener)
+  return () => window.removeEventListener("favorite-groups-updated", listener)
+}
+
 export async function loadFavoriteGroups() {
   if (cachedFavoriteGroups) return cachedFavoriteGroups
   if (!favoriteGroupsRequest) {
@@ -582,12 +593,10 @@ export function FavoriteGroupsDrawer({
 export function GroupMembershipDrawer({
   channel,
   isMobileLayout,
-  onChannelFavorited,
   onOpenChange,
 }: {
   channel: { key: string; name: string } | null
   isMobileLayout: boolean
-  onChannelFavorited: (channelKey: string) => void
   onOpenChange: (open: boolean) => void
 }) {
   const [groups, setGroups] = useState<FavoriteGroup[] | null>(cachedFavoriteGroups)
@@ -632,7 +641,6 @@ export function GroupMembershipDrawer({
         body: JSON.stringify({ channelKey: channel.key }),
       })
       if (!response.ok) throw new Error("Could not update favorite group.")
-      if (!included) onChannelFavorited(channel.key)
     } catch (error) {
       setGroups(groups)
       cacheFavoriteGroups(groups)

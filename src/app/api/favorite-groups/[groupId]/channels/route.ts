@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
 import { setFavoriteGroupChannel } from "@/db/favorite-groups"
-import { addFavorites } from "@/db/favorites"
 import { requireUser } from "@/lib/session"
 
 export const runtime = "nodejs"
@@ -32,7 +31,7 @@ async function updateMembership(request: Request, included: boolean) {
   )
   if (!updated) return NextResponse.json({ error: "Group not found." }, { status: 404 })
 
-  if (included) await addFavorites(getDb(), user.id, [channelKey])
+  // Group membership is independent of the plain favorites list.
   return NextResponse.json({ ok: true })
 }
 
