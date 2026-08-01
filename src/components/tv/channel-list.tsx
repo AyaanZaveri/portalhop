@@ -1023,7 +1023,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   ) : null}
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -1044,8 +1044,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     )}
                   />
                   {isChannelFavorited(contextChannel)
-                    ? "Remove from favorites"
-                    : "Add to favorites"}
+                    ? "Unfavorite"
+                    : "Favorite"}
                 </Button>
                 {userId ? (
                   <Button
