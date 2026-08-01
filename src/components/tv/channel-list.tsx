@@ -66,6 +66,7 @@ import {
   subscribeToFavoriteGroups,
   type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
+import { chipButtonProps } from "@/components/tv/chip-button"
 import { cn } from "@/lib/utils"
 import {
   TV_MOBILE_LAYOUT_QUERY,
@@ -89,18 +90,6 @@ type CategoryEntry = {
 
 function categoryPreferenceKey(sourceId: number, genre: string) {
   return `${sourceId}\u0000${genre}`
-}
-
-function chipButtonProps(active: boolean, options?: { wide?: boolean }) {
-  return {
-    variant: active ? ("default" as const) : ("outline" as const),
-    size: "sm" as const,
-    className: cn(
-      "rounded-full",
-      options?.wide ? "min-w-0 max-w-full shrink!" : "max-w-40 shrink-0",
-      !active && "text-muted-foreground",
-    ),
-  }
 }
 
 export function ChannelList({ headerControls }: { headerControls?: ReactNode }) {

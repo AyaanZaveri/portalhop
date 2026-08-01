@@ -22,6 +22,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { Skeleton } from "@/components/ui/skeleton"
+import { chipButtonProps } from "@/components/tv/chip-button"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
@@ -132,56 +133,31 @@ function ChannelListSkeleton({
         </InputGroup>
         <div className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
           <Button
-            variant={browseFilter.type === "favorites" ? "default" : "outline"}
-            size="sm"
+            {...chipButtonProps(browseFilter.type === "favorites")}
             tabIndex={-1}
-            className={
-              browseFilter.type === "favorites"
-                ? "rounded-full"
-                : "rounded-full text-muted-foreground"
-            }
           >
             <StarIcon className="size-3.5" />
             Favorites
           </Button>
-          <Button
-            variant={browseFilter.type === "all" ? "default" : "outline"}
-            size="sm"
-            tabIndex={-1}
-            className={
-              browseFilter.type === "all"
-                ? "rounded-full"
-                : "rounded-full text-muted-foreground"
-            }
-          >
+          <Button {...chipButtonProps(browseFilter.type === "all")} tabIndex={-1}>
             <LayoutGridIcon className="size-3.5" />
             All
           </Button>
           <Button
-            variant={browseFilter.type === "category" ? "default" : "outline"}
-            size="sm"
+            {...chipButtonProps(browseFilter.type === "category")}
             tabIndex={-1}
-            className={
-              browseFilter.type === "category"
-                ? "rounded-full"
-                : "rounded-full text-muted-foreground"
-            }
           >
             <ShapesIcon className="size-3.5" />
             Categories
           </Button>
           <Button
-            variant={browseFilter.type === "favoriteGroup" ? "default" : "outline"}
-            size="sm"
+            {...chipButtonProps(browseFilter.type === "favoriteGroup", {
+              iconOnly: true,
+            })}
             tabIndex={-1}
-            className={
-              browseFilter.type === "favoriteGroup"
-                ? "h-7 rounded-full px-2.5 min-[940px]:size-7 min-[940px]:px-0"
-                : "h-7 rounded-full px-2.5 text-muted-foreground min-[940px]:size-7 min-[940px]:px-0"
-            }
           >
             <FolderHeartIcon className="size-3.5" />
-            <span className="min-[940px]:sr-only">Groups</span>
+            <span className="sr-only">Groups</span>
           </Button>
         </div>
       </div>

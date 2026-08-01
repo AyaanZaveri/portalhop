@@ -31,7 +31,7 @@ export function ThemeToggle() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 cursor-pointer rounded-md text-muted-foreground hover:text-foreground"
+            className="size-9 cursor-pointer rounded-md text-muted-foreground hover:text-foreground min-[940px]:size-8"
             aria-label="Theme"
           />
         }

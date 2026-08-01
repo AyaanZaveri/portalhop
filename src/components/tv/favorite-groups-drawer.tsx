@@ -54,6 +54,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empt
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { chipButtonProps } from "@/components/tv/chip-button"
 import { cn } from "@/lib/utils"
 
 export type FavoriteGroup = {
@@ -332,16 +333,11 @@ export function FavoriteGroupsDrawer({
         render={
           <Button
             type="button"
-            variant={activeGroupId === null ? "outline" : "default"}
-            size="sm"
-            className={cn(
-              "h-7 gap-1 rounded-full px-2.5 min-[940px]:size-7 min-[940px]:px-0",
-              activeGroupId === null && "text-muted-foreground",
-            )}
+            {...chipButtonProps(activeGroupId !== null, { iconOnly: true })}
             aria-label="Favorite groups"
           >
             <FolderHeartIcon className="size-3.5" />
-            <span className="min-[940px]:sr-only">Groups</span>
+            <span className="sr-only">Groups</span>
           </Button>
         }
       />
