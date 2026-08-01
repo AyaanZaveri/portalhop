@@ -168,7 +168,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         setSelectedFavoriteGroup(group)
         setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
       })
-      .catch(() => {})
+      .catch(() => { })
 
     return () => {
       cancelled = true
@@ -1023,43 +1023,45 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   ) : null}
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => {
-                  const isFavorited = isChannelFavorited(contextChannel)
-                  toggleFavorite(getChannelKey(contextChannel))
-                  if (!isFavorited) {
-                    void triggerHaptic([{ duration: 15 }], { intensity: 0.4 })
-                  }
-                  setContextChannel(null)
-                }}
-              >
-                <StarIcon
-                  className={cn(
-                    "size-4",
-                    isChannelFavorited(contextChannel) && "fill-current",
-                  )}
-                />
-                {isChannelFavorited(contextChannel)
-                  ? "Remove from favorites"
-                  : "Add to favorites"}
-              </Button>
-              {userId ? (
+              <div className="flex flex-col gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   className="w-full justify-start gap-2"
                   onClick={() => {
-                    setGroupMembershipChannel(contextChannel)
+                    const isFavorited = isChannelFavorited(contextChannel)
+                    toggleFavorite(getChannelKey(contextChannel))
+                    if (!isFavorited) {
+                      void triggerHaptic([{ duration: 15 }], { intensity: 0.4 })
+                    }
                     setContextChannel(null)
                   }}
                 >
-                  <FolderPlusIcon />
-                  Add to groups
+                  <StarIcon
+                    className={cn(
+                      "size-4",
+                      isChannelFavorited(contextChannel) && "fill-current",
+                    )}
+                  />
+                  {isChannelFavorited(contextChannel)
+                    ? "Remove from favorites"
+                    : "Add to favorites"}
                 </Button>
-              ) : null}
+                {userId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      setGroupMembershipChannel(contextChannel)
+                      setContextChannel(null)
+                    }}
+                  >
+                    <FolderPlusIcon />
+                    Add to groups
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </DrawerContent>
