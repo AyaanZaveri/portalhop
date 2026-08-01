@@ -165,6 +165,32 @@
   }
 }
 
+/* Touch devices only: a long press on a row should feel like a native app
+   gesture, not a text selection. Desktop keeps normal selection so channel
+   names and stream details stay copyable. Fields and anything explicitly
+   marked selectable opt back in. */
+@media (pointer: coarse) {
+  body {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  .select-text,
+  .select-all {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+
+  .select-all {
+    user-select: all;
+  }
+}
+
 /* Motion-sensitive users: collapse animations and transitions to near-instant
    so nothing slides, springs, or loops. Opacity/color still resolve (just
    immediately), and the JS springs additionally drop their movement via
