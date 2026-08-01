@@ -1,10 +1,10 @@
-const CACHE_NAME = "portal-hop-shell-v1"
+const CACHE_NAME = "portal-hop-shell-v2"
 const APP_SHELL = [
   "/tv",
   "/favicon.ico",
-  "/favicon.svg",
-  "/android-chrome-192x192.png",
-  "/android-chrome-512x512.png",
+  "/icon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
 ]
 
 self.addEventListener("install", (event) => {

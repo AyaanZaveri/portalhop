@@ -25,6 +25,14 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Portal Hop",
   description: "A tiny Next.js app for listing channels from an authorized Stalker portal.",
+  // Icons and the manifest come from the app-directory file conventions
+  // (favicon.ico, icon.svg, apple-icon.png, manifest.ts) — Next emits the
+  // <link> tags itself, so they must not be hand-written into <head>.
+  appleWebApp: {
+    capable: true,
+    title: "Portal Hop",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -51,19 +59,6 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, montserrat.variable, "font-sans")}
     >
-      <head>
-        <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <meta name="apple-mobile-web-app-title" content="Portal Hop" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
-        <link rel="manifest" href="/site.webmanifest" />
-      </head>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
