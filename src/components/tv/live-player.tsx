@@ -45,6 +45,18 @@ import {
 import { useTv } from "@/components/tv/tv-provider"
 import { useChannelEpg } from "@/components/tv/channel-epg-provider"
 
+// Past this much drift, treat the jump as a live-edge snap rather than playback drift.
+const RESUME_JUMP_TOLERANCE = 1.5
+
+// In-buffer seeks are frame-accurate; seeking outside the buffer refetches a fragment.
+const isBuffered = (video: HTMLVideoElement, time: number) => {
+  const { buffered } = video
+  for (let i = 0; i < buffered.length; i += 1) {
+    if (time >= buffered.start(i) && time <= buffered.end(i)) return true
+  }
+  return false
+}
+
 export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
   const { resolvedTheme } = useTheme()
   const {
@@ -194,9 +206,9 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
     }
   }, [channel, endpoint, previewSourceRequest, useProxy])
 
-  // Live streams snap to the live edge when playback resumes, so pausing and
-  // hitting play skips past whatever you paused over. Remember the paused
-  // position and pull it back if the player jumps forward, within the DVR window.
+  // hls.js snaps to the live edge once the playhead leaves the sliding playlist
+  // window, so resuming skips ahead. Pull it back, but only while that frame is
+  // still buffered — once it is evicted the live edge is the right answer.
   useEffect(() => {
     const video = playerElement
     if (!video) return
@@ -225,16 +237,24 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
       pausedAt = null
       if (target === null) return
 
+      // The snap can land after play fires, so restore retries; seek only once.
+      let settled = false
+
       const restore = () => {
+        if (settled) return
         const seekable = video.seekable
         if (seekable.length === 0) return
         const start = seekable.start(0)
         const end = seekable.end(seekable.length - 1)
         if (target < start - 1) return
         const clamped = Math.min(target, end)
-        if (video.currentTime > clamped + 1.5) {
-          video.currentTime = clamped
+        if (video.currentTime <= clamped + RESUME_JUMP_TOLERANCE) return
+        if (!isBuffered(video, clamped)) {
+          settled = true
+          return
         }
+        video.currentTime = clamped
+        settled = true
       }
 
       clearRestoreTimers()
