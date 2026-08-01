@@ -76,6 +76,12 @@ type ButtonClickHandler = NonNullable<
   React.ComponentProps<typeof Button>["onClick"]
 >;
 
+type IOSFullscreenVideoElement = HTMLVideoElement & {
+  webkitDisplayingFullscreen?: boolean;
+  webkitEnterFullscreen?: () => void;
+  webkitExitFullscreen?: () => void;
+};
+
 const SEEK_STEP_SHORT = 5;
 const SEEK_STEP_LONG = 10;
 const SEEK_COLLISION_PADDING = 10;
@@ -2763,13 +2769,31 @@ function MediaPlayerFullscreen(props: MediaPlayerFullscreenProps) {
 
       if (event.defaultPrevented) return;
 
+      const mediaElement = context.mediaRef
+        .current as IOSFullscreenVideoElement | null;
+      const isAppleMobile =
+        /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      // iPhone's native video fullscreen is more reliable than the generic
+      // Fullscreen API, particularly in installed web apps. It also needs to
+      // be called synchronously from this user gesture.
+      if (isAppleMobile && mediaElement?.webkitEnterFullscreen) {
+        if (mediaElement.webkitDisplayingFullscreen) {
+          mediaElement.webkitExitFullscreen?.();
+        } else {
+          mediaElement.webkitEnterFullscreen();
+        }
+        return;
+      }
+
       dispatch({
         type: isFullscreen
           ? MediaActionTypes.MEDIA_EXIT_FULLSCREEN_REQUEST
           : MediaActionTypes.MEDIA_ENTER_FULLSCREEN_REQUEST,
       });
     },
-    [dispatch, props.onClick, isFullscreen],
+    [context.mediaRef, dispatch, props.onClick, isFullscreen],
   );
 
   return (

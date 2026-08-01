@@ -31,7 +31,10 @@ import { AuthDialog } from "@/components/auth-dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
-import { useMediaQuery } from "@/hooks/use-media-query"
+import {
+  TV_MOBILE_LAYOUT_QUERY,
+  useMediaQuery,
+} from "@/hooks/use-media-query"
 import {
   externalPlayers,
   getClientPlatform,
@@ -66,7 +69,7 @@ export function TvShell({ children }: { children: ReactNode }) {
     browseFilter,
   } = useTv()
 
-  const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
+  const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const isReady = useHydratedLayout()
   const segment = useSelectedLayoutSegment()
   const currentChannel = segment ? channelIndex.get(segment) : undefined
@@ -102,7 +105,7 @@ export function TvShell({ children }: { children: ReactNode }) {
     )
   } else if (isReady && isMobileLayout) {
     content = (
-      <div className="bg-background h-full overflow-hidden min-[940px]:bg-muted/30 min-[940px]:p-3">
+      <div className="bg-background h-full overflow-hidden">
         {segment ? children : <ChannelList headerControls={utilityControls} />}
       </div>
     )

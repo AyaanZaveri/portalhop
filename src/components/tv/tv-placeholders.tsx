@@ -25,7 +25,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
-import { useMediaQuery } from "@/hooks/use-media-query"
+import {
+  TV_MOBILE_LAYOUT_QUERY,
+  useMediaQuery,
+} from "@/hooks/use-media-query"
 import type { BrowseFilter } from "@/components/tv/tv-provider"
 
 export function EmptyPlayerPanel({
@@ -202,13 +205,13 @@ export function LoadingShell({
   headerControls?: ReactNode
   browseFilter?: BrowseFilter
 }) {
-  const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
+  const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const isReady = useHydratedLayout()
 
   // Mobile lands on the channel list, so its loading state is just the list.
   if (isReady && isMobileLayout) {
     return (
-      <div className="bg-background h-full overflow-hidden min-[940px]:bg-muted/30 min-[940px]:p-3">
+      <div className="bg-background h-full overflow-hidden">
         <ChannelListSkeleton headerControls={headerControls} browseFilter={browseFilter} />
       </div>
     )

@@ -64,7 +64,10 @@ import {
   type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
 import { cn } from "@/lib/utils"
-import { useMediaQuery } from "@/hooks/use-media-query"
+import {
+  TV_MOBILE_LAYOUT_QUERY,
+  useMediaQuery,
+} from "@/hooks/use-media-query"
 import {
   canResolveChannel,
   getChannelKey,
@@ -127,7 +130,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   const params = useParams<{ channelId?: string }>()
   const router = useRouter()
   const activeSlug = params?.channelId
-  const isMobileLayout = useMediaQuery("(max-width: 939px)", true)
+  const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const { trigger: triggerHaptic } = useWebHaptics()
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
@@ -400,12 +403,27 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     : ""
 
   return (
-    <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden min-[940px]:min-w-80 min-[940px]:rounded-2xl min-[940px]:bg-card">
-      <div className="flex flex-col gap-3 p-5 pb-2 min-[940px]:p-4 min-[940px]:pb-2">
+    <div
+      className={cn(
+        "bg-background flex h-full min-w-0 flex-col overflow-hidden",
+        !isMobileLayout && "min-w-80 rounded-2xl bg-card",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-col gap-3 p-5 pb-2",
+          !isMobileLayout && "p-4 pb-2",
+        )}
+      >
         <div className="mb-1 flex items-center justify-between gap-3">
           <PortalHopWordmark />
           {headerControls ? (
-            <div className="-mr-1 flex shrink-0 items-center gap-1 min-[940px]:mr-0">
+            <div
+              className={cn(
+                "-mr-1 flex shrink-0 items-center gap-1",
+                !isMobileLayout && "mr-0",
+              )}
+            >
               {headerControls}
             </div>
           ) : null}
@@ -830,12 +848,18 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                             }
                             router.push(`/tv/${slug}`)
                           }}
-                          className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl border-0 bg-transparent p-0 focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset min-[940px]:hidden"
+                          className={cn(
+                            "focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl border-0 bg-transparent p-0 focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset",
+                            !isMobileLayout && "hidden",
+                          )}
                         />
                         <Link
                           href={`/tv/${slug}`}
                           aria-label={channelLabel}
-                          className="focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 hidden rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset min-[940px]:block"
+                          className={cn(
+                            "focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset",
+                            isMobileLayout ? "hidden" : "block",
+                          )}
                         />
                       </>
                     ) : null}
@@ -894,7 +918,12 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                         ) : null}
                       </div>
                     </div>
-                    <div className="pointer-events-auto relative z-10 hidden size-8 shrink-0 items-center justify-center min-[940px]:flex">
+                    <div
+                      className={cn(
+                        "pointer-events-auto relative z-10 size-8 shrink-0 items-center justify-center",
+                        isMobileLayout ? "hidden" : "flex",
+                      )}
+                    >
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
