@@ -31,6 +31,34 @@ import {
 } from "@/hooks/use-media-query"
 import type { BrowseFilter } from "@/components/tv/tv-provider"
 
+/**
+ * The one channel-row skeleton. Rendered both by the initial page placeholder
+ * and by the in-list loading state so the two never drift apart. Horizontal
+ * padding comes from the scroll container, matching a real channel row.
+ */
+export function ChannelRowSkeletons({ count }: { count: number }) {
+  return (
+    <div className="flex flex-col gap-1.5 pt-[3px]">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="flex h-[78px] items-center gap-3 rounded-xl pr-1 pl-2"
+        >
+          <Skeleton className="size-11 shrink-0 rounded-lg" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-3 w-2/5" />
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="h-4 w-10 rounded" />
+              <Skeleton className="h-4 w-20 rounded" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function EmptyPlayerPanel({
   showBackdrop = true,
 }: {
@@ -157,23 +185,8 @@ function ChannelListSkeleton({
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden px-3 pt-[3px] pb-2">
-        {Array.from({ length: 14 }).map((_, index) => (
-          <div
-            key={index}
-            className="mb-1.5 flex h-[78px] items-center gap-3 rounded-xl pr-1 pl-2"
-          >
-            <Skeleton className="size-11 shrink-0 rounded-lg" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-3 w-2/5" />
-              <div className="flex items-center gap-1.5">
-                <Skeleton className="h-4 w-10 rounded" />
-                <Skeleton className="h-4 w-20 rounded" />
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="min-h-0 flex-1 overflow-hidden px-3 pb-2">
+        <ChannelRowSkeletons count={14} />
       </div>
     </div>
   )
