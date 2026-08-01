@@ -9,6 +9,7 @@ import {
   CheckIcon,
   EyeIcon,
   EyeOffIcon,
+  FolderHeartIcon,
   FolderPlusIcon,
   LayoutGridIcon,
   ListFilterIcon,
@@ -160,6 +161,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   const [isRestoringFavoriteGroup, setIsRestoringFavoriteGroup] = useState(
     () => browseFilter.type === "favoriteGroup",
   )
+  const [groupedChannelKeys, setGroupedChannelKeys] = useState<Set<string>>(
+    () => new Set(),
+  )
 
   // The provider preserves the selected group id while opening a channel, but
   // this list remounts on the detail route. Rehydrate the group membership so
@@ -185,6 +189,23 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       cancelled = true
     }
   }, [browseFilter, selectedFavoriteGroup])
+
+  // Every channel that belongs to at least one group, so the group action can
+  // say whether it will start a membership or change existing ones.
+  useEffect(() => {
+    if (!userId) return
+
+    const syncGroupedKeys = () => {
+      const groups = getCachedFavoriteGroups()
+      if (!groups) return
+      setGroupedChannelKeys(
+        new Set(groups.flatMap((group) => group.channelKeys)),
+      )
+    }
+
+    loadFavoriteGroups().then(syncGroupedKeys).catch(() => { })
+    return subscribeToFavoriteGroups(syncGroupedKeys)
+  }, [userId])
 
   // Membership edits go through the shared cache, so a channel removed from the
   // group currently being browsed leaves the list immediately.
@@ -971,8 +992,14 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                                 className="py-1.5 whitespace-nowrap"
                                 onClick={() => setGroupMembershipChannel(channel)}
                               >
-                                <FolderPlusIcon />
-                                Add to groups
+                                {groupedChannelKeys.has(channelKey) ? (
+                                  <FolderHeartIcon />
+                                ) : (
+                                  <FolderPlusIcon />
+                                )}
+                                {groupedChannelKeys.has(channelKey)
+                                  ? "Edit groups"
+                                  : "Add to groups"}
                               </DropdownMenuItem>
                             ) : null}
                           </DropdownMenuGroup>
@@ -1112,8 +1139,14 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       setContextChannel(null)
                     }}
                   >
-                    <FolderPlusIcon />
-                    Add to groups
+                    {groupedChannelKeys.has(getChannelKey(contextChannel)) ? (
+                      <FolderHeartIcon />
+                    ) : (
+                      <FolderPlusIcon />
+                    )}
+                    {groupedChannelKeys.has(getChannelKey(contextChannel))
+                      ? "Edit groups"
+                      : "Add to groups"}
                   </Button>
                 ) : null}
               </div>
