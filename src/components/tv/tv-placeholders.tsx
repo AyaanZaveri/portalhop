@@ -145,8 +145,8 @@ function ChannelListSkeleton({
             tabIndex={-1}
             className={
               browseFilter.type === "favoriteGroup"
-                ? "h-8 rounded-full px-3 min-[940px]:size-8 min-[940px]:px-0"
-                : "h-8 rounded-full px-3 text-muted-foreground min-[940px]:size-8 min-[940px]:px-0"
+                ? "h-7 rounded-full px-2.5 min-[940px]:size-7 min-[940px]:px-0"
+                : "h-7 rounded-full px-2.5 text-muted-foreground min-[940px]:size-7 min-[940px]:px-0"
             }
           >
             <FolderHeartIcon className="size-3.5" />

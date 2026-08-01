@@ -324,7 +324,7 @@ export function FavoriteGroupsDrawer({
             variant={activeGroupId === null ? "outline" : "default"}
             size="sm"
             className={cn(
-              "h-8 gap-1 rounded-full px-3 min-[940px]:size-7 min-[940px]:px-0",
+              "h-7 gap-1 rounded-full px-2.5 min-[940px]:size-7 min-[940px]:px-0",
               activeGroupId === null && "text-muted-foreground",
             )}
             aria-label="Favorite groups"
