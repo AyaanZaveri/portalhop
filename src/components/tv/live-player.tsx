@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/media-player"
 import { cn } from "@/lib/utils"
 import { proxyImageUrl } from "@/lib/image-proxy"
+import { TV_MOBILE_LAYOUT_QUERY } from "@/hooks/use-media-query"
 import {
   canResolveChannel,
   formatBitrateLabel,
@@ -254,6 +255,38 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
       video.removeEventListener("play", onPlay)
     }
   }, [playerElement])
+
+  // A phone in portrait wastes most of the screen on a 16:9 stream, so
+  // fullscreen turns the handset sideways. Only phone-sized touch screens: on a
+  // tablet or desktop the window is already big enough to be worth respecting.
+  // iOS exposes no orientation lock at all — its native fullscreen player
+  // follows the system rotation instead, so this quietly does nothing there.
+  useEffect(() => {
+    // lock() is missing from the DOM lib because Safari never shipped it.
+    const orientation = window.screen?.orientation as
+      | (ScreenOrientation & { lock?: (orientation: string) => Promise<void> })
+      | undefined
+    if (typeof orientation?.lock !== "function") return
+    if (!window.matchMedia("(pointer: coarse)").matches) return
+    if (!window.matchMedia(TV_MOBILE_LAYOUT_QUERY).matches) return
+
+    const lockLandscape = orientation.lock
+
+    const syncOrientation = () => {
+      if (document.fullscreenElement) {
+        // Rejects when the platform refuses the lock; the user can still rotate.
+        lockLandscape.call(orientation, "landscape").catch(() => { })
+      } else {
+        orientation.unlock()
+      }
+    }
+
+    document.addEventListener("fullscreenchange", syncOrientation)
+    return () => {
+      document.removeEventListener("fullscreenchange", syncOrientation)
+      orientation.unlock()
+    }
+  }, [])
 
   // HLS engine hookup: stream-info badges (resolution/fps/bitrate) + embedded
   // CEA-608/708 caption decoding and overlay.
