@@ -609,30 +609,30 @@ export function GroupMembershipDrawer({
     }
   }, [channel])
 
-  const addToGroup = async (group: FavoriteGroup) => {
+  const toggleGroup = async (group: FavoriteGroup) => {
     if (!channel) return
+    const included = group.channelKeys.includes(channel.key)
     const nextGroups = (groups ?? []).map((entry) =>
       entry.id !== group.id
         ? entry
         : {
             ...entry,
-            channelKeys: entry.channelKeys.includes(channel.key)
-              ? entry.channelKeys
+            channelKeys: included
+              ? entry.channelKeys.filter((key) => key !== channel.key)
               : [...entry.channelKeys, channel.key],
           },
     )
     setGroups(nextGroups)
     cacheFavoriteGroups(nextGroups)
-    onOpenChange(false)
 
     try {
       const response = await fetch(`/api/favorite-groups/${group.id}/channels`, {
-        method: "POST",
+        method: included ? "DELETE" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelKey: channel.key }),
       })
       if (!response.ok) throw new Error("Could not update favorite group.")
-      onChannelFavorited(channel.key)
+      if (!included) onChannelFavorited(channel.key)
     } catch (error) {
       setGroups(groups)
       cacheFavoriteGroups(groups)
@@ -673,15 +673,20 @@ export function GroupMembershipDrawer({
                   <button
                     key={group.id}
                     type="button"
-                    onClick={() => addToGroup(group)}
+                    onClick={() => toggleGroup(group)}
+                    aria-pressed={group.channelKeys.includes(channel?.key ?? "")}
                     className={cn(
                       "hover:bg-accent hover:text-accent-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm",
+                      group.channelKeys.includes(channel?.key ?? "") && "bg-accent/70 text-accent-foreground",
                     )}
                   >
                     <Icon className="text-primary size-4 shrink-0 brightness-85 dark:brightness-100" />
                     <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
                       {group.name}
                     </span>
+                    {group.channelKeys.includes(channel?.key ?? "") ? (
+                      <CheckIcon className="size-4 shrink-0" />
+                    ) : null}
                   </button>
                 )
               })}
@@ -697,6 +702,13 @@ export function GroupMembershipDrawer({
             </Empty>
           )}
         </div>
+        {groups?.length ? (
+          <div className="p-4 pt-0">
+            <Button type="button" className="w-full" onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
+          </div>
+        ) : null}
       </DrawerContent>
     </Drawer>
   )
