@@ -169,6 +169,31 @@
   }
 }
 
+/* Installed app only. iOS runs a standalone PWA edge to edge under the status
+   bar, so the shell insets itself to keep the header clear of the clock. The
+   shell is exactly viewport-tall and border-box, so padding shrinks the content
+   area rather than pushing the bottom off screen. Android reports zero insets
+   here, which makes all of this a no-op there. */
+@media (display-mode: standalone) {
+  .tv-shell {
+    padding-block-start: env(safe-area-inset-top);
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+
+  /* black-translucent forces white status bar text in both themes, so the strip
+     behind it stays dark. In dark mode it is invisible against the app. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    height: env(safe-area-inset-top);
+    background: #0d0d0d;
+    z-index: 70;
+    pointer-events: none;
+  }
+}
+
 /* Touch devices only: a long press on a row should feel like a native app
    gesture, not a text selection. Desktop keeps normal selection so channel
    names and stream details stay copyable. Fields and anything explicitly
@@ -209,3 +234,4 @@
     scroll-behavior: auto !important;
   }
 }
+

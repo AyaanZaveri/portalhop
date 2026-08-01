@@ -152,7 +152,7 @@ export function TvShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <main className="bg-background text-foreground h-screen overflow-hidden">
+    <main className="tv-shell bg-background text-foreground h-screen overflow-hidden">
       <div className="relative h-full w-full">
         <AddPortalSheet
           open={sheetOpen}
