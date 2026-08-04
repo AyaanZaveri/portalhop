@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Loader2Icon, TvIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProgrammeCategoryIcon } from "@/components/programme-category-icon"
 import { proxyImageUrl } from "@/lib/image-proxy"
@@ -154,9 +155,9 @@ function EpgSchedule({
                         {programme.title}
                       </h3>
                       {programme.description ? (
-                        <p className="text-muted-foreground text-sm leading-6">
-                          {programme.description}
-                        </p>
+                        <ProgrammeDescription
+                          description={programme.description}
+                        />
                       ) : null}
                       {isLive ? (
                         <div className="bg-muted mt-3 h-1.5 overflow-hidden rounded-full">
@@ -192,6 +193,65 @@ function EpgSchedule({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Synopses run from one line to several paragraphs, and the long ones push the
+ * next programme off screen. Three lines is enough to tell what something is
+ * without the schedule turning into a wall of prose.
+ */
+function ProgrammeDescription({ description }: { description: string }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isTruncated, setIsTruncated] = useState(false)
+  const paragraphRef = useRef<HTMLParagraphElement>(null)
+
+  // Most descriptions are a sentence or two and are never clamped, so the
+  // toggle only appears once the text is genuinely cut off. Measuring is
+  // skipped while expanded, where scrollHeight always equals clientHeight and
+  // would report the text as fitting.
+  useEffect(() => {
+    const paragraph = paragraphRef.current
+
+    if (!paragraph || isExpanded) {
+      return
+    }
+
+    const measure = () => {
+      setIsTruncated(paragraph.scrollHeight > paragraph.clientHeight + 1)
+    }
+
+    measure()
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(paragraph)
+    return () => observer.disconnect()
+  }, [description, isExpanded])
+
+  return (
+    <>
+      <p
+        ref={paragraphRef}
+        className={cn(
+          "text-muted-foreground text-sm leading-6",
+          !isExpanded && "line-clamp-3",
+        )}
+      >
+        {description}
+      </p>
+      {isTruncated ? (
+        <Button
+          type="button"
+          variant="link"
+          size="xs"
+          aria-expanded={isExpanded}
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          className="mt-1 h-auto px-0 text-xs"
+        >
+          {isExpanded ? "Show less" : "Show more"}
+        </Button>
+      ) : null}
+    </>
   )
 }
 
