@@ -593,7 +593,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               </div>
               <ScrollArea
                 className="min-h-0 flex-1"
-                viewportClassName="px-4 pb-2"
+                viewportTabIndex={-1}
+                /* pt-1 so the first row's focus ring is not clipped by the
+                   viewport's own overflow. */
+                viewportClassName="px-4 pt-1 pb-2"
               >
                 {visibleCategories.length ? (
                   visibleCategories.map((category) => {
