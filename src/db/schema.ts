@@ -234,7 +234,17 @@ export const savedChannels = pgTable("saved_channels", {
   name: text("name").notNull(),
   genreId: text("genre_id").notNull(),
   genre: text("genre").notNull(),
-  cmd: text("cmd").notNull(),
+  // Stream commands routinely embed the subscription itself: Xtream and most
+  // M3U URLs carry the username and password in the path, and Stalker cmds
+  // carry the portal MAC. That is the same secret `saved_*_sources` already
+  // encrypts, so leaving it in cleartext here would undo that protection for
+  // the majority of rows. Encrypted with the same AES-256-GCM scheme.
+  //
+  // Identity keys are derived from the plaintext cmd before insert (see
+  // m3uStreamIdentity in db/saved-channels.ts), so encryption does not affect
+  // them — but it does mean cmd can never be matched or filtered in SQL, since
+  // a random IV makes the ciphertext non-deterministic.
+  cmd: encryptedText("cmd").notNull(),
   logo: text("logo").notNull(),
   logoUrl: text("logo_url").notNull(),
   createdAt: timestamp("created_at").notNull(),
