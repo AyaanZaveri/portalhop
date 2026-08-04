@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/drawer"
 import { CategoryVisual } from "@/components/category-visual"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
+import { BottomGlowBackdrop } from "@/components/mesh-gradient-backdrop"
 import {
   FavoriteGroupsDrawer,
   getCachedFavoriteGroups,
@@ -430,13 +431,16 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   return (
     <div
       className={cn(
-        "bg-background flex h-full min-w-0 flex-col overflow-hidden",
+        "bg-background relative flex h-full min-w-0 flex-col overflow-hidden",
         !isMobileLayout && "min-w-80 rounded-2xl bg-card",
       )}
     >
+      {/* Mobile only: on desktop this panel is a card inside the shell, which
+          already has the mesh backdrop behind it. */}
+      {isMobileLayout ? <BottomGlowBackdrop /> : null}
       <div
         className={cn(
-          "flex flex-col gap-3 p-5 pb-2",
+          "relative z-10 flex flex-col gap-3 p-5 pb-2",
           !isMobileLayout && "p-4 pb-2",
         )}
       >
@@ -814,7 +818,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       })() : null}
       <ScrollArea
         ref={scrollAreaRef}
-        className="min-h-0 flex-1 px-3 pb-2"
+        className="relative z-10 min-h-0 flex-1 px-3 pb-2"
         aria-rowcount={visibleChannels.length}
       >
         {visibleChannels.length ? (
