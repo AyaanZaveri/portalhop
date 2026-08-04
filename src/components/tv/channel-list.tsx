@@ -853,7 +853,17 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 >
                   <div
                     className={cn(
-                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent/80 pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,transform] duration-100 ease-out group-active:scale-[0.99]",
+                      // Press feedback follows the row's own navigation target
+                      // rather than the group: :active propagates up from any
+                      // descendant, so keying off the group made the whole row
+                      // shrink when the actions button was pressed — feedback
+                      // for a press that does not navigate anywhere. The button
+                      // carries its own active:scale from the Button variant.
+                      //
+                      // `scale` must be named in the transition list; Tailwind
+                      // v4 emits the standalone `scale` property, so `transform`
+                      // does not cover it and the change would snap.
+                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent/80 pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,scale] duration-100 ease-out has-[[data-row-target]:active]:scale-[0.99]",
                       isSelected && "bg-accent shadow-xs",
                     )}
                   >
@@ -861,6 +871,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       <>
                         <button
                           type="button"
+                          data-row-target
                           aria-label={channelLabel}
                           onPointerDown={(event) => {
                             if (event.pointerType === "touch") {
@@ -884,6 +895,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                         />
                         <Link
                           href={`/tv/${slug}`}
+                          data-row-target
                           aria-label={channelLabel}
                           className={cn(
                             "focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset",
