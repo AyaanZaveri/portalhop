@@ -317,30 +317,111 @@ export function getFavoriteGroupIcon(iconId: string) {
   return groupIcons.find((icon) => icon.id === iconId)?.Icon ?? StarIcon
 }
 
+/**
+ * Picks an icon from the group's name as it is typed. Ordered specific to
+ * generic, first match wins: "American football" has to beat "football", and
+ * "live music" has to beat both "music" and "live". Keywords follow the same
+ * vocabulary as the programme-guide category icons so a group named after a
+ * genre lands on the same glyph the schedule uses for it.
+ */
 function suggestGroupIcon(name: string) {
   const normalizedName = name.trim().toLowerCase()
   const matches: Array<[string, string[]]> = [
-    ["cricket", ["cricket"]],
-    ["goal", ["football", "soccer"]],
+    // Sports — specific codes first, then the generic fallbacks.
+    ["horseracing", ["horse racing", "horse", "racing post", "derby"]],
+    ["motorsport", ["f1", "formula", "nascar", "motogp", "motorsport", "grand prix", "rally"]],
+    ["gridiron", ["nfl", "american football", "gridiron", "super bowl"]],
+    ["basketball", ["basketball", "nba", "hoops", "wnba"]],
+    ["baseball", ["baseball", "mlb", "world series"]],
+    ["tennis", ["tennis", "wimbledon", "atp", "wta", "us open"]],
+    ["cricket", ["cricket", "ipl", "the ashes", "t20"]],
+    ["rugby", ["rugby", "nrl", "six nations"]],
+    ["icehockey", ["ice hockey", "hockey", "nhl"]],
+    ["golf", ["golf", "pga", "the masters", "ryder cup"]],
     ["volleyball", ["volleyball"]],
-    ["dumbbell", ["gym", "fitness", "workout"]],
-    ["gamepad", ["game", "gaming", "esports"]],
-    ["trophy", ["sport", "nba", "nfl", "mlb", "f1", "formula"]],
-    ["film", ["movie", "film", "cinema"]],
-    ["clapperboard", ["show", "series", "drama"]],
-    ["popcorn", ["entertainment"]],
-    ["music", ["music", "concert"]],
-    ["radio", ["radio"]],
+    ["bowling", ["bowling", "bowls", "snooker", "pool"]],
+    ["surfing", ["surf"]],
+    ["skiing", ["ski", "snowboard", "slalom", "winter sports"]],
+    ["cycling", ["cycling", "cycle", "bike", "tour de france"]],
+    ["swimming", ["swim", "diving", "water polo"]],
+    ["climbing", ["climb", "mountain", "hiking", "alpine"]],
+    ["darts", ["darts", "archery", "shooting"]],
+    ["combat", ["boxing", "mma", "ufc", "wrestling", "martial", "judo", "karate", "fight"]],
+    ["goal", ["football", "soccer", "futbol", "premier league", "la liga", "uefa", "fifa", "mls"]],
+    ["dumbbell", ["gym", "fitness", "workout", "training", "exercise"]],
+    ["medal", ["olympic", "medal", "championship"]],
+    ["racing", ["racing", "race"]],
+    ["trophy", ["sport", "league", "cup", "tournament", "match"]],
+
+    // Music and audio.
+    ["livemusic", ["live music", "concert", "gig", "festival"]],
     ["podcast", ["podcast"]],
-    ["news", ["news"]],
-    ["book", ["learn", "education", "documentary"]],
-    ["school", ["kids", "children", "family"]],
-    ["globe", ["world", "international", "global"]],
-    ["house", ["home", "local"]],
-    ["tv", ["tv", "television"]],
+    ["radio", ["radio", "fm"]],
+    ["albums", ["album", "vinyl", "record"]],
+    ["headphones", ["headphone", "audiobook"]],
+    ["talk", ["talk", "interview", "chat show"]],
+    ["music", ["music", "song", "hits", "charts"]],
+    ["audio", ["audio", "sound"]],
+
+    // Screen.
+    ["film", ["movie", "film", "cinema", "blockbuster"]],
+    ["theatre", ["theatre", "theater", "opera", "ballet", "performing"]],
+    ["drama", ["drama", "soap"]],
+    ["clapperboard", ["show", "series", "episode", "box set"]],
+    ["events", ["event", "ticket"]],
+    ["video", ["video", "clips"]],
+    ["gamepad", ["game", "gaming", "esports", "twitch"]],
+    ["popcorn", ["entertainment"]],
+
+    // News and knowledge.
+    ["news", ["news", "headlines", "breaking", "current affairs"]],
+    ["politics", ["politic", "parliament", "election", "senate", "congress"]],
+    ["law", ["law", "court", "crime", "justice", "legal"]],
+    ["markets", ["market", "stocks", "trading", "crypto"]],
+    ["business", ["business", "finance", "economy", "corporate"]],
+    ["live", ["live", "broadcast", "on air"]],
+    ["globe", ["world", "international", "global", "abroad"]],
+    ["education", ["education", "university", "college", "study", "lecture"]],
+    ["book", ["learn", "documentar", "history", "science", "book"]],
+
+    // Kids and family.
+    ["school", ["school", "kids", "children", "cartoon", "nursery"]],
+    ["baby", ["baby", "infant", "preschool", "toddler"]],
+    ["puzzle", ["puzzle", "quiz", "trivia"]],
+    ["treats", ["dessert", "ice cream", "candy", "sweets"]],
+    ["animals", ["animal", "wildlife", "pets", "nature doc"]],
+    ["space", ["space", "astronomy", "nasa", "galaxy", "sci-fi", "scifi"]],
+    ["fun", ["comedy", "funny", "laugh", "humour", "humor"]],
+
+    // Lifestyle.
+    ["food", ["food", "cooking", "cook", "chef", "recipe", "bake", "kitchen"]],
+    ["travel", ["travel", "holiday", "vacation", "flight", "tourism"]],
+    ["shopping", ["shopping", "shop", "retail", "deals", "store"]],
+    ["fashion", ["fashion", "style", "clothing", "runway", "beauty"]],
+    ["health", ["health", "medical", "doctor", "wellness", "hospital"]],
+    ["faith", ["faith", "religion", "church", "gospel", "islam", "christian"]],
+    ["cars", ["car", "auto", "motor", "vehicle", "driving"]],
+    ["photography", ["photo", "camera"]],
+    ["nature", ["nature", "outdoor", "environment", "garden"]],
+    ["house", ["home", "local", "house", "diy", "property"]],
+
+    // General.
+    ["heart", ["favourite", "favorite", "love", "romance"]],
+    ["sparkles", ["highlight", "best of", "featured", "special"]],
+    ["bookmark", ["saved", "bookmark", "watch later"]],
+    ["trending", ["trending", "popular", "top picks"]],
+    ["premium", ["premium", "vip", "exclusive"]],
+    ["collection", ["collection", "folder", "misc"]],
+    ["pinned", ["pinned"]],
+    ["discover", ["discover", "explore", "browse"]],
+    ["tv", ["tv", "television", "channel"]],
   ]
 
-  return matches.find(([, terms]) => terms.some((term) => normalizedName.includes(term)))?.[0] ?? "star"
+  return (
+    matches.find(([, terms]) =>
+      terms.some((term) => normalizedName.includes(term)),
+    )?.[0] ?? "star"
+  )
 }
 
 export function FavoriteGroupsDrawer({
