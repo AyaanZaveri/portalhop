@@ -643,7 +643,11 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
             }}
             preload="auto"
             targetLiveWindow={30}
-            autoPlay
+            // "any" rather than a bare autoPlay: a plain boolean calls play()
+            // and swallows the rejection, so a reload — which has no user
+            // gesture behind it — silently does nothing under the browser's
+            // autoplay policy. "any" retries muted, so the stream still starts.
+            autoPlay="any"
             playsInline
             envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
             metadata={{
