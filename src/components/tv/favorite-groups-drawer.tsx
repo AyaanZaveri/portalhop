@@ -666,7 +666,10 @@ export function FavoriteGroupsDrawer({
                   : "Give this collection a name and icon."}
               </DrawerDescription>
             </DrawerHeader>
-            <form className="flex flex-col gap-5 p-4 pt-4" onSubmit={createGroup}>
+            <form
+              className="flex min-h-0 flex-1 flex-col gap-5 p-4 pt-4"
+              onSubmit={createGroup}
+            >
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="favorite-group-name">Name</FieldLabel>
@@ -733,7 +736,14 @@ export function FavoriteGroupsDrawer({
                   </ScrollArea>
                 </Field>
               </FieldGroup>
-              <Button type="submit" disabled={!name.trim() || isCreating}>
+              {/* mt-auto pins this to the foot of the side sheet, which is full
+                  height. On mobile the drawer is sized to its content, so there
+                  is no free space and it simply follows the fields. */}
+              <Button
+                type="submit"
+                className="mt-auto"
+                disabled={!name.trim() || isCreating}
+              >
                 {editingGroup ? "Save changes" : "Create group"}
               </Button>
             </form>
