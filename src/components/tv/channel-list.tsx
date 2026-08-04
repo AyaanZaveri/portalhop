@@ -604,14 +604,15 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     return (
                       <div
                         key={categoryPreferenceKey(category.sourceId, category.genre)}
-                        className={cn(
-                          "hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-2 text-left text-sm",
-                          isManagingCategories ? "py-1" : "py-2",
-                          isActiveGenre && "bg-accent",
-                        )}
+                        className="flex w-full items-center gap-1"
                       >
-                        <button
+                        {/* The row surface sits on the button, so the whole row
+                            presses rather than the label scaling inside a fixed
+                            background. The hide control stays a sibling — a
+                            button cannot be nested in another. */}
+                        <Button
                           type="button"
+                          variant="ghost"
                           onPointerDown={(event) => {
                             if (event.pointerType === "touch") {
                               startCategoryLongPress(category)
@@ -633,17 +634,26 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                             setCategoryMenuOpen(false)
                             setCategorySearch("")
                           }}
-                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          className={cn(
+                            "hover:bg-accent hover:text-accent-foreground h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal",
+                            isManagingCategories ? "py-1" : "py-2",
+                            isActiveGenre && "bg-accent",
+                          )}
                         >
                           <CategoryVisual
                             category={category.genre}
                             className="text-primary"
                             iconClassName="dark:brightness-90 brightness-75"
                           />
-                          <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                          <span className="min-w-0 flex-1 truncate text-left font-mono font-medium tracking-tight">
                             {category.genre}
                           </span>
-                        </button>
+                          {isManagingCategories ? null : (
+                            <span className="text-muted-foreground shrink-0 pl-2 font-mono text-xs tabular-nums">
+                              {category.count.toLocaleString()}
+                            </span>
+                          )}
+                        </Button>
                         {isManagingCategories ? (
                           <Button
                             type="button"
@@ -655,11 +665,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                           >
                             <EyeIcon className="size-4" />
                           </Button>
-                        ) : (
-                          <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
-                            {category.count.toLocaleString()}
-                          </span>
-                        )}
+                        ) : null}
                       </div>
                     )
                   })
@@ -697,16 +703,17 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   </div>
                 ) : null}
                 {!isManagingCategories && hiddenCategoriesInList.length ? (
-                  <button
+                  <Button
                     type="button"
-                    className="text-muted-foreground hover:text-foreground mt-3 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-foreground mt-3 h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-sm font-normal"
                     onClick={() => setIsManagingCategories(true)}
                   >
                     <EyeOffIcon className="size-4" />
                     <span>
                       Hidden categories ({hiddenCategoriesInList.length})
                     </span>
-                  </button>
+                  </Button>
                 ) : null}
               </ScrollArea>
             </DrawerContent>
