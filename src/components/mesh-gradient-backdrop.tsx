@@ -1,6 +1,6 @@
 "use client"
 
-import { MeshGradient, StaticMeshGradient } from "@paper-design/shaders-react"
+import { GrainGradient, MeshGradient } from "@paper-design/shaders-react"
 import { useTheme } from "next-themes"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
 
@@ -69,21 +69,18 @@ export function BottomGlowBackdrop() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-64 overflow-hidden opacity-[0.16] dark:opacity-25"
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-64 overflow-hidden opacity-20 dark:opacity-30"
       style={{ maskImage: fadeUpwards, WebkitMaskImage: fadeUpwards }}
     >
-      <StaticMeshGradient
+      <GrainGradient
         speed={0}
-        colors={[glowColor, glowHighlight, glowColor, glowHighlight]}
-        positions={2}
-        waveX={0.8}
-        waveY={0.6}
-        waveXShift={0.5}
-        waveYShift={0.35}
-        mixing={0.95}
-        grainMixer={0.6}
-        grainOverlay={0.35}
-        scale={1.6}
+        colorBack="rgba(0, 0, 0, 0)"
+        colors={[glowColor, glowHighlight, glowColor]}
+        softness={1}
+        intensity={0.6}
+        noise={0.85}
+        shape="corners"
+        scale={1.4}
         originY={1}
         style={{ width: "100%", height: "100%" }}
       />
