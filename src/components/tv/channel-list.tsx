@@ -863,7 +863,13 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       // `scale` must be named in the transition list; Tailwind
                       // v4 emits the standalone `scale` property, so `transform`
                       // does not cover it and the change would snap.
-                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent/80 pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,scale] duration-100 ease-out has-[[data-row-target]:active]:scale-[0.99]",
+                      // An open actions menu anchors to its row, so the row has
+                      // to stay lit once the pointer moves into the floating
+                      // menu. Matching hover exactly was not enough: under an
+                      // elevated popup a 80%-opacity fill reads as nothing, so
+                      // the open state borrows the selected row's fuller
+                      // treatment instead.
+                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent has-[button[aria-expanded=true]]:shadow-xs pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,scale] duration-100 ease-out has-[[data-row-target]:active]:scale-[0.99]",
                       isSelected && "bg-accent shadow-xs",
                     )}
                   >
