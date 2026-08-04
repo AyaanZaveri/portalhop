@@ -655,7 +655,7 @@ export function FavoriteGroupsDrawer({
           onOpenChange={closeCreateDrawer}
           swipeDirection={isMobileLayout ? "down" : "left"}
         >
-          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:85dvh]">
             <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
               <DrawerTitle className="text-lg">
                 {editingGroup ? "Edit group" : "New group"}
@@ -670,7 +670,7 @@ export function FavoriteGroupsDrawer({
               className="flex min-h-0 flex-1 flex-col gap-5 p-4 pt-4"
               onSubmit={createGroup}
             >
-              <FieldGroup>
+              <FieldGroup className="min-h-0 flex-1">
                 <Field>
                   <FieldLabel htmlFor="favorite-group-name">Name</FieldLabel>
                   <Input
@@ -688,9 +688,12 @@ export function FavoriteGroupsDrawer({
                     required
                   />
                 </Field>
-                <Field>
+                <Field className="min-h-0 flex-1">
                   <FieldLabel>Icon</FieldLabel>
-                  <ScrollArea className="h-64">
+                  {/* Grows into whatever the sheet has left. min-h keeps it
+                      usable on mobile, where the drawer is content-sized and
+                      there is no free height to claim. */}
+                  <ScrollArea className="min-h-64 flex-1">
                     <div
                       role="radiogroup"
                       aria-label="Group icon"
