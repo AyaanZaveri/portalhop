@@ -10,6 +10,11 @@ import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 
 export const runtime = "nodejs"
 
+// A refetch live-fetches the provider's whole channel list and upserts it in
+// one transaction, which runs well past the platform default for a large
+// source. 60s is the ceiling on Vercel's Hobby plan.
+export const maxDuration = 60
+
 export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> }
