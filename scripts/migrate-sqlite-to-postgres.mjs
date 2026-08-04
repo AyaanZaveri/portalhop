@@ -161,6 +161,7 @@ async function createSchema() {
       id serial primary key,
       source_id integer not null references saved_sources(id) on delete cascade,
       portal_id integer references saved_portals(id) on delete cascade,
+      identity_key text not null,
       channel_id text not null,
       xmltv_id text not null default '',
       number text not null,
@@ -179,6 +180,7 @@ async function createSchema() {
     create index if not exists account_provider_account_idx on account(provider_id, account_id);
     create index if not exists saved_channels_portal_id_idx on saved_channels(portal_id);
     create index if not exists saved_channels_source_id_idx on saved_channels(source_id);
+    create unique index if not exists saved_channels_source_identity_key_idx on saved_channels(source_id, identity_key);
     create index if not exists saved_sources_updated_at_idx on saved_sources(updated_at);
     create index if not exists user_epg_sources_user_id_idx on user_epg_sources(user_id);
     create index if not exists user_epg_channels_channel_id_lower_idx on user_epg_channels(channel_id_lower);
@@ -377,6 +379,7 @@ async function migrateData() {
       "id",
       "source_id",
       "portal_id",
+      "identity_key",
       "channel_id",
       "xmltv_id",
       "number",
@@ -392,6 +395,7 @@ async function migrateData() {
       id: row.id,
       source_id: row.portal_id,
       portal_id: row.portal_id,
+      identity_key: `provider:${String(row.channel_id ?? "").trim().toLowerCase()}`,
       channel_id: row.channel_id,
       xmltv_id: row.xmltv_id,
       number: row.number,

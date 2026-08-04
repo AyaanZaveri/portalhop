@@ -56,15 +56,9 @@ function normalizeSavedChannelKey(key: string) {
       return key
     }
 
-    // This is the same stable shape produced by getChannelKey() for saved
-    // channels after playback commands became on-demand.
-    return JSON.stringify([
-      parsed[0],
-      parsed[1],
-      typeof parsed[2] === "string" ? parsed[2] : "",
-      typeof parsed[3] === "string" ? parsed[3] : "",
-      "",
-    ])
+    // Saved-channel favorites are now deliberately just source + row ID. The
+    // row survives a refresh, while channel name/number/stream data can vary.
+    return JSON.stringify([parsed[0], parsed[1]])
   } catch {
     return key
   }

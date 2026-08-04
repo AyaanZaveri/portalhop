@@ -249,6 +249,16 @@ export function snapToCommonFrameRate(frameRate: number) {
 }
 
 export function getChannelKey(channel: PortalChannelWithSource) {
+  // Saved channels retain this row ID across portal refreshes. Keeping the
+  // favorite key to these two durable values avoids mutable provider metadata
+  // (number, name, stream URL) making a favorite disappear.
+  if (
+    typeof channel.portalSource?.id === "number" &&
+    typeof channel.savedChannelId === "number"
+  ) {
+    return JSON.stringify([channel.portalSource.id, channel.savedChannelId])
+  }
+
   // Channel IDs from older saved M3U sources can be XMLTV `tvg-id` values,
   // which are not necessarily unique. Include the stream URL and playlist
   // number so selection, favourites, and player state identify the actual

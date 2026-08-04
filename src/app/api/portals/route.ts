@@ -189,7 +189,7 @@ export async function POST(request: Request) {
   const updatedAt = new Date()
   await db.transaction(async (tx) => {
     if (result.channels.length) {
-      await insertSavedChannels(tx, source.id, result.channels, updatedAt)
+      await insertSavedChannels(tx, source.id, sourceType, result.channels, updatedAt)
     }
 
     await tx

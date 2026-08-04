@@ -10,6 +10,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 import { decryptSecret, encryptSecret } from "@/lib/source-encryption"
@@ -224,6 +225,9 @@ export const savedChannels = pgTable("saved_channels", {
   portalId: integer("portal_id").references(() => savedPortals.id, {
     onDelete: "cascade",
   }),
+  // A deterministic source-scoped identity. Refreshes upsert on this instead
+  // of deleting/recreating the channel row, preserving its primary key.
+  identityKey: text("identity_key").notNull(),
   channelId: text("channel_id").notNull(),
   xmltvId: text("xmltv_id").notNull().default(""),
   number: text("number").notNull(),
@@ -235,7 +239,12 @@ export const savedChannels = pgTable("saved_channels", {
   logoUrl: text("logo_url").notNull(),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
-})
+}, (table) => [
+  uniqueIndex("saved_channels_source_identity_key_idx").on(
+    table.sourceId,
+    table.identityKey,
+  ),
+])
 
 // The iptv-epg.org channel directory. Public, global, identical for every user;
 // a shared cache of a public dataset rather than user data. Refreshed one country

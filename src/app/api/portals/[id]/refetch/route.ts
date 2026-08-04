@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
-import { insertSavedChannels } from "@/db/saved-channels"
+import { syncSavedChannels } from "@/db/saved-channels"
 import { selectSavedSource } from "@/db/saved-sources"
-import { savedChannels, savedSources, savedStalkerSources } from "@/db/schema"
+import { savedSources, savedStalkerSources } from "@/db/schema"
 import { requireUser } from "@/lib/session"
 import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 
@@ -49,11 +49,7 @@ export async function POST(
   const now = new Date()
 
   await db.transaction(async (tx) => {
-    await tx.delete(savedChannels).where(eq(savedChannels.sourceId, portal.id))
-
-    if (result.channels.length) {
-      await insertSavedChannels(tx, portal.id, result.channels, now)
-    }
+    await syncSavedChannels(tx, portal.id, portal.sourceType, result.channels, now)
 
     await tx
       .update(savedSources)

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
-import { insertSavedChannels } from "@/db/saved-channels"
+import { syncSavedChannels } from "@/db/saved-channels"
 import { deleteSavedSource, selectSavedSource } from "@/db/saved-sources"
 import { selectUserEpgSource } from "@/db/user-epg-sources"
 import {
@@ -287,11 +287,7 @@ export async function PATCH(
 
   const updatedAt = new Date()
   await db.transaction(async (tx) => {
-    await tx.delete(savedChannels).where(eq(savedChannels.sourceId, sourceId))
-
-    if (result.channels.length) {
-      await insertSavedChannels(tx, sourceId, result.channels, updatedAt)
-    }
+    await syncSavedChannels(tx, sourceId, sourceType, result.channels, updatedAt)
 
     await tx
       .update(savedSources)
