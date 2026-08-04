@@ -544,15 +544,6 @@ export function FavoriteGroupsDrawer({
                   )}
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Create group"
-                onClick={() => setCreateOpen(true)}
-              >
-                <PlusIcon className="size-4.5 stroke-[2.25]" />
-              </Button>
             </div>
           </div>
         </DrawerHeader>
@@ -566,9 +557,9 @@ export function FavoriteGroupsDrawer({
                 </div>
               ))}
             </div>
-          ) : groups.length ? (
+          ) : (
             <div className="flex flex-col gap-1">
-              {groups.map((group) => {
+              {groups.length ? groups.map((group) => {
                         const Icon = getFavoriteGroupIcon(group.icon)
                 return (
                   <div
@@ -631,17 +622,30 @@ export function FavoriteGroupsDrawer({
                     )}
                   </div>
                 )
-              })}
+              }) : (
+                <Empty className="min-h-44 border border-dashed">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <FolderHeartIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>No groups yet</EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
+              )}
+              {/* Sits after the groups rather than in the header so it reads as
+                  the next row in the list, and so an empty list still offers the
+                  one action worth taking. */}
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
+              >
+                <PlusIcon className="size-4 shrink-0 stroke-[2.25]" />
+                <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                  New group
+                </span>
+              </button>
             </div>
-          ) : (
-            <Empty className="min-h-44 border border-dashed">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <FolderHeartIcon />
-                </EmptyMedia>
-                <EmptyTitle>No groups yet</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
           )}
         </div>
 
