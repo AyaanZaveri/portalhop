@@ -1,3 +1,16 @@
+-- SUPERSEDED — do not run this file as-is.
+--
+-- The identity-key half below derives the M3U key from saved_channels.cmd in
+-- SQL. cmd is now an encrypted column, so this would hash ciphertext into the
+-- key and every later refresh (which computes the key from the plaintext the
+-- provider returns) would insert duplicates instead of updating in place.
+--
+-- Use instead:
+--   node scripts/backfill-channel-identity-keys.mjs                  (this half)
+--   node scripts/run-sql.mjs scripts/migrate-favorite-channel-keys.sql (the rest)
+--
+-- Kept for reference only.
+
 begin;
 
 -- Keep a source-scoped deterministic identity for every saved channel. The
