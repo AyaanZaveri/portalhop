@@ -645,25 +645,35 @@ export function FavoriteGroupsDrawer({
                 return (
                   <div
                     key={group.id}
-                    className={cn(
-                      "hover:bg-accent hover:text-accent-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm",
-                      activeGroupId === group.id && "bg-accent",
-                    )}
+                    className="flex w-full items-center gap-1"
                   >
-                    <button
+                    {/* The row surface lives on the button rather than the
+                        wrapper so it presses like the New group row. The edit
+                        and delete controls stay siblings — a button cannot be
+                        nested inside another. */}
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => {
                         if (isManagingGroups) return
                         onSelectGroup(group)
                         setOpen(false)
                       }}
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      className={cn(
+                        "hover:bg-accent hover:text-accent-foreground h-9 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal",
+                        activeGroupId === group.id && "bg-accent",
+                      )}
                     >
                       <Icon className="text-primary size-4 shrink-0 brightness-85 dark:brightness-100" />
-                      <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                      <span className="min-w-0 flex-1 truncate text-left font-mono font-medium tracking-tight">
                         {group.name}
                       </span>
-                    </button>
+                      {isManagingGroups ? null : (
+                        <span className="text-muted-foreground shrink-0 pl-2 font-mono text-xs tabular-nums">
+                          {group.channelKeys.length.toLocaleString()}
+                        </span>
+                      )}
+                    </Button>
                     {isManagingGroups ? (
                       <>
                         <Button
@@ -696,11 +706,7 @@ export function FavoriteGroupsDrawer({
                         <Trash2Icon className="size-4" />
                         </Button>
                       </>
-                    ) : (
-                      <span className="text-muted-foreground ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums">
-                        {group.channelKeys.length.toLocaleString()}
-                      </span>
-                    )}
+                    ) : null}
                   </div>
                 )
               }) : (
