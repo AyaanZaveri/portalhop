@@ -97,6 +97,12 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogDescription,
@@ -781,11 +787,16 @@ export function FavoriteGroupsDrawer({
                       usable on mobile, where the drawer is content-sized and
                       there is no free height to claim. */}
                   <ScrollArea className="min-h-64 flex-1">
-                    <div
-                      role="radiogroup"
-                      aria-label="Group icon"
-                      className="flex flex-col gap-4 pr-3"
-                    >
+                    {/* The app-wide provider opens instantly, which turns a
+                        grid this dense into a flicker of labels as the pointer
+                        crosses it. A short delay means only a deliberate hover
+                        names an icon. */}
+                    <TooltipProvider delay={500}>
+                      <div
+                        role="radiogroup"
+                        aria-label="Group icon"
+                        className="flex flex-col gap-4 pr-3"
+                      >
                       {groupIconCategories.map((category) => (
                         <div key={category.id} className="flex flex-col gap-2">
                           <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
@@ -796,33 +807,41 @@ export function FavoriteGroupsDrawer({
                               const Icon = groupIconOption.Icon
                               const selected = icon === groupIconOption.id
                               return (
-                                <Button
-                                  key={groupIconOption.id}
-                                  type="button"
-                                  role="radio"
-                                  aria-checked={selected}
-                                  aria-label={groupIconOption.label}
-                                  title={groupIconOption.label}
-                                  variant="secondary"
-                                  size="icon-lg"
-                                  onClick={() => {
-                                    setIcon(groupIconOption.id)
-                                    setIconSelectedManually(true)
-                                  }}
-                                  className={cn(
-                                    "bg-secondary text-muted-foreground hover:bg-secondary/80 h-10 w-full rounded-lg",
-                                    selected &&
-                                      "bg-primary/15 text-primary hover:bg-primary/20 brightness-85 dark:brightness-100",
-                                  )}
-                                >
-                                  <Icon className="size-4.5" />
-                                </Button>
+                                <Tooltip key={groupIconOption.id}>
+                                  <TooltipTrigger
+                                    render={
+                                      <Button
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={selected}
+                                        aria-label={groupIconOption.label}
+                                        variant="secondary"
+                                        size="icon-lg"
+                                        onClick={() => {
+                                          setIcon(groupIconOption.id)
+                                          setIconSelectedManually(true)
+                                        }}
+                                        className={cn(
+                                          "bg-secondary text-muted-foreground hover:bg-secondary/80 h-10 w-full rounded-lg",
+                                          selected &&
+                                            "bg-primary/15 text-primary hover:bg-primary/20 brightness-85 dark:brightness-100",
+                                        )}
+                                      >
+                                        <Icon className="size-4.5" />
+                                      </Button>
+                                    }
+                                  />
+                                  <TooltipContent>
+                                    {groupIconOption.label}
+                                  </TooltipContent>
+                                </Tooltip>
                               )
                             })}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    </TooltipProvider>
                   </ScrollArea>
                 </Field>
               </FieldGroup>
