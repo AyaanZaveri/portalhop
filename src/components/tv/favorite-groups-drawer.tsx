@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ComponentType } from "react"
+import { useEffect, useState, type ComponentType } from "react"
 import {
   baseball,
   basketball,
@@ -92,7 +92,6 @@ import {
   ZapIcon,
   type IconNode,
 } from "lucide-react"
-import { DynamicIcon, iconNames } from "lucide-react/dynamic"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -119,7 +118,6 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { chipButtonProps } from "@/components/tv/chip-button"
 import { cn } from "@/lib/utils"
-import { LUCIDE_LAB_ICON_NAMES } from "@/lib/lucide-lab-icon-names"
 
 export type FavoriteGroup = {
   id: number
@@ -315,215 +313,8 @@ const groupIcons: GroupIcon[] = groupIconCategories.flatMap(
   (category) => category.icons,
 )
 
-// Icons chosen through search are stored prefixed, so a saved group records
-// which set the icon came from and the curated ids keep meaning what they
-// always did.
-const LUCIDE_ICON_PREFIX = "lucide:"
-const LAB_ICON_PREFIX = "lab:"
-const LUCIDE_ICON_NAMES = new Set<string>(iconNames)
-const LAB_ICON_NAMES = new Set<string>(LUCIDE_LAB_ICON_NAMES)
-
-// One component per name, cached. Building it inline would hand React a new
-// component type on every render, remounting the icon and refetching its chunk.
-const dynamicIconCache = new Map<string, ComponentType<{ className?: string }>>()
-
-const dynamicLabIconCache = new Map<
-  string,
-  ComponentType<{ className?: string }>
->()
-
-/**
- * @lucide/lab ships no dynamic-import map of its own, but it does ship one file
- * per icon and no exports map, so each node can be pulled in by path. Importing
- * the barrel instead would add every one of the 373 icons to the bundle.
- */
-function dynamicLabIcon(name: string) {
-  const cached = dynamicLabIconCache.get(name)
-
-  if (cached) {
-    return cached
-  }
-
-  function DynamicLabIcon({ className }: { className?: string }) {
-    const [node, setNode] = useState<IconNode | null>(null)
-
-    useEffect(() => {
-      let cancelled = false
-
-      import(`@lucide/lab/dist/esm/icons/${name}.js`)
-        .then((module: { default: IconNode }) => {
-          if (!cancelled) {
-            setNode(module.default)
-          }
-        })
-        .catch(() => {})
-
-      return () => {
-        cancelled = true
-      }
-    }, [])
-
-    // Hold the slot while the chunk arrives so the grid does not reflow.
-    if (!node) {
-      return <span className={className} aria-hidden />
-    }
-
-    return <LucideLabGlyph iconNode={node} className={className} />
-  }
-
-  DynamicLabIcon.displayName = `DynamicLabIcon(${name})`
-  dynamicLabIconCache.set(name, DynamicLabIcon)
-  return DynamicLabIcon
-}
-
-function dynamicGroupIcon(name: string) {
-  const cached = dynamicIconCache.get(name)
-
-  if (cached) {
-    return cached
-  }
-
-  function DynamicGroupIcon({ className }: { className?: string }) {
-    return (
-      <DynamicIcon
-        name={name as Parameters<typeof DynamicIcon>[0]["name"]}
-        className={className}
-      />
-    )
-  }
-
-  DynamicGroupIcon.displayName = `DynamicGroupIcon(${name})`
-  dynamicIconCache.set(name, DynamicGroupIcon)
-  return DynamicGroupIcon
-}
-
 export function getFavoriteGroupIcon(iconId: string) {
-  const curated = groupIcons.find((icon) => icon.id === iconId)
-
-  if (curated) {
-    return curated.Icon
-  }
-
-  if (iconId.startsWith(LAB_ICON_PREFIX)) {
-    const name = iconId.slice(LAB_ICON_PREFIX.length)
-
-    if (LAB_ICON_NAMES.has(name)) {
-      return dynamicLabIcon(name)
-    }
-  }
-
-  if (iconId.startsWith(LUCIDE_ICON_PREFIX)) {
-    const name = iconId.slice(LUCIDE_ICON_PREFIX.length)
-
-    if (LUCIDE_ICON_NAMES.has(name)) {
-      return dynamicGroupIcon(name)
-    }
-  }
-
-  return StarIcon
-}
-
-function IconOption({
-  option,
-  selected,
-  onSelect,
-}: {
-  option: GroupIcon
-  selected: boolean
-  onSelect: () => void
-}) {
-  const Icon = option.Icon
-
-  return (
-    <Button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      aria-label={option.label}
-      title={option.label}
-      variant="secondary"
-      size="icon-lg"
-      onClick={onSelect}
-      className={cn(
-        "bg-secondary text-muted-foreground hover:bg-secondary/80 h-10 w-full rounded-lg",
-        selected &&
-          "bg-primary/15 text-primary hover:bg-primary/20 brightness-85 dark:brightness-100",
-      )}
-    >
-      <Icon className="size-4.5" />
-    </Button>
-  )
-}
-
-const ICON_SEARCH_LIMIT = 60
-
-/**
- * Curated icons win, then anything from lucide's full set that matches by name.
- * Only the names are bundled; each icon's own chunk is fetched when it renders.
- */
-function searchGroupIcons(query: string): GroupIcon[] {
-  const normalized = query.trim().toLowerCase()
-
-  if (!normalized) {
-    return []
-  }
-
-  // Curated first: those are the hand-picked, already-loaded ones, and their
-  // labels are written for humans rather than derived from a file name.
-  const curated = groupIcons.filter(
-    (icon) =>
-      icon.label.toLowerCase().includes(normalized) ||
-      icon.id.includes(normalized),
-  )
-  const seen = new Set(curated.map((icon) => icon.id))
-  const results: GroupIcon[] = [...curated]
-
-  // Lab before core: lab is where the specific things live (basketball, rugby,
-  // golf), so a search for one of those should not be buried under core icons
-  // that merely contain the same substring.
-  const candidates: Array<{ name: string; prefix: string; lab: boolean }> = [
-    ...LUCIDE_LAB_ICON_NAMES.filter((name) => name.includes(normalized)).map(
-      (name) => ({ name, prefix: LAB_ICON_PREFIX, lab: true }),
-    ),
-    ...iconNames
-      .filter((name) => name.includes(normalized))
-      .map((name) => ({ name, prefix: LUCIDE_ICON_PREFIX, lab: false })),
-  ]
-
-  // Prefix matches read as the more obvious answer, so float them up.
-  candidates.sort((a, b) => {
-    const aStarts = a.name.startsWith(normalized) ? 0 : 1
-    const bStarts = b.name.startsWith(normalized) ? 0 : 1
-    return (
-      aStarts - bStarts ||
-      Number(b.lab) - Number(a.lab) ||
-      a.name.length - b.name.length ||
-      a.name.localeCompare(b.name)
-    )
-  })
-
-  for (const candidate of candidates) {
-    const id = `${candidate.prefix}${candidate.name}`
-
-    if (seen.has(id)) {
-      continue
-    }
-
-    seen.add(id)
-    results.push({
-      id,
-      label: candidate.name.replace(/-/g, " "),
-      Icon: candidate.lab
-        ? dynamicLabIcon(candidate.name)
-        : dynamicGroupIcon(candidate.name),
-    })
-
-    if (results.length >= ICON_SEARCH_LIMIT) {
-      break
-    }
-  }
-
-  return results
+  return groupIcons.find((icon) => icon.id === iconId)?.Icon ?? StarIcon
 }
 
 function suggestGroupIcon(name: string) {
@@ -574,12 +365,6 @@ export function FavoriteGroupsDrawer({
   const [name, setName] = useState("")
   const [icon, setIcon] = useState("star")
   const [iconSelectedManually, setIconSelectedManually] = useState(false)
-  const [iconQuery, setIconQuery] = useState("")
-  const iconSearchResults = useMemo(
-    () => searchGroupIcons(iconQuery),
-    [iconQuery],
-  )
-  const isSearchingIcons = iconQuery.trim().length > 0
   const [isManagingGroups, setIsManagingGroups] = useState(false)
   const [groupPendingDelete, setGroupPendingDelete] =
     useState<FavoriteGroup | null>(null)
@@ -905,12 +690,6 @@ export function FavoriteGroupsDrawer({
                 </Field>
                 <Field className="min-h-0 flex-1">
                   <FieldLabel>Icon</FieldLabel>
-                  <Input
-                    value={iconQuery}
-                    onChange={(event) => setIconQuery(event.target.value)}
-                    placeholder="Search all icons"
-                    aria-label="Search icons"
-                  />
                   {/* Grows into whatever the sheet has left. min-h keeps it
                       usable on mobile, where the drawer is content-sized and
                       there is no free height to claim. */}
@@ -920,48 +699,42 @@ export function FavoriteGroupsDrawer({
                       aria-label="Group icon"
                       className="flex flex-col gap-4 pr-3"
                     >
-                      {isSearchingIcons ? (
-                        iconSearchResults.length ? (
-                          <div className="grid grid-cols-6 gap-2">
-                            {iconSearchResults.map((groupIconOption) => (
-                              <IconOption
-                                key={groupIconOption.id}
-                                option={groupIconOption}
-                                selected={icon === groupIconOption.id}
-                                onSelect={() => {
-                                  setIcon(groupIconOption.id)
-                                  setIconSelectedManually(true)
-                                }}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground py-6 text-center text-sm">
-                            No icons match “{iconQuery.trim()}”.
+                      {groupIconCategories.map((category) => (
+                        <div key={category.id} className="flex flex-col gap-2">
+                          <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+                            {category.label}
                           </p>
-                        )
-                      ) : (
-                        groupIconCategories.map((category) => (
-                          <div key={category.id} className="flex flex-col gap-2">
-                            <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
-                              {category.label}
-                            </p>
-                            <div className="grid grid-cols-6 gap-2">
-                              {category.icons.map((groupIconOption) => (
-                                <IconOption
+                          <div className="grid grid-cols-6 gap-2">
+                            {category.icons.map((groupIconOption) => {
+                              const Icon = groupIconOption.Icon
+                              const selected = icon === groupIconOption.id
+                              return (
+                                <Button
                                   key={groupIconOption.id}
-                                  option={groupIconOption}
-                                  selected={icon === groupIconOption.id}
-                                  onSelect={() => {
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  aria-label={groupIconOption.label}
+                                  title={groupIconOption.label}
+                                  variant="secondary"
+                                  size="icon-lg"
+                                  onClick={() => {
                                     setIcon(groupIconOption.id)
                                     setIconSelectedManually(true)
                                   }}
-                                />
-                              ))}
-                            </div>
+                                  className={cn(
+                                    "bg-secondary text-muted-foreground hover:bg-secondary/80 h-10 w-full rounded-lg",
+                                    selected &&
+                                      "bg-primary/15 text-primary hover:bg-primary/20 brightness-85 dark:brightness-100",
+                                  )}
+                                >
+                                  <Icon className="size-4.5" />
+                                </Button>
+                              )
+                            })}
                           </div>
-                        ))
-                      )}
+                        </div>
+                      ))}
                     </div>
                   </ScrollArea>
                 </Field>
