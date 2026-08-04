@@ -1,6 +1,6 @@
 "use client"
 
-import { MeshGradient, StaticRadialGradient } from "@paper-design/shaders-react"
+import { MeshGradient, StaticMeshGradient } from "@paper-design/shaders-react"
 import { useTheme } from "next-themes"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
 
@@ -61,7 +61,9 @@ export function BottomGlowBackdrop() {
     return null
   }
 
-  const glowColor = resolvedTheme === "dark" ? "#7ccf00" : "#9ae600"
+  const isDarkTheme = resolvedTheme === "dark"
+  const glowColor = isDarkTheme ? "#7ccf00" : "#9ae600"
+  const glowHighlight = isDarkTheme ? "#a3e635" : "#bef264"
   const fadeUpwards = "linear-gradient(to top, black 0%, transparent 100%)"
 
   return (
@@ -70,15 +72,18 @@ export function BottomGlowBackdrop() {
       className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-64 overflow-hidden opacity-[0.16] dark:opacity-25"
       style={{ maskImage: fadeUpwards, WebkitMaskImage: fadeUpwards }}
     >
-      <StaticRadialGradient
+      <StaticMeshGradient
         speed={0}
-        colorBack="rgba(0, 0, 0, 0)"
-        colors={[glowColor, "rgba(0, 0, 0, 0)"]}
-        radius={1}
-        focalDistance={0}
-        falloff={0}
-        mixing={1}
-        scale={1.8}
+        colors={[glowColor, glowHighlight, glowColor, glowHighlight]}
+        positions={2}
+        waveX={0.8}
+        waveY={0.6}
+        waveXShift={0.5}
+        waveYShift={0.35}
+        mixing={0.95}
+        grainMixer={0.6}
+        grainOverlay={0.35}
+        scale={1.6}
         originY={1}
         style={{ width: "100%", height: "100%" }}
       />
