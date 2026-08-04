@@ -275,6 +275,7 @@ export default function SourcesSettingsPage() {
   async function handleRefetchPortal(portal: SavedPortalRecord) {
     setRefetchingPortalId(portal.id)
     const toastId = toast.loading(`Refetching ${portal.name}...`)
+    const startedAt = performance.now()
 
     try {
       const response = await fetch(`/api/portals/${portal.id}/refetch`, {
@@ -293,7 +294,10 @@ export default function SourcesSettingsPage() {
         )
       }
 
-      toast.success(`${portal.name} refetched successfully`, { id: toastId })
+      toast.success(
+        `${portal.name} refetched in ${formatElapsed(performance.now() - startedAt)}`,
+        { id: toastId },
+      )
     } catch {
       toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
     } finally {
@@ -1039,4 +1043,27 @@ function sourceTypeLabel(sourceType: SavedSourceRecord["sourceType"]) {
   }
 
   return "Stalker"
+}
+
+/**
+ * Wall-clock duration for a finished refetch, from the user's side rather than
+ * the server's: a large source spends real time fetching the provider's list
+ * and streaming it into Postgres, and the whole wait is what's worth reporting.
+ */
+function formatElapsed(ms: number) {
+  const seconds = ms / 1000
+
+  // Round to whole seconds only once a refetch is slow enough for the decimal
+  // to be noise, but keep it below 1s so a fast source never reads as "0s".
+  if (seconds < 1) {
+    return `${seconds.toFixed(1)}s`
+  }
+
+  const total = Math.round(seconds)
+
+  if (total < 60) {
+    return `${total}s`
+  }
+
+  return `${Math.floor(total / 60)}m ${total % 60}s`
 }
