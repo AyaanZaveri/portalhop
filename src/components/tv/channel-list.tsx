@@ -594,9 +594,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               <ScrollArea
                 className="min-h-0 flex-1"
                 viewportTabIndex={-1}
-                /* pt-1 so the first row's focus ring is not clipped by the
-                   viewport's own overflow. */
-                viewportClassName="px-4 pt-1 pb-2"
+                viewportClassName="px-4 pb-2"
               >
                 {visibleCategories.length ? (
                   visibleCategories.map((category) => {
@@ -638,7 +636,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                             setCategorySearch("")
                           }}
                           className={cn(
-                            "hover:bg-accent hover:text-accent-foreground h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal",
+                            // ring-inset like the channel rows: the scroll
+                            // viewport clips anything drawn outside a row, and
+                            // padding it away would push the first category off
+                            // the top of the list.
+                            "hover:bg-accent hover:text-accent-foreground h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal focus-visible:ring-inset",
                             isManagingCategories ? "py-1" : "py-2",
                             isActiveGenre && "bg-accent",
                           )}
@@ -709,7 +711,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   <Button
                     type="button"
                     variant="ghost"
-                    className="text-muted-foreground hover:text-foreground mt-3 h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-sm font-normal"
+                    className="text-muted-foreground hover:text-foreground mt-3 h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-sm font-normal focus-visible:ring-inset"
                     onClick={() => setIsManagingCategories(true)}
                   >
                     <EyeOffIcon className="size-4" />
