@@ -30,8 +30,10 @@ import {
   MicIcon,
   MusicIcon,
   NewspaperIcon,
+  PartyPopperIcon,
   PawPrintIcon,
   PlaneIcon,
+  RadioTowerIcon,
   RocketIcon,
   SailboatIcon,
   ShirtIcon,
@@ -193,7 +195,9 @@ const RULES: Array<{ test: (value: string) => boolean; visual: ProgrammeCategory
   },
   { test: (v) => v.includes("children") || v.includes("animated") || v.includes("family"), visual: lucide(BabyIcon) },
   { test: (v) => v.includes("erotic") || v.includes("adults only"), visual: lucide(LockIcon) },
-  { test: (v) => v.includes("special") || v.includes("event") || v.includes("parade") || v.includes("awards"), visual: lucide(SparklesIcon) },
+  { test: (v) => v.includes("parade"), visual: lucide(PartyPopperIcon) },
+  // "awards" is already caught by the v.includes("award") rule above.
+  { test: (v) => v.includes("special") || v.includes("event"), visual: lucide(RadioTowerIcon) },
   { test: (v) => v.includes("variety") || v.includes("entertainment"), visual: lucide(SparklesIcon) },
   { test: (v) => v.includes("how to") || v.includes("computers"), visual: lucide(WrenchIcon) },
 ]
