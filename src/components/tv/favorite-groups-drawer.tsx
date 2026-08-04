@@ -1,39 +1,101 @@
 "use client"
 
 import { useEffect, useState, type ComponentType } from "react"
-import { cricketBall } from "@lucide/lab"
 import {
+  baseball,
+  basketball,
+  bowling,
+  cricketBall,
+  football,
+  golfDriver,
+  horseHead,
+  iceHockey,
+  motorRacingHelmet,
+  rugby,
+  skis,
+  surfboard,
+  tennisRacket,
+} from "@lucide/lab"
+import {
+  AudioLinesIcon,
+  BabyIcon,
+  BikeIcon,
   BookOpenIcon,
+  BookmarkIcon,
+  BriefcaseBusinessIcon,
+  CameraIcon,
+  CarIcon,
   CheckIcon,
+  ChefHatIcon,
+  ChurchIcon,
+  CircleIcon,
   ClapperboardIcon,
+  CompassIcon,
+  CrownIcon,
+  DiscIcon,
+  DramaIcon,
   DumbbellIcon,
   FilmIcon,
+  FlagIcon,
+  FlameIcon,
   FolderHeartIcon,
+  FolderIcon,
   FolderPlusIcon,
   Gamepad2Icon,
+  GavelIcon,
   GoalIcon,
   Globe2Icon,
+  GraduationCapIcon,
+  GuitarIcon,
+  HeadphonesIcon,
   HeartIcon,
   HouseIcon,
-  Icon as IconNode,
+  Icon as LucideLabGlyph,
+  IceCreamConeIcon,
+  LandmarkIcon,
+  LeafIcon,
+  MedalIcon,
+  MicIcon,
+  MountainSnowIcon,
   MusicIcon,
   NewspaperIcon,
+  PawPrintIcon,
+  PinIcon,
+  PlaneIcon,
   PodcastIcon,
   PopcornIcon,
   PlusIcon,
   PencilIcon,
+  PuzzleIcon,
   RadioIcon,
+  RadioTowerIcon,
+  RocketIcon,
   SchoolIcon,
+  ShirtIcon,
+  ShoppingCartIcon,
+  SmileIcon,
   SparklesIcon,
   StarIcon,
+  StethoscopeIcon,
+  SwordsIcon,
+  TagIcon,
+  TargetIcon,
+  TheaterIcon,
+  TicketIcon,
+  TrendingUpIcon,
   TvMinimalIcon,
   Trash2Icon,
   TrophyIcon,
+  VideoIcon,
   VolleyballIcon,
+  WavesIcon,
+  ZapIcon,
+  type IconNode,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -108,33 +170,148 @@ type GroupIcon = {
   Icon: ComponentType<{ className?: string }>
 }
 
-function CricketIcon({ className }: { className?: string }) {
-  return <IconNode iconNode={cricketBall} className={className} />
+type GroupIconCategory = {
+  id: string
+  label: string
+  icons: GroupIcon[]
 }
 
-const groupIcons: GroupIcon[] = [
-  { id: "star", label: "Star", Icon: StarIcon },
-  { id: "trophy", label: "Sports", Icon: TrophyIcon },
-  { id: "cricket", label: "Cricket", Icon: CricketIcon },
-  { id: "goal", label: "Football", Icon: GoalIcon },
-  { id: "volleyball", label: "Volleyball", Icon: VolleyballIcon },
-  { id: "dumbbell", label: "Fitness", Icon: DumbbellIcon },
-  { id: "film", label: "Movies", Icon: FilmIcon },
-  { id: "clapperboard", label: "Shows", Icon: ClapperboardIcon },
-  { id: "popcorn", label: "Entertainment", Icon: PopcornIcon },
-  { id: "music", label: "Music", Icon: MusicIcon },
-  { id: "radio", label: "Radio", Icon: RadioIcon },
-  { id: "podcast", label: "Podcasts", Icon: PodcastIcon },
-  { id: "gamepad", label: "Gaming", Icon: Gamepad2Icon },
-  { id: "heart", label: "Heart", Icon: HeartIcon },
-  { id: "house", label: "Home", Icon: HouseIcon },
-  { id: "globe", label: "World", Icon: Globe2Icon },
-  { id: "news", label: "News", Icon: NewspaperIcon },
-  { id: "book", label: "Learning", Icon: BookOpenIcon },
-  { id: "school", label: "Kids", Icon: SchoolIcon },
-  { id: "tv", label: "TV", Icon: TvMinimalIcon },
-  { id: "sparkles", label: "Highlights", Icon: SparklesIcon },
+/** Wraps a @lucide/lab icon node so it renders like any other lucide icon. */
+function labIcon(node: IconNode) {
+  return function LabIcon({ className }: { className?: string }) {
+    return <LucideLabGlyph iconNode={node} className={className} />
+  }
+}
+
+// Ids are persisted on saved groups, so existing ones keep both their id and
+// their glyph — changing either would silently restyle someone's collection.
+const groupIconCategories: GroupIconCategory[] = [
+  {
+    id: "sports",
+    label: "Sports",
+    icons: [
+      { id: "goal", label: "Football", Icon: GoalIcon },
+      { id: "basketball", label: "Basketball", Icon: labIcon(basketball) },
+      { id: "gridiron", label: "American football", Icon: labIcon(football) },
+      { id: "baseball", label: "Baseball", Icon: labIcon(baseball) },
+      { id: "tennis", label: "Tennis", Icon: labIcon(tennisRacket) },
+      { id: "cricket", label: "Cricket", Icon: labIcon(cricketBall) },
+      { id: "rugby", label: "Rugby", Icon: labIcon(rugby) },
+      { id: "icehockey", label: "Ice hockey", Icon: labIcon(iceHockey) },
+      { id: "golf", label: "Golf", Icon: labIcon(golfDriver) },
+      { id: "volleyball", label: "Volleyball", Icon: VolleyballIcon },
+      { id: "bowling", label: "Bowling", Icon: labIcon(bowling) },
+      { id: "motorsport", label: "Motorsport", Icon: labIcon(motorRacingHelmet) },
+      { id: "horseracing", label: "Horse racing", Icon: labIcon(horseHead) },
+      { id: "surfing", label: "Surfing", Icon: labIcon(surfboard) },
+      { id: "skiing", label: "Skiing", Icon: labIcon(skis) },
+      { id: "cycling", label: "Cycling", Icon: BikeIcon },
+      { id: "swimming", label: "Swimming", Icon: WavesIcon },
+      { id: "climbing", label: "Climbing", Icon: MountainSnowIcon },
+      { id: "darts", label: "Darts", Icon: TargetIcon },
+      { id: "combat", label: "Combat sports", Icon: SwordsIcon },
+      { id: "dumbbell", label: "Fitness", Icon: DumbbellIcon },
+      { id: "trophy", label: "Trophy", Icon: TrophyIcon },
+      { id: "medal", label: "Medal", Icon: MedalIcon },
+      { id: "racing", label: "Racing", Icon: FlagIcon },
+    ],
+  },
+  {
+    id: "entertainment",
+    label: "Entertainment",
+    icons: [
+      { id: "film", label: "Movies", Icon: FilmIcon },
+      { id: "clapperboard", label: "Shows", Icon: ClapperboardIcon },
+      { id: "popcorn", label: "Entertainment", Icon: PopcornIcon },
+      { id: "tv", label: "TV", Icon: TvMinimalIcon },
+      { id: "theatre", label: "Theatre", Icon: TheaterIcon },
+      { id: "drama", label: "Drama", Icon: DramaIcon },
+      { id: "events", label: "Events", Icon: TicketIcon },
+      { id: "video", label: "Video", Icon: VideoIcon },
+      { id: "gamepad", label: "Gaming", Icon: Gamepad2Icon },
+    ],
+  },
+  {
+    id: "music",
+    label: "Music and audio",
+    icons: [
+      { id: "music", label: "Music", Icon: MusicIcon },
+      { id: "radio", label: "Radio", Icon: RadioIcon },
+      { id: "podcast", label: "Podcasts", Icon: PodcastIcon },
+      { id: "headphones", label: "Headphones", Icon: HeadphonesIcon },
+      { id: "albums", label: "Albums", Icon: DiscIcon },
+      { id: "livemusic", label: "Live music", Icon: GuitarIcon },
+      { id: "talk", label: "Talk", Icon: MicIcon },
+      { id: "audio", label: "Audio", Icon: AudioLinesIcon },
+    ],
+  },
+  {
+    id: "news",
+    label: "News and knowledge",
+    icons: [
+      { id: "news", label: "News", Icon: NewspaperIcon },
+      { id: "globe", label: "World", Icon: Globe2Icon },
+      { id: "book", label: "Learning", Icon: BookOpenIcon },
+      { id: "education", label: "Education", Icon: GraduationCapIcon },
+      { id: "politics", label: "Politics", Icon: LandmarkIcon },
+      { id: "law", label: "Law", Icon: GavelIcon },
+      { id: "business", label: "Business", Icon: BriefcaseBusinessIcon },
+      { id: "markets", label: "Markets", Icon: TrendingUpIcon },
+      { id: "live", label: "Live", Icon: RadioTowerIcon },
+    ],
+  },
+  {
+    id: "family",
+    label: "Kids and family",
+    icons: [
+      { id: "school", label: "Kids", Icon: SchoolIcon },
+      { id: "baby", label: "Baby", Icon: BabyIcon },
+      { id: "puzzle", label: "Puzzles", Icon: PuzzleIcon },
+      { id: "treats", label: "Treats", Icon: IceCreamConeIcon },
+      { id: "animals", label: "Animals", Icon: PawPrintIcon },
+      { id: "space", label: "Space", Icon: RocketIcon },
+      { id: "fun", label: "Fun", Icon: SmileIcon },
+    ],
+  },
+  {
+    id: "lifestyle",
+    label: "Lifestyle",
+    icons: [
+      { id: "house", label: "Home", Icon: HouseIcon },
+      { id: "food", label: "Food", Icon: ChefHatIcon },
+      { id: "travel", label: "Travel", Icon: PlaneIcon },
+      { id: "shopping", label: "Shopping", Icon: ShoppingCartIcon },
+      { id: "fashion", label: "Fashion", Icon: ShirtIcon },
+      { id: "health", label: "Health", Icon: StethoscopeIcon },
+      { id: "faith", label: "Faith", Icon: ChurchIcon },
+      { id: "nature", label: "Nature", Icon: LeafIcon },
+      { id: "cars", label: "Cars", Icon: CarIcon },
+      { id: "photography", label: "Photography", Icon: CameraIcon },
+    ],
+  },
+  {
+    id: "general",
+    label: "General",
+    icons: [
+      { id: "star", label: "Star", Icon: StarIcon },
+      { id: "heart", label: "Heart", Icon: HeartIcon },
+      { id: "sparkles", label: "Highlights", Icon: SparklesIcon },
+      { id: "bookmark", label: "Saved", Icon: BookmarkIcon },
+      { id: "trending", label: "Trending", Icon: FlameIcon },
+      { id: "quick", label: "Quick picks", Icon: ZapIcon },
+      { id: "premium", label: "Premium", Icon: CrownIcon },
+      { id: "collection", label: "Collection", Icon: FolderIcon },
+      { id: "tag", label: "Tag", Icon: TagIcon },
+      { id: "pinned", label: "Pinned", Icon: PinIcon },
+      { id: "discover", label: "Discover", Icon: CompassIcon },
+      { id: "plain", label: "Plain", Icon: CircleIcon },
+    ],
+  },
 ]
+
+const groupIcons: GroupIcon[] = groupIconCategories.flatMap(
+  (category) => category.icons,
+)
 
 export function getFavoriteGroupIcon(iconId: string) {
   return groupIcons.find((icon) => icon.id === iconId)?.Icon ?? StarIcon
@@ -505,39 +682,50 @@ export function FavoriteGroupsDrawer({
                 </Field>
                 <Field>
                   <FieldLabel>Icon</FieldLabel>
-                  <div
-                    role="radiogroup"
-                    aria-label="Group icon"
-                    className="grid grid-cols-6 gap-2"
-                  >
-                    {groupIcons.map((groupIconOption) => {
-                      const Icon = groupIconOption.Icon
-                      const selected = icon === groupIconOption.id
-                      return (
-                        <Button
-                          key={groupIconOption.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          aria-label={groupIconOption.label}
-                          title={groupIconOption.label}
-                          variant="secondary"
-                          size="icon-lg"
-                          onClick={() => {
-                            setIcon(groupIconOption.id)
-                            setIconSelectedManually(true)
-                          }}
-                          className={cn(
-                            "h-10 w-full rounded-lg bg-secondary text-muted-foreground hover:bg-secondary/80",
-                            selected &&
-                            "bg-primary/15 text-primary hover:bg-primary/20 brightness-85 dark:brightness-100",
-                          )}
-                        >
-                          <Icon className="size-4.5" />
-                        </Button>
-                      )
-                    })}
-                  </div>
+                  <ScrollArea className="h-64">
+                    <div
+                      role="radiogroup"
+                      aria-label="Group icon"
+                      className="flex flex-col gap-4 pr-3"
+                    >
+                      {groupIconCategories.map((category) => (
+                        <div key={category.id} className="flex flex-col gap-2">
+                          <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+                            {category.label}
+                          </p>
+                          <div className="grid grid-cols-6 gap-2">
+                            {category.icons.map((groupIconOption) => {
+                              const Icon = groupIconOption.Icon
+                              const selected = icon === groupIconOption.id
+                              return (
+                                <Button
+                                  key={groupIconOption.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  aria-label={groupIconOption.label}
+                                  title={groupIconOption.label}
+                                  variant="secondary"
+                                  size="icon-lg"
+                                  onClick={() => {
+                                    setIcon(groupIconOption.id)
+                                    setIconSelectedManually(true)
+                                  }}
+                                  className={cn(
+                                    "bg-secondary text-muted-foreground hover:bg-secondary/80 h-10 w-full rounded-lg",
+                                    selected &&
+                                      "bg-primary/15 text-primary hover:bg-primary/20 brightness-85 dark:brightness-100",
+                                  )}
+                                >
+                                  <Icon className="size-4.5" />
+                                </Button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </Field>
               </FieldGroup>
               <Button type="submit" disabled={!name.trim() || isCreating}>
