@@ -635,16 +635,17 @@ export function FavoriteGroupsDrawer({
               {/* Sits after the groups rather than in the header so it reads as
                   the next row in the list, and so an empty list still offers the
                   one action worth taking. */}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setCreateOpen(true)}
-                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-9 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal"
               >
                 <PlusIcon className="size-4 shrink-0 stroke-[2.25]" />
-                <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">
+                <span className="min-w-0 flex-1 truncate text-left font-mono font-medium tracking-tight">
                   New group
                 </span>
-              </button>
+              </Button>
             </div>
           )}
         </div>
