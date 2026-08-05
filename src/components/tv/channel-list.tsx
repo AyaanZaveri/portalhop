@@ -800,7 +800,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-start gap-2"
+                  className="w-full justify-center gap-2"
                   onClick={() => {
                     toggleCategoryVisibility(contextCategory)
                     setContextCategory(null)
@@ -1179,7 +1179,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-start gap-2"
+                  className="w-full justify-center gap-2"
                   onClick={() => {
                     const isFavorited = isChannelFavorited(contextChannel)
                     toggleFavorite(getChannelKey(contextChannel))
@@ -1192,7 +1192,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   <StarIcon
                     className={cn(
                       "size-4",
-                      isChannelFavorited(contextChannel) && "fill-current",
+                      // Same as the desktop menu: filled amber reads as "this
+                      // is saved" at a glance, where a fill in the button's own
+                      // text colour is easy to miss.
+                      isChannelFavorited(contextChannel) &&
+                        "fill-current text-amber-500",
                     )}
                   />
                   {isChannelFavorited(contextChannel)
@@ -1211,7 +1215,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start gap-2"
+                    className="w-full justify-center gap-2"
                     onClick={() => {
                       setGroupMembershipChannel(contextChannel)
                       setContextChannel(null)
@@ -1231,7 +1235,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-start gap-2"
+                    className="w-full justify-center gap-2"
                     onClick={() => {
                       setEpgMatchChannel(toEpgMatchChannel(contextChannel))
                       setContextChannel(null)
