@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm"
 
 import { getDb } from "@/db/client"
-import { savedChannels } from "@/db/schema"
+import { savedChannels, savedSources } from "@/db/schema"
 import type { SourceType } from "@/lib/source-types"
 import type { PortalChannel } from "@/lib/stalker-types"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
@@ -258,6 +258,17 @@ export async function setSavedChannelXmltvId(
       xmltvId: savedChannels.xmltvId,
       xmltvIdLocked: savedChannels.xmltvIdLocked,
     })
+
+  // The client caches each source's channel list in IndexedDB and treats it as
+  // fresh while it matches the source's updatedAt. Without this bump the new
+  // match is in Postgres but every client keeps serving the old list, which
+  // looks exactly like the save having failed.
+  if (row) {
+    await db
+      .update(savedSources)
+      .set({ updatedAt: new Date() })
+      .where(eq(savedSources.id, sourceId))
+  }
 
   return row ?? null
 }

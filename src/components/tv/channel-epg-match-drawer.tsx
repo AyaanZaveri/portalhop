@@ -114,7 +114,7 @@ export function ChannelEpgMatchDrawer({
 
   const currentXmltvId = channel ? normalizeXmltvId(channel.xmltvId) : ""
 
-  async function assign(xmltvId: string) {
+  async function assign(xmltvId: string, label?: string) {
     if (!channel || isSaving) {
       return
     }
@@ -136,8 +136,12 @@ export function ChannelEpgMatchDrawer({
       }
 
       onMatched(normalizeXmltvId(xmltvId))
+      // Names what was saved rather than just that something was: the whole
+      // point of the drawer is picking a specific listing.
       toast.success(
-        xmltvId ? "Guide match updated." : "Guide match cleared.",
+        xmltvId
+          ? `Matched to ${label ?? normalizeXmltvId(xmltvId)}`
+          : "Guide match cleared.",
       )
       onOpenChange(false)
     } catch {
@@ -197,7 +201,7 @@ export function ChannelEpgMatchDrawer({
                       type="button"
                       variant="ghost"
                       disabled={isSaving}
-                      onClick={() => void assign(match.xmltvId)}
+                      onClick={() => void assign(match.xmltvId, match.name)}
                       className={cn(
                         "hover:bg-accent hover:text-accent-foreground h-auto w-full justify-start gap-3 rounded-md px-2 py-2 text-sm font-normal focus-visible:ring-inset",
                         selected && "bg-accent",

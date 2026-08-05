@@ -120,6 +120,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     channelSlug,
     hiddenCategories,
     setCategoryHidden,
+    reloadPortals,
     userId,
   } = useTv()
 
@@ -1240,9 +1241,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           if (!open) setEpgMatchChannel(null)
         }}
         onMatched={() => {
-          // The list is built from a cached channel payload, so the new logo
-          // and guide only appear once that payload is refetched.
-          router.refresh()
+          // The channel list is served from an IndexedDB cache that is only
+          // invalidated by the source's updatedAt, which the save bumps. This
+          // re-runs the load so the row picks up its new id and logo now
+          // rather than on the next visit.
+          reloadPortals()
         }}
       />
       <GroupMembershipDrawer

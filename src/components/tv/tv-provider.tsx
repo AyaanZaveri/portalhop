@@ -86,6 +86,7 @@ type TvContextValue = {
 
   // Loading
   isLoadingPortals: boolean
+  reloadPortals: () => void
   iptvOrgLoading: boolean
 
   // Search + filters
@@ -157,6 +158,10 @@ export function TvProvider({
     Record<number, LoadedPortal>
   >({})
   const [isLoadingPortals, setIsLoadingPortals] = useState(true)
+  // Bumped to re-run the portal load when something changed a saved channel
+  // out from under the cached list.
+  const [portalsNonce, setPortalsNonce] = useState(0)
+  const reloadPortals = useCallback(() => setPortalsNonce((n) => n + 1), [])
   const [iptvOrgChannels, setIptvOrgChannels] = useState<
     PortalChannelWithSource[]
   >([])
@@ -401,7 +406,7 @@ export function TvProvider({
       isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsLoaded, enabledKey])
+  }, [settingsLoaded, enabledKey, portalsNonce])
 
   // Favorites: consider a channel favorited under the new or legacy key.
   const isChannelFavorited = useCallback(
@@ -550,6 +555,7 @@ export function TvProvider({
       endpoint: result?.endpoint ?? "",
       previewSourceRequest,
       isLoadingPortals,
+      reloadPortals,
       iptvOrgLoading,
       query,
       setQuery,
@@ -589,6 +595,7 @@ export function TvProvider({
       result,
       previewSourceRequest,
       isLoadingPortals,
+      reloadPortals,
       iptvOrgLoading,
       query,
       browseFilter,
