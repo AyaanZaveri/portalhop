@@ -17,6 +17,7 @@ import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 import type {
   DragCancelEvent,
+  DragOverEvent,
   DragEndEvent,
   DragStartEvent,
   DropAnimation,
@@ -126,7 +127,7 @@ export interface SortableCommitMeta<T> {
 
 export interface SortableRootProps<T> extends Omit<
   useRender.ComponentProps<"div">,
-  "onDragStart" | "onDragEnd" | "children"
+  "onDragStart" | "onDragEnd" | "onDragOver" | "children"
 > {
   value: T[]
   onValueChange: (value: T[]) => void
@@ -142,6 +143,8 @@ export interface SortableRootProps<T> extends Omit<
   onDragStart?: (event: DragStartEvent) => void
   onDragEnd?: (event: DragEndEvent) => void
   onDragCancel?: (event: DragCancelEvent) => void
+  /** dnd-kit passthrough, fired as the dragged item moves over the others. */
+  onDragOver?: (event: DragOverEvent) => void
   accessibility?: React.ComponentProps<typeof DndContext>["accessibility"]
   modifiers?: Modifiers
 }
@@ -158,6 +161,7 @@ function Sortable<T>({
   onDragStart,
   onDragEnd,
   onDragCancel,
+  onDragOver,
   accessibility,
   modifiers,
   children,
@@ -284,6 +288,7 @@ function Sortable<T>({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
+        onDragOver={onDragOver}
       >
         <SortableContext
           items={itemIds}

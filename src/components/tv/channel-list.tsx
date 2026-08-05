@@ -174,6 +174,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     null,
   )
   const suppressCategoryClickRef = useRef(false)
+  // The row the drag was last over, so a haptic fires once per row crossed
+  // rather than on every pointer move that stays within the same one.
+  const lastDragOverIdRef = useRef<string | null>(null)
   const [contextChannel, setContextChannel] =
     useState<PortalChannelWithSource | null>(null)
   const [groupMembershipChannel, setGroupMembershipChannel] =
@@ -991,6 +994,26 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             onValueChange={setReorderedChannels}
             getItemValue={getChannelKey}
             onValueCommit={(next) => void persistOrder(next)}
+            onDragStart={() => {
+              lastDragOverIdRef.current = null
+            }}
+            onDragOver={(event) => {
+              const overId = event.over?.id ? String(event.over.id) : null
+
+              // The dragged row counts as being over itself, which is not a
+              // pass, and dnd-kit reports the same row repeatedly while the
+              // pointer stays within it.
+              if (
+                !overId ||
+                overId === String(event.active.id) ||
+                overId === lastDragOverIdRef.current
+              ) {
+                return
+              }
+
+              lastDragOverIdRef.current = overId
+              void triggerHaptic([{ duration: 10 }], { intensity: 0.3 })
+            }}
             className="flex flex-col gap-1.5 py-[3px]"
           >
             {orderedChannels.map((channel, index) => {
