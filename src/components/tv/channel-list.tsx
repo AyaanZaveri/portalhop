@@ -543,16 +543,24 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     rowVirtualizer.scrollToIndex(0)
   }, [visibleChannels, rowVirtualizer])
 
-  const renderedXmltvIds = useMemo(
+  const renderedEpgChannels = useMemo(
     () =>
       rowVirtualizer
         .getVirtualItems()
-        .map((row) => visibleChannels[row.index]?.xmltvId ?? "")
-        .filter(Boolean),
+        .map((row) => visibleChannels[row.index])
+        .filter(Boolean)
+        .map((channel) => ({
+          xmltvId: channel.xmltvId ?? "",
+          epgSourceId:
+            channel.portalSource?.epgMode === "custom"
+              ? channel.portalSource.epgSourceId
+              : null,
+        }))
+        .filter((entry) => entry.xmltvId),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- virtual items change identity every scroll frame.
     [visibleChannels, rowVirtualizer.getVirtualItems().length, rowVirtualizer.scrollOffset],
   )
-  const nowPlayingById = useEpgNow(renderedXmltvIds)
+  const nowPlayingById = useEpgNow(renderedEpgChannels)
 
 
   const isPortalFiltered =

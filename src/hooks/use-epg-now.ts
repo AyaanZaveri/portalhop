@@ -27,41 +27,52 @@ function countryOf(xmltvId: string) {
 // Re-render on a slow tick so the progress bar advances without a request.
 const TICK_MS = 30_000
 
-export function useEpgNow(xmltvIds: string[]) {
+export type EpgNowChannel = {
+  xmltvId: string
+  /** Set when the channel's source uses the user's own EPG rather than a country file. */
+  epgSourceId?: number | null
+}
+
+export function useEpgNow(entries: EpgNowChannel[]) {
   const [windows, setWindows] = useState<Windows>({})
   const [now, setNow] = useState(() => Date.now())
 
-  const countries = useMemo(() => {
+  // "country:ca" or "source:7" — one key per file to fetch and cache.
+  const feedKey = useMemo(() => {
     const found = new Set<string>()
-    for (const id of xmltvIds) {
-      const country = countryOf(normalizeXmltvId(id))
-      if (country) found.add(country)
+    for (const entry of entries) {
+      if (entry.epgSourceId) {
+        found.add(`source:${entry.epgSourceId}`)
+        continue
+      }
+      const country = countryOf(normalizeXmltvId(entry.xmltvId))
+      if (country) found.add(`country:${country}`)
     }
-    return [...found].sort()
-  }, [xmltvIds])
-
-  const countryKey = countries.join(",")
+    return [...found].sort().join("|")
+  }, [entries])
 
   useEffect(() => {
-    if (!countryKey) return
+    if (!feedKey) return
 
     let cancelled = false
 
-    for (const country of countryKey.split(",")) {
-      const key = `country:${country}`
+    for (const key of feedKey.split("|")) {
+      const [kind, value] = key.split(":")
+      const query =
+        kind === "source" ? `sourceId=${value}` : `country=${value}`
 
       void (async () => {
         const cached = await getCachedEpgWindow(key)
 
         if (cached) {
           if (!cancelled) {
-            setWindows((current) => ({ ...current, [country]: cached.channels }))
+            setWindows((current) => ({ ...current, [key]: cached.channels }))
           }
           return
         }
 
         try {
-          const response = await fetch(`/api/epg/now?country=${country}`)
+          const response = await fetch(`/api/epg/now?${query}`)
           if (!response.ok) return
 
           const data = (await response.json()) as {
@@ -70,7 +81,7 @@ export function useEpgNow(xmltvIds: string[]) {
           }
 
           if (cancelled) return
-          setWindows((current) => ({ ...current, [country]: data.channels }))
+          setWindows((current) => ({ ...current, [key]: data.channels }))
           void setCachedEpgWindow({ key, to: data.to, channels: data.channels })
         } catch {
           // A missing guide just means no strip under the row.
@@ -81,7 +92,7 @@ export function useEpgNow(xmltvIds: string[]) {
     return () => {
       cancelled = true
     }
-  }, [countryKey])
+  }, [feedKey])
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), TICK_MS)
@@ -91,12 +102,14 @@ export function useEpgNow(xmltvIds: string[]) {
   return useMemo(() => {
     const byId = new Map<string, NowPlaying>()
 
-    for (const id of xmltvIds) {
-      const normalized = normalizeXmltvId(id)
-      const country = countryOf(normalized)
-      if (!country) continue
+    for (const entry of entries) {
+      const normalized = normalizeXmltvId(entry.xmltvId)
+      const key = entry.epgSourceId
+        ? `source:${entry.epgSourceId}`
+        : `country:${countryOf(normalized) ?? ""}`
+      if (key === "country:") continue
 
-      const slot = windows[country]?.[normalized]?.find(
+      const slot = windows[key]?.[normalized]?.find(
         ([startAt, stopAt]) => startAt <= now && stopAt > now,
       )
 
@@ -106,5 +119,5 @@ export function useEpgNow(xmltvIds: string[]) {
     }
 
     return byId
-  }, [windows, xmltvIds, now])
+  }, [windows, entries, now])
 }
