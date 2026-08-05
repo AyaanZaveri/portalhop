@@ -15,6 +15,10 @@ export const maxDuration = 60
 // Long enough that the window is always hours ahead of the clock reading it.
 const WINDOW_HOURS = 6
 
+// Guide ids do not always use the source's own code: thousands of channels end
+// in .uk while the file is published as GB.
+const COUNTRY_ALIASES: Record<string, string> = { uk: "gb" }
+
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const country = params.get("country")
@@ -23,8 +27,10 @@ export async function GET(request: Request) {
 
   try {
     if (country) {
+      const code = country.toLowerCase()
+      const resolved = COUNTRY_ALIASES[code] ?? code
       const source = EPG_SOURCES.find(
-        (entry) => entry.code.toLowerCase() === country.toLowerCase(),
+        (entry) => entry.code.toLowerCase() === resolved,
       )
 
       if (!source) {
