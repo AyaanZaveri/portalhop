@@ -203,18 +203,22 @@ export function ChannelEpgMatchDrawer({
                         selected && "bg-accent",
                       )}
                     >
-                      <span className="border-border/60 flex size-9 shrink-0 items-center justify-center overflow-clip rounded-md border bg-zinc-900">
+                      {/* Same treatment as a channel row: the padding belongs
+                          on the tile, not the image — on the image it sits
+                          inside a box that still fills the tile, so the logo
+                          runs into the corners. */}
+                      <span className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
                         {logoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element -- Guide logos come from arbitrary hosts.
                           <img
                             src={logoUrl}
                             alt=""
-                            className="size-full rounded-[4px] object-contain p-0.5"
+                            className="size-full rounded-[6px] object-contain"
                             loading="lazy"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <TvIcon className="text-muted-foreground size-4" />
+                          <TvIcon className="text-muted-foreground" />
                         )}
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col text-left">
