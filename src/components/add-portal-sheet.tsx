@@ -316,9 +316,15 @@ export function AddPortalSheet({
 
 
 
+  // An edit already has a nickname, so the dialog would only be asking a
+  // question it knows the answer to. Save straight away and keep the name.
   function openSaveDialog() {
     if (!testResult) return
-    setPortalName(editingPortal?.name || testResult.profile.login || "")
+    if (editingPortal) {
+      void saveCurrentPortal(editingPortal.name)
+      return
+    }
+    setPortalName(testResult.profile.login || "")
     setSaveError("")
     setSaveDialogOpen(true)
   }
@@ -346,12 +352,12 @@ export function AddPortalSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, testResult, isLoading])
 
-  async function saveCurrentPortal() {
+  async function saveCurrentPortal(nameOverride?: string) {
     if (!testResult) {
       return
     }
 
-    const name = portalName.trim()
+    const name = (nameOverride ?? portalName).trim()
 
     if (!name) {
       setSaveError("Add a nickname first.")
@@ -379,12 +385,14 @@ export function AddPortalSheet({
     setIsSavingPortal(false)
 
     if (!response.ok) {
-      setSaveError(
+      const message =
         data.error ||
         (editingPortal
           ? "Could not update this source."
           : "Could not save this portal.")
-      )
+      setSaveError(message)
+      // The dialog is where saveError is shown, so an edit needs a toast.
+      if (!saveDialogOpen) toast.error(message)
       return
     }
 
@@ -668,10 +676,18 @@ export function AddPortalSheet({
                         <Button
                           type="button"
                           variant="outline"
+                          disabled={isSavingPortal}
                           onClick={openSaveDialog}
                         >
-                          <SaveIcon data-icon="inline-start" />
-                          Save
+                          {isSavingPortal ? (
+                            <Loader2Icon
+                              data-icon="inline-start"
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <SaveIcon data-icon="inline-start" />
+                          )}
+                          {isSavingPortal ? "Saving…" : "Save"}
                         </Button>
                       }
                     />
@@ -779,7 +795,7 @@ export function AddPortalSheet({
               <Button
                 type="button"
                 disabled={isSavingPortal}
-                onClick={saveCurrentPortal}
+                onClick={() => saveCurrentPortal()}
               >
                 {isSavingPortal ? (
                   <Loader2Icon data-icon="inline-start" className="animate-spin" />
