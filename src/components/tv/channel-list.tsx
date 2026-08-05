@@ -15,6 +15,8 @@ import {
   ListFilterIcon,
   MoreVerticalIcon,
   PencilIcon,
+  ArrowUpDownIcon,
+  GripVerticalIcon,
   ScanSearchIcon,
   SearchIcon,
   ShapesIcon,
@@ -56,6 +58,11 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
+import {
+  Sortable,
+  SortableItem,
+  SortableItemHandle,
+} from "@/components/reui/sortable"
 import { CategoryVisual } from "@/components/category-visual"
 import {
   ChannelEpgMatchDrawer,
@@ -72,6 +79,8 @@ import {
   type FavoriteGroup,
 } from "@/components/tv/favorite-groups-drawer"
 import { chipButtonProps, chipLabelCollapse } from "@/components/tv/chip-button"
+import { toast } from "sonner"
+
 import { cn } from "@/lib/utils"
 import {
   TV_MOBILE_LAYOUT_QUERY,
@@ -97,6 +106,28 @@ function categoryPreferenceKey(sourceId: number, genre: string) {
   return `${sourceId}\u0000${genre}`
 }
 
+/**
+ * Orders channels by a saved sequence of channel keys. Anything not in the
+ * sequence keeps its catalogue position at the end, so a channel added since
+ * the last reorder appears rather than disappearing.
+ */
+function sortByKeyOrder(
+  channels: PortalChannelWithSource[],
+  orderedKeys: string[],
+) {
+  if (!orderedKeys.length) {
+    return channels
+  }
+
+  const rank = new Map(orderedKeys.map((key, index) => [key, index]))
+
+  return [...channels].sort((a, b) => {
+    const aRank = rank.get(getChannelKey(a)) ?? Number.MAX_SAFE_INTEGER
+    const bRank = rank.get(getChannelKey(b)) ?? Number.MAX_SAFE_INTEGER
+    return aRank - bRank
+  })
+}
+
 export function ChannelList({ headerControls }: { headerControls?: ReactNode }) {
   const {
     browserChannels: allChannels,
@@ -112,6 +143,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     setCategoryMenuOpen,
     categorySearch,
     setCategorySearch,
+    favorites,
     isChannelFavorited,
     toggleFavorite,
     epgChannels,
@@ -150,6 +182,13 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     null,
   )
   const [isManagingCategories, setIsManagingCategories] = useState(false)
+  const [isReordering, setIsReordering] = useState(false)
+  // Holds the order during and just after a drag. The saved order only comes
+  // back once favourites or the group reloads, so without this the list would
+  // snap back under the cursor.
+  const [reorderedChannels, setReorderedChannels] = useState<
+    PortalChannelWithSource[] | null
+  >(null)
   const [selectedFavoriteGroupKeys, setSelectedFavoriteGroupKeys] = useState<
     Set<string>
   >(() => new Set())
@@ -235,6 +274,38 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       sourceId,
       name: channel.name || "Channel",
       xmltvId: channel.xmltvId ?? "",
+    }
+  }
+
+  const canReorder =
+    browseFilter.type === "favorites" || browseFilter.type === "favoriteGroup"
+
+  // Leaving a reorderable view has to drop the mode, or returning to a
+  // category later would land in a mode that view cannot express.
+  if (isReordering && !canReorder) {
+    setIsReordering(false)
+  }
+
+  if (!isReordering && reorderedChannels) {
+    setReorderedChannels(null)
+  }
+
+  async function persistOrder(channels: PortalChannelWithSource[]) {
+    const channelKeys = channels.map(getChannelKey)
+    const endpoint =
+      browseFilter.type === "favoriteGroup"
+        ? `/api/favorite-groups/${browseFilter.groupId}/order`
+        : "/api/favorites/order"
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelKeys }),
+      })
+      if (!response.ok) throw new Error()
+    } catch {
+      toast.error("Could not save the new order.")
     }
   }
 
@@ -412,12 +483,21 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     if (browseFilter.type === "all") {
       return visibleCategoryChannels
     }
+    // Favourites and groups carry a manual order. Both arrive in that order —
+    // a Set preserves insertion order, and a group's channelKeys is an array —
+    // but filtering the channel catalogue loses it, so it is reapplied here.
     if (browseFilter.type === "favorites") {
-      return visibleCategoryChannels.filter(isChannelFavorited)
+      return sortByKeyOrder(
+        visibleCategoryChannels.filter(isChannelFavorited),
+        [...favorites],
+      )
     }
     if (browseFilter.type === "favoriteGroup") {
-      return visibleCategoryChannels.filter((channel) =>
-        selectedFavoriteGroupKeys.has(getChannelKey(channel)),
+      return sortByKeyOrder(
+        visibleCategoryChannels.filter((channel) =>
+          selectedFavoriteGroupKeys.has(getChannelKey(channel)),
+        ),
+        selectedFavoriteGroup?.channelKeys ?? [],
       )
     }
     return visibleCategoryChannels.filter(
@@ -426,7 +506,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         (browseFilter.sourceId == null ||
           (channel.portalSource?.id ?? 0) === browseFilter.sourceId),
     )
-  }, [browseFilter, channels, hiddenCategorySet, isChannelFavorited, selectedFavoriteGroupKeys, selectedPortalIds])
+  }, [browseFilter, channels, favorites, hiddenCategorySet, isChannelFavorited, selectedFavoriteGroup, selectedFavoriteGroupKeys, selectedPortalIds])
+
+  // While reordering, the dragged order wins until the saved order catches up.
+  const orderedChannels =
+    isReordering && reorderedChannels ? reorderedChannels : visibleChannels
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
@@ -841,14 +925,41 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           </span>
         </div>
       ) : null}
-      {browseFilter.type === "favoriteGroup" && selectedFavoriteGroup ? (() => {
-        const GroupIcon = getFavoriteGroupIcon(selectedFavoriteGroup.icon)
+      {/* One banner for both orderable views. The reorder toggle lives here
+          rather than in a channel's own menu: the order belongs to the list,
+          not to any channel in it, and this row only exists where there is an
+          order to change. */}
+      {canReorder ? (() => {
+        const inGroup =
+          browseFilter.type === "favoriteGroup" && selectedFavoriteGroup
+        const BannerIcon = inGroup
+          ? getFavoriteGroupIcon(selectedFavoriteGroup.icon)
+          : StarIcon
         return (
-          <div className="ml-0.5 flex items-center gap-2 px-4 pb-1 pt-2">
-            <GroupIcon className="text-muted-foreground size-4 shrink-0" />
+          <div className="ml-0.5 flex items-center gap-2 px-4 pt-2 pb-1">
+            <BannerIcon className="text-muted-foreground size-4 shrink-0" />
             <span className="text-md min-w-0 flex-1 truncate font-semibold">
-              {selectedFavoriteGroup.name}
+              {inGroup ? selectedFavoriteGroup.name : "Favorites"}
             </span>
+            {visibleChannels.length > 1 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-pressed={isReordering}
+                aria-label={
+                  isReordering ? "Finish reordering" : "Reorder channels"
+                }
+                onClick={() => setIsReordering((current) => !current)}
+                className="-mr-1 shrink-0"
+              >
+                {isReordering ? (
+                  <CheckIcon className="size-4 stroke-[2.25]" />
+                ) : (
+                  <ArrowUpDownIcon className="size-4 stroke-[2.25]" />
+                )}
+              </Button>
+            ) : null}
           </div>
         )
       })() : null}
@@ -857,7 +968,56 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         className="min-h-0 flex-1 px-3 pb-2"
         aria-rowcount={visibleChannels.length}
       >
-        {visibleChannels.length ? (
+        {isReordering && visibleChannels.length ? (
+          // Un-virtualized on purpose: dragging across a windowed list unmounts
+          // rows out from under the cursor. These lists are hand-curated and
+          // short, so rendering them whole for the duration of a drag is fine.
+          <Sortable
+            value={orderedChannels}
+            onValueChange={setReorderedChannels}
+            getItemValue={getChannelKey}
+            onValueCommit={(next) => void persistOrder(next)}
+            className="flex flex-col gap-1.5 py-1"
+          >
+            {orderedChannels.map((channel) => {
+              const logoUrl = getChannelLogoUrl(
+                channel,
+                channel.portalSource,
+                epgChannels,
+                customEpgChannels,
+                useImageProxy,
+              )
+              return (
+                <SortableItem
+                  key={getChannelKey(channel)}
+                  value={getChannelKey(channel)}
+                  className="bg-card flex items-center gap-3 rounded-xl border px-2 py-2"
+                >
+                  <SortableItemHandle className="text-muted-foreground hover:text-foreground shrink-0 cursor-grab active:cursor-grabbing">
+                    <GripVerticalIcon className="size-4" />
+                  </SortableItemHandle>
+                  <span className="border-border/60 flex size-9 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
+                    {logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                      <img
+                        src={logoUrl}
+                        alt=""
+                        className="size-full rounded-[6px] object-contain"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <TvIcon className="text-muted-foreground size-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {channel.name || "Channel"}
+                  </span>
+                </SortableItem>
+              )
+            })}
+          </Sortable>
+        ) : visibleChannels.length ? (
           <div
             className="relative"
             style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
