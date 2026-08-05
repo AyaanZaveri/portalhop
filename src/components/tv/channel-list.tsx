@@ -15,6 +15,7 @@ import {
   ListFilterIcon,
   MoreVerticalIcon,
   PencilIcon,
+  RadioTowerIcon,
   SearchIcon,
   ShapesIcon,
   StarIcon,
@@ -56,6 +57,10 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { CategoryVisual } from "@/components/category-visual"
+import {
+  ChannelEpgMatchDrawer,
+  type EpgMatchChannel,
+} from "@/components/tv/channel-epg-match-drawer"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import {
   FavoriteGroupsDrawer,
@@ -138,6 +143,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     useState<PortalChannelWithSource | null>(null)
   const [groupMembershipChannel, setGroupMembershipChannel] =
     useState<PortalChannelWithSource | null>(null)
+  const [epgMatchChannel, setEpgMatchChannel] =
+    useState<EpgMatchChannel | null>(null)
   const [contextCategory, setContextCategory] = useState<CategoryEntry | null>(
     null,
   )
@@ -209,6 +216,26 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
     })
   }, [browseFilter])
+
+  // Only a channel backed by a saved row can be re-matched; iptv-org entries
+  // have no row of their own to pin an id to.
+  const toEpgMatchChannel = (
+    channel: PortalChannelWithSource,
+  ): EpgMatchChannel | null => {
+    const sourceId = channel.portalSource?.id
+    const savedChannelId = channel.savedChannelId
+
+    if (typeof sourceId !== "number" || typeof savedChannelId !== "number") {
+      return null
+    }
+
+    return {
+      savedChannelId,
+      sourceId,
+      name: channel.name || "Channel",
+      xmltvId: channel.xmltvId ?? "",
+    }
+  }
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
@@ -1025,6 +1052,17 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                                   : "Add to groups"}
                               </DropdownMenuItem>
                             ) : null}
+                            {toEpgMatchChannel(channel) ? (
+                              <DropdownMenuItem
+                                className="py-1.5 whitespace-nowrap"
+                                onClick={() =>
+                                  setEpgMatchChannel(toEpgMatchChannel(channel))
+                                }
+                              >
+                                <RadioTowerIcon />
+                                Change guide match
+                              </DropdownMenuItem>
+                            ) : null}
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1172,11 +1210,39 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       : "Add to groups"}
                   </Button>
                 ) : null}
+                {toEpgMatchChannel(contextChannel) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      setEpgMatchChannel(toEpgMatchChannel(contextChannel))
+                      setContextChannel(null)
+                    }}
+                  >
+                    <RadioTowerIcon />
+                    Guide match
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}
         </DrawerContent>
       </Drawer>
+      <ChannelEpgMatchDrawer
+        channel={epgMatchChannel}
+        epgChannels={epgChannels}
+        isMobileLayout={isMobileLayout}
+        useImageProxy={useImageProxy}
+        onOpenChange={(open) => {
+          if (!open) setEpgMatchChannel(null)
+        }}
+        onMatched={() => {
+          // The list is built from a cached channel payload, so the new logo
+          // and guide only appear once that payload is refetched.
+          router.refresh()
+        }}
+      />
       <GroupMembershipDrawer
         channel={
           groupMembershipChannel

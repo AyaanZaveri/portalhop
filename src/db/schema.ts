@@ -230,6 +230,10 @@ export const savedChannels = pgTable("saved_channels", {
   identityKey: text("identity_key").notNull(),
   channelId: text("channel_id").notNull(),
   xmltvId: text("xmltv_id").notNull().default(""),
+  // Set when someone picks the EPG match by hand. A refresh takes the
+  // provider's xmltv id for every other row, which would silently undo that
+  // choice at the moment they least expect it.
+  xmltvIdLocked: boolean("xmltv_id_locked").notNull().default(false),
   number: text("number").notNull(),
   name: text("name").notNull(),
   genreId: text("genre_id").notNull(),

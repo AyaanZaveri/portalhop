@@ -126,7 +126,9 @@ export async function syncSavedChannels(
         target: [savedChannels.sourceId, savedChannels.identityKey],
         set: {
           channelId: sql`excluded.channel_id`,
-          xmltvId: sql`excluded.xmltv_id`,
+          // A hand-picked EPG match outranks whatever the provider reports, or
+          // the next refresh would quietly undo it.
+          xmltvId: sql`case when ${savedChannels.xmltvIdLocked} then ${savedChannels.xmltvId} else excluded.xmltv_id end`,
           number: sql`excluded.number`,
           name: sql`excluded.name`,
           genreId: sql`excluded.genre_id`,
@@ -209,16 +211,53 @@ export async function applyXmltvIdUpdates(
       sql`, `
     )
 
+    // Skips rows whose match was set by hand — the AI pass is a guess, and a
+    // guess should not overwrite an answer.
     await db.execute(sql`
       UPDATE "saved_channels" AS channel
       SET "xmltv_id" = assignment.xmltv_id,
           "updated_at" = ${now}
       FROM (VALUES ${values}) AS assignment(id, xmltv_id)
       WHERE channel.id = assignment.id
+        AND channel."xmltv_id_locked" = false
     `)
     await onBatchApplied?.(batch)
     updated += batch.length
   }
 
   return updated
+}
+
+/** Pin a saved channel to an EPG id chosen by hand, or release it back to the
+ * provider's own value. Ownership is checked by the caller. */
+export async function setSavedChannelXmltvId(
+  savedChannelId: number,
+  sourceId: number,
+  xmltvId: string,
+) {
+  const db = getDb()
+  const normalized = normalizeXmltvId(xmltvId)
+
+  const [row] = await db
+    .update(savedChannels)
+    .set({
+      xmltvId: normalized,
+      // Clearing the match hands the channel back to the provider, so the lock
+      // lifts with it.
+      xmltvIdLocked: normalized !== "",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(savedChannels.id, savedChannelId),
+        eq(savedChannels.sourceId, sourceId),
+      ),
+    )
+    .returning({
+      id: savedChannels.id,
+      xmltvId: savedChannels.xmltvId,
+      xmltvIdLocked: savedChannels.xmltvIdLocked,
+    })
+
+  return row ?? null
 }
