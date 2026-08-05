@@ -196,6 +196,29 @@ export async function PATCH(
     )
   }
 
+  const same = (a: string | null | undefined, b: string | null | undefined) =>
+    (a ?? "") === (b ?? "")
+
+  // EPG choice is applied when a portal is read, not stored on its channels, so
+  // changing it alone needs no refetch — only the connection fields do.
+  const connectionUnchanged =
+    sourceType === existing.sourceType &&
+    (sourceType === "stalker"
+      ? same(portalUrl, existing.portalUrl) &&
+        same(mac, existing.mac) &&
+        same(nullableString(body.serial), existing.serial) &&
+        same(nullableString(body.deviceId), existing.deviceId) &&
+        same(nullableString(body.deviceId2), existing.deviceId2) &&
+        same(nullableString(body.signature), existing.signature) &&
+        same(timezone, existing.timezone) &&
+        same(stbType, existing.stbType)
+      : sourceType === "xtream"
+        ? same(serverUrl, existing.serverUrl) &&
+          same(username, existing.username) &&
+          same(password, existing.password) &&
+          same(outputFormat, existing.outputFormat)
+        : same(playlistUrl, existing.playlistUrl))
+
   const now = new Date()
 
   // Update the connection info first (small, text-only) so the channel list
@@ -252,6 +275,38 @@ export async function PATCH(
       })
     }
   })
+
+  // updatedAt still moves: the cached channel payload carries EPG logos, so the
+  // client has to refetch it even though the channel rows are untouched.
+  if (connectionUnchanged) {
+    return NextResponse.json({
+      portal: {
+        id: sourceId,
+        userId: existing.userId,
+        name,
+        sourceType,
+        channelCount: existing.channelCount,
+        epgMode,
+        epgSourceId,
+        createdAt: existing.createdAt,
+        updatedAt: now,
+        portalUrl,
+        mac,
+        serial: nullableString(body.serial),
+        deviceId: nullableString(body.deviceId),
+        deviceId2: nullableString(body.deviceId2),
+        signature: nullableString(body.signature),
+        timezone,
+        stbType,
+        endpoint: existing.endpoint,
+        serverUrl,
+        username,
+        password,
+        outputFormat,
+        playlistUrl,
+      },
+    })
+  }
 
   let result
   try {
