@@ -416,7 +416,7 @@ export function formatTimeRange(startAt: string, stopAt: string) {
   return `${formatClockTime(startAt)} - ${formatClockTime(stopAt)}`
 }
 
-export function formatClockTime(value: string) {
+export function formatClockTime(value: string | number) {
   return new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",

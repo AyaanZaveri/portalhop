@@ -84,12 +84,10 @@ import { toast } from "sonner"
 
 import { reorderFavoritesLocal } from "@/lib/favorites"
 import { cn } from "@/lib/utils"
-import {
-  TV_MOBILE_LAYOUT_QUERY,
-  useMediaQuery,
-} from "@/hooks/use-media-query"
+import { TV_MOBILE_LAYOUT_QUERY, useMediaQuery } from "@/hooks/use-media-query"
 import {
   canResolveChannel,
+  formatClockTime,
   getChannelKey,
   getChannelLogoUrl,
   type PortalChannelWithSource,
@@ -132,7 +130,11 @@ function sortByKeyOrder(
   })
 }
 
-export function ChannelList({ headerControls }: { headerControls?: ReactNode }) {
+export function ChannelList({
+  headerControls,
+}: {
+  headerControls?: ReactNode
+}) {
   const {
     browserChannels: allChannels,
     filteredChannels: channels,
@@ -168,13 +170,11 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
-  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  )
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressChannelClickRef = useRef(false)
-  const categoryLongPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  )
+  const categoryLongPressTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null)
   const suppressCategoryClickRef = useRef(false)
   // The row the drag was last over, so a haptic fires once per row crossed
   // rather than on every pointer move that stays within the same one.
@@ -223,7 +223,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         setSelectedFavoriteGroup(group)
         setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
       })
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setIsRestoringFavoriteGroup(false)
       })
@@ -246,7 +246,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       )
     }
 
-    loadFavoriteGroups().then(syncGroupedKeys).catch(() => { })
+    loadFavoriteGroups()
+      .then(syncGroupedKeys)
+      .catch(() => {})
     return subscribeToFavoriteGroups(syncGroupedKeys)
   }, [userId])
 
@@ -257,7 +259,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
 
     const groupId = browseFilter.groupId
     return subscribeToFavoriteGroups(() => {
-      const group = getCachedFavoriteGroups()?.find((entry) => entry.id === groupId)
+      const group = getCachedFavoriteGroups()?.find(
+        (entry) => entry.id === groupId,
+      )
       if (!group) return
       setSelectedFavoriteGroup(group)
       setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
@@ -377,10 +381,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     const entries = new Map<string, CategoryEntry>()
     const channelsForCategories = selectedPortalIds.size
       ? allChannels.filter(
-        (channel) =>
-          channel.portalSource &&
-          selectedPortalIds.has(channel.portalSource.id),
-      )
+          (channel) =>
+            channel.portalSource &&
+            selectedPortalIds.has(channel.portalSource.id),
+        )
       : allChannels
 
     for (const channel of channelsForCategories) {
@@ -480,10 +484,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   const visibleChannels = useMemo(() => {
     const channelsForSelectedPortals = selectedPortalIds.size
       ? channels.filter(
-        (channel) =>
-          channel.portalSource &&
-          selectedPortalIds.has(channel.portalSource.id),
-      )
+          (channel) =>
+            channel.portalSource &&
+            selectedPortalIds.has(channel.portalSource.id),
+        )
       : channels
 
     const visibleCategoryChannels = channelsForSelectedPortals.filter(
@@ -522,7 +526,16 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         (browseFilter.sourceId == null ||
           (channel.portalSource?.id ?? 0) === browseFilter.sourceId),
     )
-  }, [browseFilter, channels, favorites, hiddenCategorySet, isChannelFavorited, selectedFavoriteGroup, selectedFavoriteGroupKeys, selectedPortalIds])
+  }, [
+    browseFilter,
+    channels,
+    favorites,
+    hiddenCategorySet,
+    isChannelFavorited,
+    selectedFavoriteGroup,
+    selectedFavoriteGroupKeys,
+    selectedPortalIds,
+  ])
 
   // While reordering, the dragged order wins until the saved order catches up.
   const orderedChannels =
@@ -558,28 +571,31 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         }))
         .filter((entry) => entry.xmltvId),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- virtual items change identity every scroll frame.
-    [visibleChannels, rowVirtualizer.getVirtualItems().length, rowVirtualizer.scrollOffset],
+    [
+      visibleChannels,
+      rowVirtualizer.getVirtualItems().length,
+      rowVirtualizer.scrollOffset,
+    ],
   )
   const nowPlayingById = useEpgNow(renderedEpgChannels)
-
 
   const isPortalFiltered =
     selectedPortalIds.size > 0 && selectedPortalIds.size < portals.length
   const contextLogoUrl = contextChannel
     ? getChannelLogoUrl(
-      contextChannel,
-      contextChannel.portalSource,
-      epgChannels,
-      customEpgChannels,
-      useImageProxy,
-    )
+        contextChannel,
+        contextChannel.portalSource,
+        epgChannels,
+        customEpgChannels,
+        useImageProxy,
+      )
     : ""
 
   return (
     <div
       className={cn(
         "bg-background flex h-full min-w-0 flex-col overflow-hidden",
-        !isMobileLayout && "min-w-80 rounded-2xl bg-card",
+        !isMobileLayout && "bg-card min-w-80 rounded-2xl",
       )}
     >
       <div
@@ -700,7 +716,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 </Button>
               }
             />
-            <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
+            <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh] dark:border">
               <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
                 <div className="flex items-center justify-between gap-3">
                   <DrawerTitle className="text-lg">Categories</DrawerTitle>
@@ -752,7 +768,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       browseFilter.sourceId === category.sourceId
                     return (
                       <div
-                        key={categoryPreferenceKey(category.sourceId, category.genre)}
+                        key={categoryPreferenceKey(
+                          category.sourceId,
+                          category.genre,
+                        )}
                         className="flex w-full items-center gap-1"
                       >
                         {/* The row surface sits on the button, so the whole row
@@ -834,7 +853,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     </p>
                     {hiddenCategoriesInList.map((category) => (
                       <div
-                        key={categoryPreferenceKey(category.sourceId, category.genre)}
+                        key={categoryPreferenceKey(
+                          category.sourceId,
+                          category.genre,
+                        )}
                         className="text-muted-foreground flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm"
                       >
                         <CategoryVisual category={category.genre} />
@@ -873,11 +895,16 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           </Drawer>
           <FavoriteGroupsDrawer
             activeGroupId={
-              browseFilter.type === "favoriteGroup" ? browseFilter.groupId : null
+              browseFilter.type === "favoriteGroup"
+                ? browseFilter.groupId
+                : null
             }
             isMobileLayout={isMobileLayout}
             onDeleteGroup={(groupId) => {
-              if (browseFilter.type !== "favoriteGroup" || browseFilter.groupId !== groupId) {
+              if (
+                browseFilter.type !== "favoriteGroup" ||
+                browseFilter.groupId !== groupId
+              ) {
                 return
               }
               setSelectedFavoriteGroupKeys(new Set())
@@ -899,7 +926,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           }}
           showSwipeHandle
         >
-          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden dark:border">
             {contextCategory ? (
               <div className="flex flex-col gap-4 p-4 pt-2">
                 <div className="flex min-w-0 items-center gap-3">
@@ -913,7 +940,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       {contextCategory.genre}
                     </DrawerTitle>
                     <DrawerDescription className="text-left">
-                      {contextCategory.sourceName} · {contextCategory.count.toLocaleString()} channels
+                      {contextCategory.sourceName} ·{" "}
+                      {contextCategory.count.toLocaleString()} channels
                     </DrawerDescription>
                   </div>
                 </div>
@@ -951,7 +979,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         </Drawer>
       </div>
       {browseFilter.type === "category" ? (
-        <div className="ml-0.5 flex items-center gap-2 px-4 pb-1 pt-2">
+        <div className="ml-0.5 flex items-center gap-2 px-4 pt-2 pb-1">
           <CategoryVisual
             category={browseFilter.genre}
             className="text-muted-foreground size-4 shrink-0"
@@ -965,43 +993,45 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
           rather than in a channel's own menu: the order belongs to the list,
           not to any channel in it, and this row only exists where there is an
           order to change. */}
-      {canReorder ? (() => {
-        const inGroup =
-          browseFilter.type === "favoriteGroup" && selectedFavoriteGroup
-        const BannerIcon = inGroup
-          ? getFavoriteGroupIcon(selectedFavoriteGroup.icon)
-          : StarIcon
-        return (
-          <div className="ml-0.5 flex items-center gap-2 px-4 pt-2 pb-1">
-            <BannerIcon className="text-muted-foreground size-4 shrink-0" />
-            <span className="text-md min-w-0 flex-1 truncate font-semibold">
-              {inGroup ? selectedFavoriteGroup.name : "Favorites"}
-            </span>
-            {/* Shown whenever the view has an order, rather than gated on
+      {canReorder
+        ? (() => {
+            const inGroup =
+              browseFilter.type === "favoriteGroup" && selectedFavoriteGroup
+            const BannerIcon = inGroup
+              ? getFavoriteGroupIcon(selectedFavoriteGroup.icon)
+              : StarIcon
+            return (
+              <div className="ml-0.5 flex items-center gap-2 px-4 pt-2 pb-1">
+                <BannerIcon className="text-muted-foreground size-4 shrink-0" />
+                <span className="text-md min-w-0 flex-1 truncate font-semibold">
+                  {inGroup ? selectedFavoriteGroup.name : "Favorites"}
+                </span>
+                {/* Shown whenever the view has an order, rather than gated on
                 having two rows: a control that comes and goes with the channel
                 count reads as missing rather than as not-yet-useful. */}
-            {visibleChannels.length ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-pressed={isReordering}
-                aria-label={
-                  isReordering ? "Finish reordering" : "Reorder channels"
-                }
-                onClick={() => setIsReordering((current) => !current)}
-                className="text-muted-foreground -mr-1 shrink-0"
-              >
-                {isReordering ? (
-                  <CheckIcon className="size-4 stroke-[2.25]" />
-                ) : (
-                  <ArrowUpDownIcon className="size-4 stroke-[2.25]" />
-                )}
-              </Button>
-            ) : null}
-          </div>
-        )
-      })() : null}
+                {visibleChannels.length ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-pressed={isReordering}
+                    aria-label={
+                      isReordering ? "Finish reordering" : "Reorder channels"
+                    }
+                    onClick={() => setIsReordering((current) => !current)}
+                    className="text-muted-foreground -mr-1 shrink-0"
+                  >
+                    {isReordering ? (
+                      <CheckIcon className="size-4 stroke-[2.25]" />
+                    ) : (
+                      <ArrowUpDownIcon className="size-4 stroke-[2.25]" />
+                    )}
+                  </Button>
+                ) : null}
+              </div>
+            )
+          })()
+        : null}
       <ScrollArea
         ref={scrollAreaRef}
         className="min-h-0 flex-1 px-3 pb-2"
@@ -1070,63 +1100,64 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       the whole row in one makes all of it draggable rather than
                       just the grip. */}
                   <SortableItemHandle className="flex h-full w-full cursor-grab items-center gap-1 rounded-xl pr-1 pl-2 active:cursor-grabbing">
-                  <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
-                    <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
-                      {logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                        <img
-                          src={logoUrl}
-                          alt=""
-                          className="size-full rounded-[6px] object-contain"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <TvIcon className="text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="truncate font-medium">
-                        {channel.name || `Channel ${channel.number || index + 1}`}
-                      </span>
-                      <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-                        <CategoryVisual
-                          category={channel.genre || "Uncategorized"}
-                          className="size-3 shrink-0"
-                        />
-                        <span className="truncate">
-                          {channel.genre || "Uncategorized"}
+                    <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
+                      <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
+                        {logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                          <img
+                            src={logoUrl}
+                            alt=""
+                            className="size-full rounded-[6px] object-contain"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <TvIcon className="text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate font-medium">
+                          {channel.name ||
+                            `Channel ${channel.number || index + 1}`}
                         </span>
-                      </span>
-                      {channel.portalSource || channelBadgeId ? (
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          {channel.portalSource ? (
-                            <Badge
-                              variant="outline"
-                              className="h-4 max-w-28 rounded px-1.5 text-[10px]"
-                            >
-                              <span className="truncate">
-                                {channel.portalSource.name}
-                              </span>
-                            </Badge>
-                          ) : null}
-                          {channelBadgeId ? (
-                            <Badge
-                              variant="secondary"
-                              className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
-                            >
-                              <span className="truncate">
-                                {channelBadgeId}
-                              </span>
-                            </Badge>
-                          ) : null}
+                        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                          <CategoryVisual
+                            category={channel.genre || "Uncategorized"}
+                            className="size-3 shrink-0"
+                          />
+                          <span className="truncate">
+                            {channel.genre || "Uncategorized"}
+                          </span>
                         </span>
-                      ) : null}
+                        {channel.portalSource || channelBadgeId ? (
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {channel.portalSource ? (
+                              <Badge
+                                variant="outline"
+                                className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                              >
+                                <span className="truncate">
+                                  {channel.portalSource.name}
+                                </span>
+                              </Badge>
+                            ) : null}
+                            {channelBadgeId ? (
+                              <Badge
+                                variant="secondary"
+                                className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
+                              >
+                                <span className="truncate">
+                                  {channelBadgeId}
+                                </span>
+                              </Badge>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-muted-foreground flex size-8 shrink-0 items-center justify-center">
-                    <GripVerticalIcon className="size-4" />
-                  </span>
+                    <span className="text-muted-foreground flex size-8 shrink-0 items-center justify-center">
+                      <GripVerticalIcon className="size-4" />
+                    </span>
                   </SortableItemHandle>
                 </SortableItem>
               )
@@ -1158,14 +1189,14 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               )
               const nowProgress = nowPlaying
                 ? Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    ((Date.now() - nowPlaying.startAt) /
-                      (nowPlaying.stopAt - nowPlaying.startAt)) *
                     100,
-                  ),
-                )
+                    Math.max(
+                      0,
+                      ((Date.now() - nowPlaying.startAt) /
+                        (nowPlaying.stopAt - nowPlaying.startAt)) *
+                        100,
+                    ),
+                  )
                 : 0
 
               return (
@@ -1198,7 +1229,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       // elevated popup a 80%-opacity fill reads as nothing, so
                       // the open state borrows the selected row's fuller
                       // treatment instead.
-                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent has-[button[aria-expanded=true]]:shadow-xs pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,scale] duration-100 ease-out has-[[data-row-target]:active]:scale-[0.99]",
+                      "group-hover:bg-accent/80 has-[button[aria-expanded=true]]:bg-accent pointer-events-none flex h-full items-center gap-1 rounded-xl pr-1 pl-2 transition-[background-color,box-shadow,scale] duration-100 ease-out has-[[data-row-target]:active]:scale-[0.99] has-[button[aria-expanded=true]]:shadow-xs",
                       isSelected && "bg-accent shadow-xs",
                     )}
                   >
@@ -1259,51 +1290,68 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                           {channel.name ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
-                        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-                          <CategoryVisual
-                            category={channel.genre || "Uncategorized"}
-                            className="size-3 shrink-0"
-                          />
-                          <span className="truncate">
-                            {channel.genre || "Uncategorized"}
-                          </span>
-                        </span>
+                        {/* What is on now beats what genre the portal filed the
+                            channel under, so it takes the two lines rather than
+                            pushing the row to four. */}
                         {nowPlaying ? (
-                          <span className="flex min-w-0 items-center gap-2">
-                            <span className="text-foreground/80 min-w-0 flex-1 truncate text-xs">
+                          <>
+                            <span className="text-foreground/80 truncate text-xs">
                               {nowPlaying.title}
                             </span>
-                            <span className="bg-muted h-1 w-10 shrink-0 overflow-hidden rounded-full">
-                              <span
-                                className="bg-primary block h-full rounded-full"
-                                style={{ width: `${nowProgress}%` }}
-                              />
+                            <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[10px] tabular-nums">
+                              <span className="shrink-0">
+                                {formatClockTime(nowPlaying.startAt)}
+                              </span>
+                              {/* Not bg-muted: it is the same token as the row's
+                                  hover fill, so the track vanished on hover. */}
+                              <span className="bg-foreground/15 h-1 min-w-0 flex-1 overflow-hidden rounded-full">
+                                <span
+                                  className="bg-primary block h-full rounded-full"
+                                  style={{ width: `${nowProgress}%` }}
+                                />
+                              </span>
+                              <span className="shrink-0">
+                                {formatClockTime(nowPlaying.stopAt)}
+                              </span>
                             </span>
-                          </span>
-                        ) : channel.portalSource || channelBadgeId ? (
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            {channel.portalSource ? (
-                              <Badge
-                                variant="outline"
-                                className="h-4 max-w-28 rounded px-1.5 text-[10px]"
-                              >
-                                <span className="truncate">
-                                  {channel.portalSource.name}
-                                </span>
-                              </Badge>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                              <CategoryVisual
+                                category={channel.genre || "Uncategorized"}
+                                className="size-3 shrink-0"
+                              />
+                              <span className="truncate">
+                                {channel.genre || "Uncategorized"}
+                              </span>
+                            </span>
+                            {channel.portalSource || channelBadgeId ? (
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                {channel.portalSource ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                                  >
+                                    <span className="truncate">
+                                      {channel.portalSource.name}
+                                    </span>
+                                  </Badge>
+                                ) : null}
+                                {channelBadgeId ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
+                                  >
+                                    <span className="truncate">
+                                      {channelBadgeId}
+                                    </span>
+                                  </Badge>
+                                ) : null}
+                              </span>
                             ) : null}
-                            {channelBadgeId ? (
-                              <Badge
-                                variant="secondary"
-                                className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
-                              >
-                                <span className="truncate">
-                                  {channelBadgeId}
-                                </span>
-                              </Badge>
-                            ) : null}
-                          </span>
-                        ) : null}
+                          </>
+                        )}
                       </div>
                     </div>
                     <div
@@ -1337,12 +1385,16 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                                   isFavorited && "fill-current text-amber-500",
                                 )}
                               />
-                              {isFavorited ? "Remove from favorites" : "Add to favorites"}
+                              {isFavorited
+                                ? "Remove from favorites"
+                                : "Add to favorites"}
                             </DropdownMenuItem>
                             {userId ? (
                               <DropdownMenuItem
                                 className="py-1.5 whitespace-nowrap"
-                                onClick={() => setGroupMembershipChannel(channel)}
+                                onClick={() =>
+                                  setGroupMembershipChannel(channel)
+                                }
                               >
                                 {groupedChannelKeys.has(channelKey) ? (
                                   <FolderHeartIcon />
@@ -1377,7 +1429,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               )
             })}
           </div>
-        ) : isRestoringFavoriteGroup && browseFilter.type === "favoriteGroup" ? (
+        ) : isRestoringFavoriteGroup &&
+          browseFilter.type === "favoriteGroup" ? (
           <div aria-label="Loading group channels">
             <ChannelRowSkeletons count={14} />
           </div>
@@ -1412,7 +1465,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         }}
         showSwipeHandle
       >
-        <DrawerContent className="[--drawer-inset:0.5rem] rounded-xl dark:border after:hidden">
+        <DrawerContent className="rounded-xl [--drawer-inset:0.5rem] after:hidden dark:border">
           <DrawerHeader>
             <DrawerTitle className="sr-only">Channel options</DrawerTitle>
           </DrawerHeader>
@@ -1512,40 +1565,40 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       : "grid-cols-1",
                   )}
                 >
-                {userId ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-center gap-2"
-                    onClick={() => {
-                      setGroupMembershipChannel(contextChannel)
-                      setContextChannel(null)
-                    }}
-                  >
-                    {groupedChannelKeys.has(getChannelKey(contextChannel)) ? (
-                      <FolderHeartIcon />
-                    ) : (
-                      <FolderPlusIcon />
-                    )}
-                    {groupedChannelKeys.has(getChannelKey(contextChannel))
-                      ? "Edit groups"
-                      : "Add to groups"}
-                  </Button>
-                ) : null}
-                {toEpgMatchChannel(contextChannel) ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-center gap-2"
-                    onClick={() => {
-                      setEpgMatchChannel(toEpgMatchChannel(contextChannel))
-                      setContextChannel(null)
-                    }}
-                  >
-                    <ScanSearchIcon />
-                    Guide match
-                  </Button>
-                ) : null}
+                  {userId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-center gap-2"
+                      onClick={() => {
+                        setGroupMembershipChannel(contextChannel)
+                        setContextChannel(null)
+                      }}
+                    >
+                      {groupedChannelKeys.has(getChannelKey(contextChannel)) ? (
+                        <FolderHeartIcon />
+                      ) : (
+                        <FolderPlusIcon />
+                      )}
+                      {groupedChannelKeys.has(getChannelKey(contextChannel))
+                        ? "Edit groups"
+                        : "Add to groups"}
+                    </Button>
+                  ) : null}
+                  {toEpgMatchChannel(contextChannel) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-center gap-2"
+                      onClick={() => {
+                        setEpgMatchChannel(toEpgMatchChannel(contextChannel))
+                        setContextChannel(null)
+                      }}
+                    >
+                      <ScanSearchIcon />
+                      Guide match
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1578,9 +1631,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         channel={
           groupMembershipChannel
             ? {
-              key: getChannelKey(groupMembershipChannel),
-              name: groupMembershipChannel.name || "Channel",
-            }
+                key: getChannelKey(groupMembershipChannel),
+                name: groupMembershipChannel.name || "Channel",
+              }
             : null
         }
         isMobileLayout={isMobileLayout}
