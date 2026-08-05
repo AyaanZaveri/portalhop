@@ -290,3 +290,58 @@ function decodeXmlText(value: string) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
 }
+
+/** [startMs, stopMs, title] — positional to keep the cached payload small. */
+export type EpgSlot = [number, number, string]
+
+export type EpgWindow = {
+  from: number
+  to: number
+  channels: Record<string, EpgSlot[]>
+}
+
+/**
+ * Every channel's schedule for one time window, in a single pass over the file.
+ * The client picks what is on now against its own clock, so a stale window is
+ * still correct — it just starts further ahead.
+ */
+export async function fetchEpgWindow(
+  url: string,
+  options: { from?: Date; hours?: number } = {},
+): Promise<EpgWindow> {
+  const from = options.from ?? new Date()
+  const to = new Date(from.getTime() + (options.hours ?? 6) * 60 * 60 * 1000)
+  const { stream, cleanup } = await fetchXmltvStream(url)
+  const channels: Record<string, EpgSlot[]> = {}
+
+  try {
+    for await (const block of iterateTagBlocks(stream, "programme")) {
+      const attrs = readXmlAttributes(
+        block.match(/^<programme([^>]*)>/)?.[1] ?? "",
+      )
+      const channelId = attrs.channel ?? ""
+      if (!channelId) continue
+
+      const startAt = parseXmltvDate(attrs.start ?? "")
+      const stopAt = parseXmltvDate(attrs.stop ?? "")
+      if (!startAt || !stopAt || stopAt <= from || startAt >= to) continue
+
+      const title = readXmlText(block, "title")
+      if (!title) continue
+
+      ;(channels[channelId.toLowerCase()] ??= []).push([
+        startAt.getTime(),
+        stopAt.getTime(),
+        title,
+      ])
+    }
+  } finally {
+    cleanup()
+  }
+
+  for (const slots of Object.values(channels)) {
+    slots.sort((a, b) => a[0] - b[0])
+  }
+
+  return { from: from.getTime(), to: to.getTime(), channels }
+}

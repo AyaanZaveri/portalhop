@@ -95,6 +95,8 @@ import {
   type PortalChannelWithSource,
   type PortalSource,
 } from "@/lib/tv-channels"
+import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { useEpgNow } from "@/hooks/use-epg-now"
 import { useTv } from "@/components/tv/tv-provider"
 
 type CategoryEntry = {
@@ -540,6 +542,18 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
   useEffect(() => {
     rowVirtualizer.scrollToIndex(0)
   }, [visibleChannels, rowVirtualizer])
+
+  const renderedXmltvIds = useMemo(
+    () =>
+      rowVirtualizer
+        .getVirtualItems()
+        .map((row) => visibleChannels[row.index]?.xmltvId ?? "")
+        .filter(Boolean),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- virtual items change identity every scroll frame.
+    [visibleChannels, rowVirtualizer.getVirtualItems().length, rowVirtualizer.scrollOffset],
+  )
+  const nowPlayingById = useEpgNow(renderedXmltvIds)
+
 
   const isPortalFiltered =
     selectedPortalIds.size > 0 && selectedPortalIds.size < portals.length
@@ -1131,6 +1145,20 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 useImageProxy,
               )
               const channelBadgeId = channel.xmltvId ?? ""
+              const nowPlaying = nowPlayingById.get(
+                normalizeXmltvId(channel.xmltvId),
+              )
+              const nowProgress = nowPlaying
+                ? Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    ((Date.now() - nowPlaying.startAt) /
+                      (nowPlaying.stopAt - nowPlaying.startAt)) *
+                    100,
+                  ),
+                )
+                : 0
 
               return (
                 <div
@@ -1232,7 +1260,19 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                             {channel.genre || "Uncategorized"}
                           </span>
                         </span>
-                        {channel.portalSource || channelBadgeId ? (
+                        {nowPlaying ? (
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="text-foreground/80 min-w-0 flex-1 truncate text-xs">
+                              {nowPlaying.title}
+                            </span>
+                            <span className="bg-muted h-1 w-10 shrink-0 overflow-hidden rounded-full">
+                              <span
+                                className="bg-primary block h-full rounded-full"
+                                style={{ width: `${nowProgress}%` }}
+                              />
+                            </span>
+                          </span>
+                        ) : channel.portalSource || channelBadgeId ? (
                           <span className="flex min-w-0 items-center gap-1.5">
                             {channel.portalSource ? (
                               <Badge

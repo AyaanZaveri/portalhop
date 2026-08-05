@@ -8,9 +8,11 @@ import type { PortalChannel } from "@/lib/stalker-types"
 const DB_NAME = "portalhop"
 // Version 4 refreshes saved catalogues whose provider logos are now replaced
 // with their configured EPG logos before being cached.
-const DB_VERSION = 4
+// Version 5 adds the EPG now-playing store.
+const DB_VERSION = 5
 const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
+const EPG_WINDOW_STORE_NAME = "epgWindows"
 
 type CachedPortalChannels = {
   sourceId: number
@@ -34,6 +36,9 @@ function openDb(): Promise<IDBDatabase> {
       db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
       if (!db.objectStoreNames.contains(IPTV_ORG_STORE_NAME)) {
         db.createObjectStore(IPTV_ORG_STORE_NAME, { keyPath: "id" })
+      }
+      if (!db.objectStoreNames.contains(EPG_WINDOW_STORE_NAME)) {
+        db.createObjectStore(EPG_WINDOW_STORE_NAME, { keyPath: "key" })
       }
     }
 
@@ -127,5 +132,30 @@ export async function setCachedIptvOrgChannels(
 ): Promise<void> {
   await withStore(IPTV_ORG_STORE_NAME, "readwrite", (store) =>
     store.put({ id: "catalogue", expiresAt, channels }),
+  )
+}
+
+type CachedEpgWindow = {
+  key: string
+  to: number
+  channels: Record<string, [number, number, string][]>
+}
+
+/** Null when nothing is cached or the window has already run out. */
+export async function getCachedEpgWindow(
+  key: string,
+): Promise<CachedEpgWindow | null> {
+  const entry = await withStore<CachedEpgWindow>(
+    EPG_WINDOW_STORE_NAME,
+    "readonly",
+    (store) => store.get(key),
+  )
+
+  return entry && entry.to > Date.now() ? entry : null
+}
+
+export async function setCachedEpgWindow(entry: CachedEpgWindow): Promise<void> {
+  await withStore(EPG_WINDOW_STORE_NAME, "readwrite", (store) =>
+    store.put(entry),
   )
 }
