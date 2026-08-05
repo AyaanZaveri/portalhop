@@ -350,27 +350,7 @@ function SortableItem({
         "data-slot": "sortable-item",
         "data-value": value,
         "data-dragging": true,
-        // A lift, only on the copy that follows the cursor. The item is picked
-        // up off the surface, so it grows rather than pressing in the way a
-        // button does. The placeholder left behind is untouched — the same data
-        // attributes appear on both, so this cannot be done from a consumer's
-        // className.
-        //
-        // @starting-style is what makes it animate: the overlay mounts already
-        // lifted, so a plain transition has no previous value to move from and
-        // the scale simply appears.
-        //
-        // The shadow is layered and low-opacity rather than shadow-lg. A single
-        // dense black shadow is what reads as stuck-on; and on a dark surface
-        // black barely registers at all, so dark mode leans on a faint white
-        // ring to describe the edge and a deep ambient wash for the lift.
-        className: cn(
-          "scale-[1.03] transition-[transform,box-shadow] duration-200 ease-out",
-          "starting:scale-100 starting:shadow-none",
-          "shadow-[0_16px_32px_-12px_oklch(0_0_0/0.22),0_6px_12px_-6px_oklch(0_0_0/0.14)]",
-          "dark:shadow-[0_0_0_1px_oklch(1_0_0/0.1),0_20px_40px_-12px_oklch(0_0_0/0.6),0_8px_16px_-8px_oklch(0_0_0/0.45)]",
-          className
-        ),
+        className: cn(className),
         children: props.children,
       }
     : {
