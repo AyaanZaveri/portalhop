@@ -988,9 +988,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             onValueChange={setReorderedChannels}
             getItemValue={getChannelKey}
             onValueCommit={(next) => void persistOrder(next)}
-            className="flex flex-col gap-1.5 py-1"
+            className="flex flex-col gap-1.5 py-[3px]"
           >
-            {orderedChannels.map((channel) => {
+            {orderedChannels.map((channel, index) => {
+              const channelBadgeId = channel.xmltvId ?? ""
               const logoUrl = getChannelLogoUrl(
                 channel,
                 channel.portalSource,
@@ -1002,28 +1003,70 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                 <SortableItem
                   key={getChannelKey(channel)}
                   value={getChannelKey(channel)}
-                  className="bg-card flex items-center gap-3 rounded-xl border px-2 py-2"
+                  // The same surface a channel row uses, so reordering looks
+                  // like rearranging the list rather than editing a different
+                  // one. Only the play targets and the actions menu are gone —
+                  // neither means anything mid-drag — and the handle takes the
+                  // space the menu had.
+                  className="flex h-[78px] items-center gap-1 rounded-xl pr-1 pl-2"
                 >
-                  <SortableItemHandle className="text-muted-foreground hover:text-foreground shrink-0 cursor-grab active:cursor-grabbing">
+                  <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
+                    <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
+                      {logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
+                        <img
+                          src={logoUrl}
+                          alt=""
+                          className="size-full rounded-[6px] object-contain"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <TvIcon className="text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="truncate font-medium">
+                        {channel.name || `Channel ${channel.number || index + 1}`}
+                      </span>
+                      <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                        <CategoryVisual
+                          category={channel.genre || "Uncategorized"}
+                          className="size-3 shrink-0"
+                        />
+                        <span className="truncate">
+                          {channel.genre || "Uncategorized"}
+                        </span>
+                      </span>
+                      {channel.portalSource || channelBadgeId ? (
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {channel.portalSource ? (
+                            <Badge
+                              variant="outline"
+                              className="h-4 max-w-28 rounded px-1.5 text-[10px]"
+                            >
+                              <span className="truncate">
+                                {channel.portalSource.name}
+                              </span>
+                            </Badge>
+                          ) : null}
+                          {channelBadgeId ? (
+                            <Badge
+                              variant="secondary"
+                              className="h-4 min-w-0 !shrink rounded px-1.5 font-mono text-[10px]"
+                            >
+                              <span className="truncate">
+                                {channelBadgeId}
+                              </span>
+                            </Badge>
+                          ) : null}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <SortableItemHandle className="text-muted-foreground hover:text-foreground flex size-8 shrink-0 cursor-grab items-center justify-center active:cursor-grabbing">
                     <GripVerticalIcon className="size-4" />
                   </SortableItemHandle>
-                  <span className="border-border/60 flex size-9 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
-                    {logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                      <img
-                        src={logoUrl}
-                        alt=""
-                        className="size-full rounded-[6px] object-contain"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <TvIcon className="text-muted-foreground size-4" />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {channel.name || "Channel"}
-                  </span>
                 </SortableItem>
               )
             })}
