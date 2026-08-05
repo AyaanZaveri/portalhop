@@ -952,7 +952,10 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             <span className="text-md min-w-0 flex-1 truncate font-semibold">
               {inGroup ? selectedFavoriteGroup.name : "Favorites"}
             </span>
-            {visibleChannels.length > 1 ? (
+            {/* Shown whenever the view has an order, rather than gated on
+                having two rows: a control that comes and goes with the channel
+                count reads as missing rather than as not-yet-useful. */}
+            {visibleChannels.length ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -962,7 +965,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   isReordering ? "Finish reordering" : "Reorder channels"
                 }
                 onClick={() => setIsReordering((current) => !current)}
-                className="-mr-1 shrink-0"
+                className="text-muted-foreground -mr-1 shrink-0"
               >
                 {isReordering ? (
                   <CheckIcon className="size-4 stroke-[2.25]" />
