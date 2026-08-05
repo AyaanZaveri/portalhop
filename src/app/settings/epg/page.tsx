@@ -148,7 +148,7 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
         </div>
       </DrawerHeader>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="px-4 pb-4">
+        <div className="pr-6 pb-4 pl-4">
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="epg-name">Name</FieldLabel>

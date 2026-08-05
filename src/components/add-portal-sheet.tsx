@@ -428,7 +428,7 @@ export function AddPortalSheet({
 
           <form ref={formRef} onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 pt-2 pb-4">
+              <div className="pt-2 pr-6 pb-4 pl-4">
                 <FieldGroup>
                   <div className="grid gap-4">
                     <div className="flex items-center gap-2">
