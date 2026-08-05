@@ -6,7 +6,6 @@ import {
   AlertCircleIcon,
   ArrowRightIcon,
   CableIcon,
-  ClipboardPasteIcon,
   Loader2Icon,
   SaveIcon,
   TvIcon,
@@ -52,7 +51,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -62,7 +60,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { ShimmeringText } from "@/components/ui/shimmering-text"
 import type { PortalRequest, PortalResponse } from "@/lib/stalker-types"
 import type {
   SavedSourceRecord,
@@ -70,9 +67,7 @@ import type {
   SourceType,
   EpgMode,
 } from "@/lib/source-types"
-import { useAiSettings } from "@/hooks/use-ai-settings"
 import { useTheme } from "next-themes"
-import { readTextFromClipboard } from "@/lib/clipboard"
 
 type ConnectionFormState = PortalRequest & {
   sourceType: SourceType
@@ -208,8 +203,6 @@ export function AddPortalSheet({
   const iptvEpgLogoUrl = resolvedTheme === "dark"
     ? "/epg/iptv-epg-dark.png"
     : "/epg/iptv-epg-light.png"
-  const { settings: aiSettings, effectiveBaseUrl, effectiveApiKey } =
-    useAiSettings()
   const formRef = useRef<HTMLFormElement>(null)
   const [form, setForm] = useState<ConnectionFormState>(initialConnectionForm)
   const [testResult, setTestResult] = useState<PortalResponse | null>(null)
@@ -220,9 +213,6 @@ export function AddPortalSheet({
   const [portalName, setPortalName] = useState("")
   const [saveError, setSaveError] = useState("")
   const [isSavingPortal, setIsSavingPortal] = useState(false)
-  const [importDialogOpen, setImportDialogOpen] = useState(false)
-  const [importText, setImportText] = useState("")
-  const [isImportingPortal, setIsImportingPortal] = useState(false)
   const [epgSources, setEpgSources] = useState<UserEpgSource[]>([])
   const [newEpgOpen, setNewEpgOpen] = useState(false)
   const [newEpgName, setNewEpgName] = useState("")
@@ -324,111 +314,7 @@ export function AddPortalSheet({
     }
   }
 
-  async function importPortalText(overrideText?: string) {
-    const text = (overrideText ?? importText).trim()
 
-    if (!text) {
-      toast.error("Paste portal text to import.", { position: "top-center" })
-      return
-    }
-
-    setIsImportingPortal(true)
-
-    try {
-      const response = await fetch("/api/import-portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          settings: {
-            baseUrl: effectiveBaseUrl,
-            apiKey: effectiveApiKey,
-            model: aiSettings.model,
-            reasoningEffort: aiSettings.reasoningEffort,
-          },
-        }),
-      })
-      const data = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(data.error || "Could not import portal text.")
-      }
-
-      const portal = data.portal as
-        | Partial<
-          PortalRequest & {
-            serverUrl: string
-            username: string
-            password: string
-            playlistUrl: string
-          }
-        >
-        | undefined
-      const detectedType = data.sourceType as SourceType | null | undefined
-
-      if (!portal) {
-        throw new Error("No portal fields were found.")
-      }
-
-      setForm((current) => ({
-        ...current,
-        sourceType: detectedType || current.sourceType,
-        portalUrl: portal.portalUrl || current.portalUrl,
-        mac: portal.mac || current.mac,
-        serial: portal.serial ?? current.serial,
-        deviceId: portal.deviceId ?? current.deviceId,
-        deviceId2: portal.deviceId2 ?? current.deviceId2,
-        signature: portal.signature ?? current.signature,
-        timezone: portal.timezone || current.timezone,
-        stbType: portal.stbType || current.stbType,
-        serverUrl: portal.serverUrl || current.serverUrl,
-        username: portal.username || current.username,
-        password: portal.password || current.password,
-        playlistUrl: portal.playlistUrl || current.playlistUrl,
-      }))
-      setTestResult(null)
-      setImportDialogOpen(false)
-      setImportText("")
-      toast.success(
-        detectedType === "xtream"
-          ? "Xtream connection fields imported."
-          : detectedType === "stalker"
-            ? "Stalker connection fields imported."
-            : detectedType === "m3u"
-              ? "M3U playlist link imported."
-              : "Connection fields imported.",
-        { position: "top-center" }
-      )
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not import portal text.",
-        { position: "top-center" }
-      )
-    } finally {
-      setIsImportingPortal(false)
-    }
-  }
-
-  async function importFromClipboard() {
-    let clipboardText: string
-
-    try {
-      clipboardText = await readTextFromClipboard()
-    } catch {
-      toast.error("Could not read the clipboard. Check your browser's clipboard permission.", { position: "top-center" })
-      return
-    }
-
-    if (!clipboardText.trim()) {
-      toast.error("Clipboard is empty.", { position: "top-center" })
-      return
-    }
-
-    setImportText(clipboardText)
-    await importPortalText(clipboardText)
-  }
 
   function openSaveDialog() {
     if (!testResult) return
@@ -437,21 +323,13 @@ export function AddPortalSheet({
     setSaveDialogOpen(true)
   }
 
-  // Cmd/Ctrl+Shift+V imports the clipboard directly, skipping the manual
-  // open-dialog-then-paste steps. Cmd/Ctrl+Enter activates whichever primary
-  // action the footer is currently showing (Test, or Save once tested). Both
-  // are only active while the sheet itself is open.
+  // Cmd/Ctrl+Enter activates whichever primary action the footer is currently
+  // showing — Test, or Save once tested — while the drawer is open.
   useEffect(() => {
     if (!open) return
 
     function handleKeyDown(event: KeyboardEvent) {
       if (!(event.metaKey || event.ctrlKey)) return
-
-      if (event.key.toLowerCase() === "v" && event.shiftKey) {
-        event.preventDefault()
-        importFromClipboard()
-        return
-      }
 
       if (event.key === "Enter") {
         event.preventDefault()
@@ -538,7 +416,7 @@ export function AddPortalSheet({
           }
         }}
       >
-        <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:90dvh]">
+        <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full data-[swipe-axis=x]:sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:90dvh]">
           <DrawerHeader className="pb-2">
             <div className="flex min-w-0 flex-col gap-0.5 pr-8">
               <DrawerTitle className="flex items-center gap-1.5">
@@ -567,40 +445,7 @@ export function AddPortalSheet({
                           <TabsTrigger value="m3u">M3U</TabsTrigger>
                         </TabsList>
                       </Tabs>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="shrink-0"
-                              disabled={isImportingPortal}
-                              onClick={() => setImportDialogOpen(true)}
-                            >
-                              {isImportingPortal ? (
-                                <>
-                                  <Loader2Icon data-icon="inline-start" className="animate-spin" />
-                                  <ShimmeringText text="Importing" />
-                                </>
-                              ) : (
-                                <>
-                                  <ClipboardPasteIcon data-icon="inline-start" />
-                                  Import text
-                                </>
-                              )}
-                            </Button>
-                          }
-                        />
-                        <TooltipContent align="center" className="px-1.5!">
-                          <KbdGroup>
-                            <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
-                            <span>+</span>
-                            <Kbd>Shift</Kbd>
-                            <span>+</span>
-                            <Kbd>V</Kbd>
-                          </KbdGroup>
-                        </TooltipContent>
-                      </Tooltip>
+
                     </div>
 
                     {form.sourceType === "stalker" ? (
@@ -943,50 +788,7 @@ export function AddPortalSheet({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="overflow-hidden sm:max-w-lg">
-          <div className="flex min-w-0 flex-col gap-4">
-            <DialogHeader>
-              <DialogTitle>Import connection text</DialogTitle>
-              <DialogDescription>
-                Paste a Stalker portal dump, an Xtream link/credentials, or an M3U playlist link and Portal Hop will fill the connection fields and switch to the right tab automatically.
-              </DialogDescription>
-            </DialogHeader>
 
-            <ScrollArea className="h-80 min-w-0 rounded-lg border border-input bg-transparent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
-              <Textarea
-                value={importText}
-                onChange={(event) => setImportText(event.target.value)}
-                placeholder="Paste portal/MAC text, an Xtream URL/username/password, or an M3U playlist link..."
-                wrap="soft"
-                className="min-h-full min-w-0 resize-none overflow-hidden break-all whitespace-pre-wrap border-0 bg-transparent shadow-none ring-0 field-sizing-content focus-visible:ring-0 dark:bg-transparent [overflow-wrap:anywhere]"
-              />
-            </ScrollArea>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setImportDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                disabled={isImportingPortal || !importText.trim()}
-                onClick={() => importPortalText()}
-              >
-                {isImportingPortal ? (
-                  <Loader2Icon data-icon="inline-start" className="animate-spin" />
-                ) : (
-                  <ClipboardPasteIcon data-icon="inline-start" />
-                )}
-                Import
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

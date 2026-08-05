@@ -138,7 +138,7 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
   }, [open, source])
   async function save() { setSaving(true); try { const res = await fetch(source ? `/api/epg-sources/${source.id}` : "/api/epg-sources", { method: source ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); onSaved(data.source); toast.success(data.refreshError ? "Saved, but the first refresh failed." : "EPG source saved.") } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save EPG source.") } finally { setSaving(false) } }
   return <Drawer open={open} onOpenChange={onOpenChange} swipeDirection={isMobileLayout ? "down" : "left"}>
-    <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
+    <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full data-[swipe-axis=x]:sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:85dvh]">
       <DrawerHeader>
         <div className="flex min-w-0 flex-col gap-0.5 pr-8">
           <DrawerTitle className="flex items-center gap-1.5">
