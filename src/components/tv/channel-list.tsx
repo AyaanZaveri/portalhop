@@ -988,7 +988,6 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             onValueChange={setReorderedChannels}
             getItemValue={getChannelKey}
             onValueCommit={(next) => void persistOrder(next)}
-            overlay={false}
             className="flex flex-col gap-1.5 py-[3px]"
           >
             {orderedChannels.map((channel, index) => {
@@ -1009,7 +1008,14 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   // one. Only the play targets and the actions menu are gone —
                   // neither means anything mid-drag — and the handle takes the
                   // space the menu had.
-                  className="h-[78px] rounded-xl"
+                  // The overlay portals a copy of this row to document.body,
+                  // outside the panel, so a row with no surface of its own
+                  // renders transparent over the page while dragging. Matching
+                  // the panel keeps it looking like the row it came from.
+                  className={cn(
+                    "h-[78px] rounded-xl backdrop-blur-md",
+                    isMobileLayout ? "bg-background/95" : "bg-card/95",
+                  )}
                 >
                   {/* The handle is the row. SortableItem keeps its drag
                       listeners in context for a handle to claim, so wrapping
