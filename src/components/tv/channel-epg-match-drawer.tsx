@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { CheckIcon, SearchIcon, TvIcon } from "lucide-react"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
-import { Spinner } from "@/components/ui/spinner"
+import { ThinkingOrb } from "thinking-orbs"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -237,7 +237,9 @@ export function ChannelEpgMatchDrawer({
                         </span>
                       </span>
                       {savingId === match.xmltvId ? (
-                        <Spinner className="text-muted-foreground shrink-0" />
+                        <span className="shrink-0">
+                          <ThinkingOrb state="working" size={20} />
+                        </span>
                       ) : selected ? (
                         <CheckIcon className="text-primary size-4 shrink-0" />
                       ) : null}
@@ -247,10 +249,13 @@ export function ChannelEpgMatchDrawer({
               ) : (
                 <div className="text-muted-foreground flex flex-col items-center gap-2 py-8 text-sm">
                   {isSearching ? (
-                    <>
-                      <Spinner className="size-5" />
+                    // size 20 is the package's inline-text preset — the sizes
+                    // are separate tuned designs, not a scale factor, so 64
+                    // would not simply be a bigger version of this.
+                    <span className="flex items-center gap-2">
+                      <ThinkingOrb state="searching" size={20} />
                       <ShimmeringText text="Searching the guide" />
-                    </>
+                    </span>
                   ) : trimmedQuery ? (
                     <p>No listings match “{trimmedQuery}”</p>
                   ) : (

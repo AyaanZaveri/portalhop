@@ -19,7 +19,11 @@ export function ShimmeringText({
   className,
   spread = 2,
   color = "var(--muted-foreground)",
-  shimmerColor = "var(--primary)",
+  // The sweep is the text colour brightening, not a second hue. Shimmering in
+  // the lime accent reads as a state change rather than a loading effect, and
+  // it clashes wherever the surrounding text is neutral — which is everywhere
+  // this is used.
+  shimmerColor = "var(--foreground)",
 }: ShimmeringTextProps) {
   const dynamicSpread = useMemo(() => text.length * spread, [spread, text])
 
