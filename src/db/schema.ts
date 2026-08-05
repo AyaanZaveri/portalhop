@@ -144,6 +144,9 @@ export const favorites = pgTable("favorites", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   channelKey: text("channel_key").notNull(),
+  // Manual order. Lives on the membership row, so it is the user's ordering of
+  // their own favourites rather than a property of the channel.
+  position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at").notNull(),
 })
 
@@ -164,6 +167,10 @@ export const favoriteGroupChannels = pgTable(
       .notNull()
       .references(() => favoriteGroups.id, { onDelete: "cascade" }),
     channelKey: text("channel_key").notNull(),
+    // Per-group order. There is one row per (group, channel), so a channel in
+    // several groups carries a separate position in each — the orders cannot
+    // bleed into one another.
+    position: integer("position").notNull().default(0),
     createdAt: timestamp("created_at").notNull(),
   },
   (table) => [primaryKey({ columns: [table.favoriteGroupId, table.channelKey] })],

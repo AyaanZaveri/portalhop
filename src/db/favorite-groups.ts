@@ -31,6 +31,11 @@ export async function listFavoriteGroups(db: Db, userId: string) {
     })
     .from(favoriteGroupChannels)
     .where(inArray(favoriteGroupChannels.favoriteGroupId, groups.map((group) => group.id)))
+    .orderBy(
+      asc(favoriteGroupChannels.position),
+      asc(favoriteGroupChannels.createdAt),
+      asc(favoriteGroupChannels.channelKey),
+    )
 
   const keysByGroup = new Map<number, Set<string>>()
   for (const membership of memberships) {
@@ -136,6 +141,53 @@ export async function setFavoriteGroupChannel(
       ),
     )
   }
+
+  return true
+}
+
+/**
+ * Rewrites a group's channel order. Positions are assigned from the given
+ * sequence rather than trusted from the client, so a stale or partial list
+ * cannot leave gaps or duplicates behind.
+ */
+export async function setFavoriteGroupChannelOrder(
+  db: Db,
+  userId: string,
+  groupId: number,
+  channelKeys: string[],
+): Promise<boolean> {
+  const [group] = await db
+    .select({ id: favoriteGroups.id })
+    .from(favoriteGroups)
+    .where(and(eq(favoriteGroups.id, groupId), eq(favoriteGroups.userId, userId)))
+    .limit(1)
+
+  if (!group) {
+    return false
+  }
+
+  const seen = new Set<string>()
+  const ordered = channelKeys
+    .map((key) => normalizeSavedChannelKey(key.trim()))
+    .filter((key) => key && !seen.has(key) && (seen.add(key), true))
+
+  if (!ordered.length) {
+    return true
+  }
+
+  await db.transaction(async (tx) => {
+    for (const [index, channelKey] of ordered.entries()) {
+      await tx
+        .update(favoriteGroupChannels)
+        .set({ position: index })
+        .where(
+          and(
+            eq(favoriteGroupChannels.favoriteGroupId, groupId),
+            eq(favoriteGroupChannels.channelKey, channelKey),
+          ),
+        )
+    }
+  })
 
   return true
 }
