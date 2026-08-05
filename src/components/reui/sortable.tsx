@@ -66,9 +66,11 @@ const IsOverlayContext = createContext(false)
 const SortableInternalContext = createContext<{
   activeId: UniqueIdentifier | null
   modifiers?: Modifiers
+  overlay: boolean
 }>({
   activeId: null,
   modifiers: undefined,
+  overlay: true,
 })
 
 const animateLayoutChanges: AnimateLayoutChanges = (args) =>
@@ -144,6 +146,13 @@ export interface SortableRootProps<T> extends Omit<
   onDragCancel?: (event: DragCancelEvent) => void
   accessibility?: React.ComponentProps<typeof DndContext>["accessibility"]
   modifiers?: Modifiers
+  /**
+   * Render a floating copy of the dragged item under the cursor. With this off
+   * the item itself moves instead, and it is not faded — otherwise the row
+   * being dragged would be the translucent one with nothing following the
+   * pointer. @default true
+   */
+  overlay?: boolean
 }
 
 function Sortable<T>({
@@ -160,6 +169,7 @@ function Sortable<T>({
   onDragCancel,
   accessibility,
   modifiers,
+  overlay = true,
   children,
   ...props
 }: SortableRootProps<T>) {
@@ -246,8 +256,8 @@ function Sortable<T>({
   }, [value, getItemValue])
 
   const contextValue = useMemo(
-    () => ({ activeId, modifiers }),
-    [activeId, modifiers]
+    () => ({ activeId, modifiers, overlay }),
+    [activeId, modifiers, overlay]
   )
 
   const defaultProps = {
@@ -295,7 +305,8 @@ function Sortable<T>({
             props: mergeProps<"div">(defaultProps, props),
           })}
         </SortableContext>
-        {mounted &&
+        {overlay &&
+          mounted &&
           createPortal(
             <DragOverlay
               dropAnimation={dropAnimationConfig}
@@ -326,6 +337,7 @@ function SortableItem({
   ...props
 }: SortableItemProps) {
   const isOverlay = useContext(IsOverlayContext)
+  const { overlay } = useContext(SortableInternalContext)
 
   const {
     setNodeRef,
@@ -362,7 +374,7 @@ function SortableItem({
         style,
         ...attributes,
         className: cn(
-          isSortableDragging && "opacity-50 z-50",
+          isSortableDragging && (overlay ? "opacity-50 z-50" : "z-50"),
           disabled && "opacity-50",
           className
         ),

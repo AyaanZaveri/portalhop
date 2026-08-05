@@ -988,6 +988,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
             onValueChange={setReorderedChannels}
             getItemValue={getChannelKey}
             onValueCommit={(next) => void persistOrder(next)}
+            overlay={false}
             className="flex flex-col gap-1.5 py-[3px]"
           >
             {orderedChannels.map((channel, index) => {
@@ -1008,8 +1009,13 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   // one. Only the play targets and the actions menu are gone —
                   // neither means anything mid-drag — and the handle takes the
                   // space the menu had.
-                  className="flex h-[78px] items-center gap-1 rounded-xl pr-1 pl-2"
+                  className="h-[78px] rounded-xl"
                 >
+                  {/* The handle is the row. SortableItem keeps its drag
+                      listeners in context for a handle to claim, so wrapping
+                      the whole row in one makes all of it draggable rather than
+                      just the grip. */}
+                  <SortableItemHandle className="flex h-full w-full cursor-grab items-center gap-1 rounded-xl pr-1 pl-2 active:cursor-grabbing">
                   <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
                     <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
                       {logoUrl ? (
@@ -1064,8 +1070,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       ) : null}
                     </div>
                   </div>
-                  <SortableItemHandle className="text-muted-foreground hover:text-foreground flex size-8 shrink-0 cursor-grab items-center justify-center active:cursor-grabbing">
+                  <span className="text-muted-foreground flex size-8 shrink-0 items-center justify-center">
                     <GripVerticalIcon className="size-4" />
+                  </span>
                   </SortableItemHandle>
                 </SortableItem>
               )
