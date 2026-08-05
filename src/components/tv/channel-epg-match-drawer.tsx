@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { CheckIcon, SearchIcon, TvIcon } from "lucide-react"
+import { ShimmeringText } from "@/components/ui/shimmering-text"
+import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -59,7 +61,8 @@ export function ChannelEpgMatchDrawer({
 }) {
   const [query, setQuery] = useState("")
   const [seededFor, setSeededFor] = useState<number | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const isSaving = savingId !== null
   // Results are stored with the query they answer, so "still searching" and
   // "nothing to show yet" are derived rather than tracked in their own state —
   // which also keeps every setState out of the effect body.
@@ -119,7 +122,7 @@ export function ChannelEpgMatchDrawer({
       return
     }
 
-    setIsSaving(true)
+    setSavingId(xmltvId || "__clear__")
 
     try {
       const response = await fetch(
@@ -147,7 +150,7 @@ export function ChannelEpgMatchDrawer({
     } catch {
       toast.error("Could not update the guide match.")
     } finally {
-      setIsSaving(false)
+      setSavingId(null)
     }
   }
 
@@ -187,7 +190,7 @@ export function ChannelEpgMatchDrawer({
           ) : null}
 
           <ScrollArea className="min-h-40 flex-1" viewportTabIndex={-1}>
-            <div className="flex flex-col gap-1 pr-3">
+            <div className="flex flex-col gap-1 pr-2">
               {visibleResults.length ? (
                 visibleResults.map((match) => {
                   const logoUrl = match.logoUrl
@@ -203,7 +206,7 @@ export function ChannelEpgMatchDrawer({
                       disabled={isSaving}
                       onClick={() => void assign(match.xmltvId, match.name)}
                       className={cn(
-                        "hover:bg-accent hover:text-accent-foreground h-auto w-full justify-start gap-3 rounded-md px-2 py-2 text-sm font-normal focus-visible:ring-inset",
+                        "hover:bg-accent hover:text-accent-foreground h-auto w-full justify-start gap-3 rounded-md py-2 pr-2 pl-2 text-sm font-normal focus-visible:ring-inset",
                         selected && "bg-accent",
                       )}
                     >
@@ -233,20 +236,27 @@ export function ChannelEpgMatchDrawer({
                           {match.xmltvId}
                         </span>
                       </span>
-                      {selected ? (
+                      {savingId === match.xmltvId ? (
+                        <Spinner className="text-muted-foreground shrink-0" />
+                      ) : selected ? (
                         <CheckIcon className="text-primary size-4 shrink-0" />
                       ) : null}
                     </Button>
                   )
                 })
               ) : (
-                <p className="text-muted-foreground py-6 text-center text-sm">
-                  {isSearching
-                    ? "Searching…"
-                    : trimmedQuery
-                      ? `No guide listings match “${trimmedQuery}”.`
-                      : "Search for a guide listing."}
-                </p>
+                <div className="text-muted-foreground flex flex-col items-center gap-2 py-8 text-sm">
+                  {isSearching ? (
+                    <>
+                      <Spinner className="size-5" />
+                      <ShimmeringText text="Searching the guide" />
+                    </>
+                  ) : trimmedQuery ? (
+                    <p>No listings match “{trimmedQuery}”</p>
+                  ) : (
+                    <p>Type to search the guide</p>
+                  )}
+                </div>
               )}
             </div>
           </ScrollArea>

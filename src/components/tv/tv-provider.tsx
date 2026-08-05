@@ -87,6 +87,11 @@ type TvContextValue = {
   // Loading
   isLoadingPortals: boolean
   reloadPortals: () => void
+  applyChannelXmltvId: (
+    sourceId: number,
+    savedChannelId: number,
+    xmltvId: string,
+  ) => void
   iptvOrgLoading: boolean
 
   // Search + filters
@@ -162,6 +167,36 @@ export function TvProvider({
   // out from under the cached list.
   const [portalsNonce, setPortalsNonce] = useState(0)
   const reloadPortals = useCallback(() => setPortalsNonce((n) => n + 1), [])
+
+  // Patches one channel in place after its guide match is reassigned. Reloading
+  // the whole source would work — the save bumps its updatedAt, which is what
+  // invalidates the IndexedDB cache — but that refetches every channel before
+  // the one row changes. This updates it on the spot; the cache bump then keeps
+  // it correct on the next visit.
+  const applyChannelXmltvId = useCallback(
+    (sourceId: number, savedChannelId: number, xmltvId: string) => {
+      setLoadedPortals((current) => {
+        const entry = current[sourceId]
+        if (!entry) return current
+
+        return {
+          ...current,
+          [sourceId]: {
+            ...entry,
+            response: {
+              ...entry.response,
+              channels: entry.response.channels.map((channel) =>
+                channel.savedChannelId === savedChannelId
+                  ? { ...channel, xmltvId }
+                  : channel,
+              ),
+            },
+          },
+        }
+      })
+    },
+    [],
+  )
   const [iptvOrgChannels, setIptvOrgChannels] = useState<
     PortalChannelWithSource[]
   >([])
@@ -556,6 +591,7 @@ export function TvProvider({
       previewSourceRequest,
       isLoadingPortals,
       reloadPortals,
+      applyChannelXmltvId,
       iptvOrgLoading,
       query,
       setQuery,
@@ -596,6 +632,7 @@ export function TvProvider({
       previewSourceRequest,
       isLoadingPortals,
       reloadPortals,
+      applyChannelXmltvId,
       iptvOrgLoading,
       query,
       browseFilter,

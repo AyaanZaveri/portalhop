@@ -15,7 +15,7 @@ import {
   ListFilterIcon,
   MoreVerticalIcon,
   PencilIcon,
-  RadioTowerIcon,
+  SquareChartGanttIcon,
   SearchIcon,
   ShapesIcon,
   StarIcon,
@@ -120,7 +120,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
     channelSlug,
     hiddenCategories,
     setCategoryHidden,
-    reloadPortals,
+    applyChannelXmltvId,
     userId,
   } = useTv()
 
@@ -1063,7 +1063,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                                   setEpgMatchChannel(toEpgMatchChannel(channel))
                                 }
                               >
-                                <RadioTowerIcon />
+                                <SquareChartGanttIcon />
                                 Change guide match
                               </DropdownMenuItem>
                             ) : null}
@@ -1224,7 +1224,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       setContextChannel(null)
                     }}
                   >
-                    <RadioTowerIcon />
+                    <SquareChartGanttIcon />
                     Guide match
                   </Button>
                 ) : null}
@@ -1240,12 +1240,18 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         onOpenChange={(open) => {
           if (!open) setEpgMatchChannel(null)
         }}
-        onMatched={() => {
-          // The channel list is served from an IndexedDB cache that is only
-          // invalidated by the source's updatedAt, which the save bumps. This
-          // re-runs the load so the row picks up its new id and logo now
-          // rather than on the next visit.
-          reloadPortals()
+        onMatched={(xmltvId) => {
+          // Patched in place rather than reloading the source: the save already
+          // bumped the source's updatedAt, so the IndexedDB cache is invalid
+          // and will refill on the next visit. This is only about the row
+          // changing now instead of after a full refetch.
+          if (epgMatchChannel) {
+            applyChannelXmltvId(
+              epgMatchChannel.sourceId,
+              epgMatchChannel.savedChannelId,
+              xmltvId,
+            )
+          }
         }}
       />
       <GroupMembershipDrawer
