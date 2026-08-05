@@ -137,8 +137,8 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
     }
   }, [open, source])
   async function save() { setSaving(true); try { const res = await fetch(source ? `/api/epg-sources/${source.id}` : "/api/epg-sources", { method: source ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); onSaved(data.source); toast.success(data.refreshError ? "Saved, but the first refresh failed." : "EPG source saved.") } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save EPG source.") } finally { setSaving(false) } }
-  return <Drawer open={open} onOpenChange={onOpenChange} swipeDirection={isMobileLayout ? "down" : "left"}>
-    <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full data-[swipe-axis=x]:sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:85dvh]">
+  return <Drawer open={open} onOpenChange={onOpenChange} swipeDirection={isMobileLayout ? "down" : "left"} showSwipeHandle={isMobileLayout}>
+    <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
       <DrawerHeader>
         <div className="flex min-w-0 flex-col gap-0.5 pr-8">
           <DrawerTitle className="flex items-center gap-1.5">
@@ -147,8 +147,8 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
           </DrawerTitle>
         </div>
       </DrawerHeader>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="pr-6 pb-4 pl-4">
+      <ScrollArea className="min-h-0 flex-1" viewportTabIndex={-1} viewportClassName="px-4 pb-4">
+        <div>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="epg-name">Name</FieldLabel>
@@ -162,7 +162,7 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
           </FieldGroup>
         </div>
       </ScrollArea>
-      <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t px-4 pt-4 pb-4">
+      <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t px-4 pt-4">
         <Button onClick={save} disabled={saving || !name.trim() || !url.trim()} className="cursor-pointer">
           {saving ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : null}
           {saving ? "Saving…" : "Save source"}

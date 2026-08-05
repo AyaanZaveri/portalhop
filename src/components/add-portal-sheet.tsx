@@ -409,6 +409,7 @@ export function AddPortalSheet({
       <Drawer
         open={open}
         swipeDirection={isMobileLayout ? "down" : "left"}
+        showSwipeHandle={isMobileLayout}
         onOpenChange={(nextOpen) => {
           onOpenChange(nextOpen)
           if (!nextOpen) {
@@ -416,7 +417,7 @@ export function AddPortalSheet({
           }
         }}
       >
-        <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full data-[swipe-axis=x]:sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:90dvh]">
+        <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
           <DrawerHeader className="pb-2">
             <div className="flex min-w-0 flex-col gap-0.5 pr-8">
               <DrawerTitle className="flex items-center gap-1.5">
@@ -427,8 +428,12 @@ export function AddPortalSheet({
           </DrawerHeader>
 
           <form ref={formRef} onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="pt-2 pr-6 pb-4 pl-4">
+            <ScrollArea
+              className="min-h-0 flex-1"
+              viewportTabIndex={-1}
+              viewportClassName="px-4 pb-4"
+            >
+              <div className="pt-2">
                 <FieldGroup>
                   <div className="grid gap-4">
                     <div className="flex items-center gap-2">
@@ -654,7 +659,7 @@ export function AddPortalSheet({
               </div>
             </ScrollArea>
 
-            <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t px-4 pt-4 pb-4">
+            <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t px-4 pt-4">
               {testResult ? (
                 <>
                   <Tooltip>
