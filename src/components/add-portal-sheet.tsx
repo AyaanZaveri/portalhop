@@ -25,12 +25,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
+import {
+  TV_MOBILE_LAYOUT_QUERY,
+  useMediaQuery,
+} from "@/hooks/use-media-query"
 import {
   Accordion,
   AccordionItem,
@@ -199,6 +203,7 @@ export function AddPortalSheet({
     request: SourceRequest
   ) => void
 }) {
+  const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const { resolvedTheme } = useTheme()
   const iptvEpgLogoUrl = resolvedTheme === "dark"
     ? "/epg/iptv-epg-dark.png"
@@ -523,8 +528,9 @@ export function AddPortalSheet({
 
   return (
     <>
-      <Sheet
+      <Drawer
         open={open}
+        swipeDirection={isMobileLayout ? "down" : "left"}
         onOpenChange={(nextOpen) => {
           onOpenChange(nextOpen)
           if (!nextOpen) {
@@ -532,15 +538,15 @@ export function AddPortalSheet({
           }
         }}
       >
-        <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
-          <SheetHeader className="pb-2">
+        <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:90dvh]">
+          <DrawerHeader className="pb-2">
             <div className="flex min-w-0 flex-col gap-0.5 pr-8">
-              <SheetTitle className="flex items-center gap-1.5">
+              <DrawerTitle className="flex items-center gap-1.5">
                 <CableIcon className="size-4 text-primary brightness-75 dark:brightness-100" />
                 {editingPortal ? "Edit connection" : "Connection"}
-              </SheetTitle>
+              </DrawerTitle>
             </div>
-          </SheetHeader>
+          </DrawerHeader>
 
           <form ref={formRef} onSubmit={onSubmit} className="flex flex-col flex-1 gap-0 overflow-hidden">
             <ScrollArea className="min-h-0 flex-1">
@@ -803,7 +809,7 @@ export function AddPortalSheet({
               </div>
             </ScrollArea>
 
-            <SheetFooter className="border-t pt-4 flex-row! justify-end gap-2">
+            <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t p-0 pt-4">
               {testResult ? (
                 <>
                   <Tooltip>
@@ -864,10 +870,10 @@ export function AddPortalSheet({
                   </TooltipContent>
                 </Tooltip>
               )}
-            </SheetFooter>
+            </DrawerFooter>
           </form>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
       <Dialog open={newEpgOpen} onOpenChange={setNewEpgOpen}>
         <DialogContent><DialogHeader><DialogTitle>Add EPG source</DialogTitle><DialogDescription>Add a reusable XMLTV URL for this and other portals.</DialogDescription></DialogHeader>
           <div className="grid gap-4"><SimpleInput id="newEpgName" label="Name" placeholder="My provider EPG" value={newEpgName} onChange={setNewEpgName} /><SimpleInput id="newEpgUrl" label="XMLTV URL" placeholder="https://example.com/guide.xml.gz" value={newEpgUrl} onChange={setNewEpgUrl} /></div>
