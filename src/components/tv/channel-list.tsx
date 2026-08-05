@@ -1170,7 +1170,12 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   ) : null}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              {/* Favourite always renders; groups need a signed-in user and the
+                  guide match needs a saved channel row, so the count is 1, 2 or
+                  3. Giving favourite its own row and sizing the second row to
+                  what is left means no case leaves an empty cell — and it puts
+                  the action people actually come here for on top. */}
+              <div className="flex flex-col gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -1194,6 +1199,14 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     ? "Unfavorite"
                     : "Favorite"}
                 </Button>
+                <div
+                  className={cn(
+                    "grid gap-2",
+                    userId && toEpgMatchChannel(contextChannel)
+                      ? "grid-cols-2"
+                      : "grid-cols-1",
+                  )}
+                >
                 {userId ? (
                   <Button
                     type="button"
@@ -1228,6 +1241,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     Guide match
                   </Button>
                 ) : null}
+                </div>
               </div>
             </div>
           ) : null}
