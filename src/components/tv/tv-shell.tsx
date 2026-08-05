@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { useSelectedLayoutSegment } from "next/navigation"
 import { toast } from "sonner"
 import {
   AlertCircleIcon,
@@ -51,6 +50,7 @@ import {
   NoPortalsSelected,
 } from "@/components/tv/tv-placeholders"
 import { useTv } from "@/components/tv/tv-provider"
+import { useActiveChannelSlug } from "@/hooks/use-active-channel"
 
 export function TvShell({ children }: { children: ReactNode }) {
   const {
@@ -71,7 +71,7 @@ export function TvShell({ children }: { children: ReactNode }) {
 
   const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const isReady = useHydratedLayout()
-  const segment = useSelectedLayoutSegment()
+  const segment = useActiveChannelSlug()
   const currentChannel = segment ? channelIndex.get(segment) : undefined
 
   const utilityControls = (

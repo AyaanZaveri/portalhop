@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import type { EpgManifest } from "@/lib/epg-store"
 import { EPG_SOURCES } from "@/lib/epg-sources"
+import { apiFetch } from "@/lib/api-fetch"
 
 const WSRV_LOGO_LIGHT = "/proxy/wsrv-light.svg"
 const WSRV_LOGO_DARK = "/proxy/wsrv-dark.svg"
@@ -36,11 +37,11 @@ export default function EpgAndLogosSettingsPage() {
   const [deleting, setDeleting] = React.useState(false)
 
   const loadManifest = React.useCallback(async () => {
-    const epg = await fetch("/api/epg")
+    const epg = await apiFetch("/api/epg")
     if (epg.ok) setManifest(await epg.json())
   }, [])
   const loadSources = React.useCallback(async () => {
-    try { const custom = await fetch("/api/epg-sources", { cache: "no-store" }); const data = await custom.json(); setSources(Array.isArray(data.sources) ? data.sources : []) }
+    try { const custom = await apiFetch("/api/epg-sources", { cache: "no-store" }); const data = await custom.json(); setSources(Array.isArray(data.sources) ? data.sources : []) }
     catch { setSources([]) }
     finally { setIsLoadingSources(false) }
   }, [])
@@ -52,17 +53,17 @@ export default function EpgAndLogosSettingsPage() {
 
   async function refreshBuiltIn() {
     setRefreshing("builtin"); let failed = 0; const queue = [...EPG_SOURCES]
-    const worker = async () => { for (let source = queue.shift(); source; source = queue.shift()) { try { if (!(await fetch("/api/epg", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: source.code }) })).ok) failed++ } catch { failed++ } } }
+    const worker = async () => { for (let source = queue.shift(); source; source = queue.shift()) { try { if (!(await apiFetch("/api/epg", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: source.code }) })).ok) failed++ } catch { failed++ } } }
     await Promise.all(Array.from({ length: REFRESH_CONCURRENCY }, worker)); await loadManifest(); setRefreshing(null)
     toast[failed ? "warning" : "success"](failed ? `Updated EPG; ${failed} country feeds failed.` : "Built-in EPG updated.")
   }
   async function refresh(source: UserEpgSource) {
     setRefreshing(source.id)
-    try { const res = await fetch(`/api/epg-sources/${source.id}/refresh`, { method: "POST" }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setSources((items) => items.map((item) => item.id === source.id ? data.source : item)); toast.success(`${source.name} refreshed.`) } catch (error) { toast.error(error instanceof Error ? error.message : "Could not refresh EPG source.") } finally { setRefreshing(null) }
+    try { const res = await apiFetch(`/api/epg-sources/${source.id}/refresh`, { method: "POST" }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setSources((items) => items.map((item) => item.id === source.id ? data.source : item)); toast.success(`${source.name} refreshed.`) } catch (error) { toast.error(error instanceof Error ? error.message : "Could not refresh EPG source.") } finally { setRefreshing(null) }
   }
   async function remove(source: UserEpgSource) {
     setDeleting(true)
-    try { const res = await fetch(`/api/epg-sources/${source.id}`, { method: "DELETE" }); if (!res.ok) throw new Error(); setSources((items) => items.filter((item) => item.id !== source.id)); toast.success("EPG source deleted."); setPendingDelete(null) }
+    try { const res = await apiFetch(`/api/epg-sources/${source.id}`, { method: "DELETE" }); if (!res.ok) throw new Error(); setSources((items) => items.filter((item) => item.id !== source.id)); toast.success("EPG source deleted."); setPendingDelete(null) }
     catch { toast.error("Could not delete EPG source.") }
     finally { setDeleting(false) }
   }
@@ -136,7 +137,7 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
       setName(source?.name ?? ""); setUrl(source?.url ?? "")
     }
   }, [open, source])
-  async function save() { setSaving(true); try { const res = await fetch(source ? `/api/epg-sources/${source.id}` : "/api/epg-sources", { method: source ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); onSaved(data.source); toast.success(data.refreshError ? "Saved, but the first refresh failed." : "EPG source saved.") } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save EPG source.") } finally { setSaving(false) } }
+  async function save() { setSaving(true); try { const res = await apiFetch(source ? `/api/epg-sources/${source.id}` : "/api/epg-sources", { method: source ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); onSaved(data.source); toast.success(data.refreshError ? "Saved, but the first refresh failed." : "EPG source saved.") } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save EPG source.") } finally { setSaving(false) } }
   return <Drawer open={open} onOpenChange={onOpenChange} swipeDirection={isMobileLayout ? "down" : "left"} showSwipeHandle={isMobileLayout}>
     <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh]">
       <DrawerHeader>

@@ -42,6 +42,7 @@ import {
   type PortalSource,
   type SavedPortalRecord,
 } from "@/lib/tv-channels"
+import { apiFetch } from "@/lib/api-fetch"
 
 export type { BrowseFilter } from "@/lib/browse-filter"
 
@@ -230,7 +231,7 @@ export function TvProvider({
       return
     }
 
-    fetch("/api/hidden-categories", { cache: "no-store" })
+    apiFetch("/api/hidden-categories", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((body) => {
         if (Array.isArray(body?.hiddenCategories)) {
@@ -254,7 +255,7 @@ export function TvProvider({
           ),
       )
 
-      fetch("/api/hidden-categories", {
+      apiFetch("/api/hidden-categories", {
         method: hidden ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(category),
@@ -310,7 +311,7 @@ export function TvProvider({
       })
       .then((usedCache) => {
         if (!usedCache && !cancelled) setIptvOrgLoading(true)
-        return usedCache ? null : fetch("/api/iptv-org")
+        return usedCache ? null : apiFetch("/api/iptv-org")
       })
       .then((res) => (res?.ok ? res.json() : null))
       .then((body) => {
@@ -401,7 +402,7 @@ export function TvProvider({
           return
         }
 
-        const response = await fetch("/api/portals", { cache: "no-store" })
+        const response = await apiFetch("/api/portals", { cache: "no-store" })
         const data = await response.json().catch(() => ({ portals: [] }))
         const portals = Array.isArray(data.portals)
           ? (data.portals as SavedPortalRecord[])

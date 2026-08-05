@@ -3,6 +3,8 @@
 // Any favorites a device saved before sign-in (the legacy localStorage list) are
 // migrated into the account once, the first time that user loads them.
 
+import { apiFetch } from "@/lib/api-fetch"
+
 const legacyStorageKey = "portalhop-favorite-channels"
 
 type Listener = (favorites: Set<string>) => void
@@ -68,14 +70,14 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
       const local = readLegacyLocal()
 
       if (local.length) {
-        await fetch("/api/favorites", {
+        await apiFetch("/api/favorites", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channelKeys: local }),
         }).catch(() => {})
       }
 
-      const res = await fetch("/api/favorites", { cache: "no-store" })
+      const res = await apiFetch("/api/favorites", { cache: "no-store" })
 
       if (res.ok) {
         const data = await res.json().catch(() => ({ favorites: [] }))
@@ -145,11 +147,11 @@ export async function toggleFavorite(channelKey: string): Promise<void> {
 
   try {
     const res = wasFavorite
-      ? await fetch(
+      ? await apiFetch(
           `/api/favorites?channelKey=${encodeURIComponent(channelKey)}`,
           { method: "DELETE" }
         )
-      : await fetch("/api/favorites", {
+      : await apiFetch("/api/favorites", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channelKey }),
@@ -196,13 +198,13 @@ export async function migrateFavoriteKeys(mappings: Map<string, string[]>) {
 
   try {
     if (newKeys.length) {
-      await fetch("/api/favorites", {
+      await apiFetch("/api/favorites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelKeys: newKeys }),
       })
     }
-    await Promise.all(oldKeys.map((key) => fetch(`/api/favorites?channelKey=${encodeURIComponent(key)}`, { method: "DELETE" })))
+    await Promise.all(oldKeys.map((key) => apiFetch(`/api/favorites?channelKey=${encodeURIComponent(key)}`, { method: "DELETE" })))
   } catch {
     // Keep the migrated in-memory state. A later sync can retry the server
     // update, and showing a favorite is preferable to silently losing it.

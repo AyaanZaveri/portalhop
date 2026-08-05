@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { apiFetch } from "@/lib/api-fetch"
 
 export interface AiSettings {
   model: string
@@ -60,7 +61,7 @@ export function useAiSettings() {
       setMounted(true)
     })
 
-    fetch("/api/ai-config")
+    apiFetch("/api/ai-config")
       .then((res) => res.json())
       .then((data) => {
         setEnvBaseUrl(data.envBaseUrl ?? null)

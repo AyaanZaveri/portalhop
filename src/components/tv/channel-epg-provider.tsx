@@ -14,6 +14,7 @@ import {
 import type { EpgProgramme } from "@/lib/stalker-types"
 import type { PortalChannelWithSource } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
+import { apiFetch } from "@/lib/api-fetch"
 
 type ChannelEpgContextValue = {
   programmes: EpgProgramme[]
@@ -70,7 +71,7 @@ export function ChannelEpgProvider({
       setHasMore(false)
 
       try {
-        const response = await fetch("/api/channel-epg", {
+        const response = await apiFetch("/api/channel-epg", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
@@ -115,7 +116,7 @@ export function ChannelEpgProvider({
     setIsLoadingMore(true)
 
     try {
-      const response = await fetch("/api/channel-epg", {
+      const response = await apiFetch("/api/channel-epg", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",

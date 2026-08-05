@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/api-fetch"
+import { channelHref, useActiveChannelSlug } from "@/hooks/use-active-channel"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useWebHaptics } from "web-haptics/react"
 import {
@@ -162,9 +164,8 @@ export function ChannelList({
     userId,
   } = useTv()
 
-  const params = useParams<{ channelId?: string }>()
   const router = useRouter()
-  const activeSlug = params?.channelId
+  const activeSlug = useActiveChannelSlug()
   const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const { trigger: triggerHaptic } = useWebHaptics()
 
@@ -318,7 +319,7 @@ export function ChannelList({
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await apiFetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelKeys }),
@@ -1252,7 +1253,7 @@ export function ChannelList({
                               suppressChannelClickRef.current = false
                               return
                             }
-                            router.push(`/tv/${slug}`)
+                            router.push(channelHref(slug))
                           }}
                           className={cn(
                             "focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl border-0 bg-transparent p-0 focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset",
@@ -1260,7 +1261,7 @@ export function ChannelList({
                           )}
                         />
                         <Link
-                          href={`/tv/${slug}`}
+                          href={channelHref(slug)}
                           data-row-target
                           aria-label={channelLabel}
                           className={cn(

@@ -68,6 +68,7 @@ import type {
   EpgMode,
 } from "@/lib/source-types"
 import { useTheme } from "next-themes"
+import { apiFetch } from "@/lib/api-fetch"
 
 type ConnectionFormState = PortalRequest & {
   sourceType: SourceType
@@ -228,7 +229,7 @@ export function AddPortalSheet({
     setError("")
     setDetails([])
     setForm(editingPortal ? formFromPortal(editingPortal) : initialConnectionForm)
-    fetch("/api/epg-sources").then((res) => res.ok ? res.json() : null).then((data) => setEpgSources(Array.isArray(data?.sources) ? data.sources : [])).catch(() => { })
+    apiFetch("/api/epg-sources").then((res) => res.ok ? res.json() : null).then((data) => setEpgSources(Array.isArray(data?.sources) ? data.sources : [])).catch(() => { })
   }, [open, editingPortal])
 
   const portalRequest = toSourceRequest(form)
@@ -247,7 +248,7 @@ export function AddPortalSheet({
     if (!newEpgName.trim() || !newEpgUrl.trim()) return
     setIsCreatingEpg(true)
     try {
-      const res = await fetch("/api/epg-sources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newEpgName, url: newEpgUrl }) })
+      const res = await apiFetch("/api/epg-sources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newEpgName, url: newEpgUrl }) })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Could not add EPG source.")
       const source = data.source as UserEpgSource
@@ -267,7 +268,7 @@ export function AddPortalSheet({
     setTestResult(null)
 
     try {
-      const response = await fetch("/api/channels", {
+      const response = await apiFetch("/api/channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

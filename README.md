@@ -46,6 +46,19 @@ Open [http://localhost:3000](http://localhost:3000).
 
 `DATABASE_URL` is the only required variable. Everything else in `.env.example` is optional and gates a specific feature: Google sign-in, encrypting saved portal credentials at rest, AI-assisted channel matching, stream/image proxying, and Mux player analytics.
 
+## Android app
+
+The same frontend also ships as an Android app, exported to static files and
+packaged in a [Capacitor](https://capacitorjs.com) shell that calls a deployed
+instance for its API:
+
+```bash
+npm run android:build -- --debug
+```
+
+See [docs/mobile-app.md](docs/mobile-app.md) for the toolchain it needs and how
+the mobile build differs from the web one.
+
 ## Checks
 
 ```bash

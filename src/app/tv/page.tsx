@@ -1,9 +1,18 @@
+"use client"
+
 import { EmptyPlayerPanel } from "@/components/tv/tv-placeholders"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
+import { ChannelDetail } from "@/components/tv/channel-detail"
+import { useActiveChannelSlug } from "@/hooks/use-active-channel"
 
-// The detail slot when no channel is selected. On desktop this is the right
-// panel beside the channel list; on mobile the shell shows the list instead.
+// One document serves both states: with `?channel=` it's the player, without it
+// the detail slot beside the channel list (on mobile the shell shows the list
+// instead). Keeping this a single route is what lets the app export statically.
 export default function TvIndexPage() {
+  const activeChannel = useActiveChannelSlug()
+
+  if (activeChannel) return <ChannelDetail />
+
   return (
     <div className="bg-background relative flex h-full flex-col overflow-hidden min-[940px]:rounded-2xl">
       <PrimaryMeshGradientBackdrop />

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 import { PwaClient } from "@/components/pwa-client";
+import { NativeAppShell } from "@/components/native-app-shell";
 
 function ThemeProvider({
   children,
@@ -19,6 +20,7 @@ function ThemeProvider({
       <ThemeHotkey />
       <ThemeColor />
       <PwaClient />
+      <NativeAppShell />
       {children}
     </NextThemesProvider>
   );

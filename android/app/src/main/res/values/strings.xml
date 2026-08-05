@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Portal Hop</string>
+    <string name="title_activity_main">Portal Hop</string>
+    <string name="package_name">app.portalhop.mobile</string>
+    <string name="custom_url_scheme">app.portalhop.mobile</string>
+</resources>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { motion, useReducedMotion } from "motion/react"
 import { ChevronLeftIcon } from "lucide-react"
 
@@ -20,10 +20,10 @@ import { LivePlayer } from "@/components/tv/live-player"
 import { ProgrammeGuide } from "@/components/tv/programme-guide"
 import { ChannelEpgProvider } from "@/components/tv/channel-epg-provider"
 import { useTv } from "@/components/tv/tv-provider"
+import { useActiveChannelSlug } from "@/hooks/use-active-channel"
 
-export default function ChannelPage() {
-  const params = useParams<{ channelId: string }>()
-  const channelId = params?.channelId ?? ""
+export function ChannelDetail() {
+  const channelId = useActiveChannelSlug() ?? ""
   const router = useRouter()
   const {
     channelIndex,

@@ -1,5 +1,9 @@
 import type { MetadataRoute } from "next"
 
+// The manifest never varies per request. Saying so lets the static (mobile)
+// export emit it as a file instead of rejecting it as a dynamic route.
+export const dynamic = "force-static"
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/tv",

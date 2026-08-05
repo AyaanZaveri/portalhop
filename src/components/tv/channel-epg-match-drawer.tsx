@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { proxyImageUrl } from "@/lib/image-proxy"
 import { cn } from "@/lib/utils"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { apiFetch } from "@/lib/api-fetch"
 
 // Five results: a longer list is not how anyone recognises a channel, they
 // either see it or refine the search.
@@ -96,7 +97,7 @@ export function ChannelEpgMatchDrawer({
     let cancelled = false
 
     const timer = setTimeout(() => {
-      fetch(
+      apiFetch(
         `/api/epg/channels?limit=${MATCH_RESULT_LIMIT}&q=${encodeURIComponent(trimmedQuery)}`,
       )
         .then((response) => (response.ok ? response.json() : { results: [] }))
@@ -126,7 +127,7 @@ export function ChannelEpgMatchDrawer({
     setSavingId(xmltvId || "__clear__")
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/portals/${channel.sourceId}/channels/${channel.savedChannelId}/xmltv`,
         {
           method: "PATCH",

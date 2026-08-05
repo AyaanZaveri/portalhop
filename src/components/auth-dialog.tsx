@@ -17,7 +17,7 @@ import {
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
 
-import { authClient } from "@/lib/auth-client"
+import { authClient, clearStoredSession } from "@/lib/auth-client"
 import { generatedAvatarUrl, randomAvatarSeed } from "@/lib/avatar"
 import { proxyImageUrl } from "@/lib/image-proxy"
 import { Button } from "@/components/ui/button"
@@ -274,6 +274,9 @@ function AccountMenu({
 
     try {
       await authClient.signOut()
+      // The mobile build authenticates with a stored bearer token rather than
+      // a cookie, so signing out has to drop it explicitly.
+      clearStoredSession()
       await onSignedOut()
       toast.success("Signed out")
     } catch (error) {

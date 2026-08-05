@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/combobox";
 import { SettingsHeader } from "@/components/settings-header";
 import { useAiSettings } from "@/hooks/use-ai-settings";
+import { apiFetch } from "@/lib/api-fetch"
 
 interface ModelInfo {
   id: string;
@@ -56,7 +57,7 @@ export default function LlmProviderSettingsPage() {
   const fetchModels = React.useCallback(async (url?: string, key?: string) => {
     setFetchingModels(true);
     try {
-      const res = await fetch("/api/ai-models", {
+      const res = await apiFetch("/api/ai-models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ baseUrl: url ?? "", apiKey: key ?? "" }),
@@ -117,7 +118,7 @@ export default function LlmProviderSettingsPage() {
     setIsTesting(true);
     const toastId = toast.loading("Testing LLM provider...");
     try {
-      const response = await fetch("/api/ai-test", {
+      const response = await apiFetch("/api/ai-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

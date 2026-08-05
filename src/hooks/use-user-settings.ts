@@ -7,6 +7,7 @@ import {
   DEFAULT_USER_SETTINGS,
   type UserSettingsData,
 } from "@/lib/user-settings"
+import { apiFetch } from "@/lib/api-fetch"
 
 type UseUserSettings = {
   settings: UserSettingsData
@@ -46,7 +47,7 @@ export function useUserSettings(): UseUserSettings {
     }
 
     setSettingsLoaded(false)
-    fetch("/api/settings", { cache: "no-store" })
+    apiFetch("/api/settings", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
         if (cancelled) return
@@ -70,7 +71,7 @@ export function useUserSettings(): UseUserSettings {
 
       if (!userId) return
 
-      fetch("/api/settings", {
+      apiFetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),

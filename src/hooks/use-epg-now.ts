@@ -7,6 +7,7 @@ import {
   setCachedEpgWindow,
 } from "@/lib/portal-channels-cache"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { apiFetch } from "@/lib/api-fetch"
 
 export type NowPlaying = {
   title: string
@@ -72,7 +73,7 @@ export function useEpgNow(entries: EpgNowChannel[]) {
         }
 
         try {
-          const response = await fetch(`/api/epg/now?${query}`)
+          const response = await apiFetch(`/api/epg/now?${query}`)
           if (!response.ok) return
 
           const data = (await response.json()) as {

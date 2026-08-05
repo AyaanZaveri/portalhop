@@ -71,6 +71,7 @@ import { AuthDialog } from "@/components/auth-dialog"
 import { SettingsHeader } from "@/components/settings-header"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
 import { useAiSettings } from "@/hooks/use-ai-settings"
+import { apiFetch, absoluteApiUrl } from "@/lib/api-fetch"
 
 type SavedPortalRecord = SavedSourceRecord
 
@@ -203,7 +204,7 @@ export default function SourcesSettingsPage() {
   async function handleCopyFavoritesPlaylist() {
     setIsCopyingFavorites(true)
     try {
-      const res = await fetch("/api/favorites/token")
+      const res = await apiFetch("/api/favorites/token")
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.url)
         throw new Error(data.error || "Could not create a playlist link.")
@@ -223,7 +224,7 @@ export default function SourcesSettingsPage() {
   async function handleRegenerateFavoritesPlaylist() {
     setIsRegeneratingFavorites(true)
     try {
-      const res = await fetch("/api/favorites/token", { method: "POST" })
+      const res = await apiFetch("/api/favorites/token", { method: "POST" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.url)
         throw new Error(data.error || "Could not regenerate the playlist link.")
@@ -246,7 +247,7 @@ export default function SourcesSettingsPage() {
 
       ; (async () => {
         try {
-          const response = await fetch("/api/portals", { cache: "no-store" })
+          const response = await apiFetch("/api/portals", { cache: "no-store" })
           const data = await response.json().catch(() => ({ portals: [] }))
 
           if (!isMounted) return
@@ -278,7 +279,7 @@ export default function SourcesSettingsPage() {
     const startedAt = performance.now()
 
     try {
-      const response = await fetch(`/api/portals/${portal.id}/refetch`, {
+      const response = await apiFetch(`/api/portals/${portal.id}/refetch`, {
         method: "POST",
       })
       const data = await response.json().catch(() => ({}))
@@ -312,7 +313,7 @@ export default function SourcesSettingsPage() {
     })
 
     try {
-      const response = await fetch(`/api/portals/${portal.id}/enrich`, {
+      const response = await apiFetch(`/api/portals/${portal.id}/enrich`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -476,7 +477,7 @@ export default function SourcesSettingsPage() {
     const toastId = toast.loading(`Deleting ${portal.name}...`)
 
     try {
-      const response = await fetch(`/api/portals/${portal.id}`, {
+      const response = await apiFetch(`/api/portals/${portal.id}`, {
         method: "DELETE",
       })
 
@@ -505,12 +506,9 @@ export default function SourcesSettingsPage() {
     setCopyingPortalId(portal.id)
 
     try {
-      const playlistUrl = new URL(
-        `/api/portals/${portal.id}/playlist`,
-        window.location.origin,
-      )
+      const playlistUrl = absoluteApiUrl(`/api/portals/${portal.id}/playlist`)
 
-      await copyTextToClipboard(playlistUrl.href)
+      await copyTextToClipboard(playlistUrl)
       toast.success("Copied M3U Plus playlist URL", {
         description: portal.name,
       })
@@ -538,7 +536,7 @@ export default function SourcesSettingsPage() {
     setRenameError("")
 
     try {
-      const response = await fetch(`/api/portals/${portalPendingRename.id}`, {
+      const response = await apiFetch(`/api/portals/${portalPendingRename.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),

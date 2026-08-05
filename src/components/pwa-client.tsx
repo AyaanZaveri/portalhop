@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { isMobileApp } from "@/lib/build-target"
+
 export function PwaClient() {
   const [isOffline, setIsOffline] = useState(false)
 
@@ -12,7 +14,14 @@ export function PwaClient() {
     window.addEventListener("online", updateNetworkStatus)
     window.addEventListener("offline", updateNetworkStatus)
 
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+    // The packaged app already serves its assets from disk, so a service
+    // worker adds nothing and would cache against the webview's internal
+    // origin. The offline banner above still applies.
+    if (
+      !isMobileApp &&
+      process.env.NODE_ENV === "production" &&
+      "serviceWorker" in navigator
+    ) {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
         .then(async (registration) => {

@@ -10,11 +10,20 @@
     "seed:epg": "node scripts/seed-epg.mjs",
     "encrypt:sources": "node scripts/encrypt-saved-sources.mjs",
     "encrypt:channel-cmds": "node scripts/encrypt-saved-channel-cmds.mjs",
-    "lint": "eslint"
+    "lint": "eslint",
+    "mobile:export": "node scripts/build-mobile-frontend.mjs",
+    "android:build": "node scripts/build-android-apk.mjs",
+    "android:sync": "node scripts/build-mobile-frontend.mjs && cap sync android",
+    "android:open": "cap open android"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
     "@base-ui/react": "^1.5.0",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/splash-screen": "^8.0.2",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -48,6 +57,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",

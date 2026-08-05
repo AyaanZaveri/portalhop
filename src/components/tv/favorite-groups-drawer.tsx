@@ -124,6 +124,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { chipButtonProps } from "@/components/tv/chip-button"
 import { cn } from "@/lib/utils"
+import { apiFetch } from "@/lib/api-fetch"
 
 export type FavoriteGroup = {
   id: number
@@ -191,7 +192,7 @@ export function subscribeToFavoriteGroups(listener: () => void) {
 export async function loadFavoriteGroups() {
   if (cachedFavoriteGroups) return cachedFavoriteGroups
   if (!favoriteGroupsRequest) {
-    favoriteGroupsRequest = fetch("/api/favorite-groups", { cache: "no-store" })
+    favoriteGroupsRequest = apiFetch("/api/favorite-groups", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Could not load favorite groups.")
         const body = (await response.json()) as { groups?: FavoriteGroup[] }
@@ -587,7 +588,7 @@ export function FavoriteGroupsDrawer({
 
     setIsDeletingGroup(true)
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/favorite-groups?groupId=${groupPendingDelete.id}`,
         { method: "DELETE" },
       )
@@ -978,7 +979,7 @@ export function GroupMembershipDrawer({
     cacheFavoriteGroups(nextGroups)
 
     try {
-      const response = await fetch(`/api/favorite-groups/${group.id}/channels`, {
+      const response = await apiFetch(`/api/favorite-groups/${group.id}/channels`, {
         method: included ? "DELETE" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelKey: channel.key }),

@@ -6,6 +6,7 @@ import {
   getCachedPortalChannels,
   setCachedPortalChannels,
 } from "@/lib/portal-channels-cache"
+import { apiFetch } from "@/lib/api-fetch"
 
 export type SavedPortalRecord = SavedSourceRecord
 
@@ -152,7 +153,7 @@ export async function resolveChannelLink(
       ? { sourceId, savedChannelId }
       : null
 
-  const response = await fetch("/api/channel-link", {
+  const response = await apiFetch("/api/channel-link", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
@@ -334,7 +335,7 @@ export function getPortalSource(portal: SavedPortalRecord): PortalSource {
 async function fetchSavedPortalResult(
   portal: SavedPortalRecord,
 ): Promise<PortalResponse> {
-  const response = await fetch(`/api/portals/${portal.id}`, {
+  const response = await apiFetch(`/api/portals/${portal.id}`, {
     cache: "no-store",
   })
   const data = await response.json().catch(() => ({}))

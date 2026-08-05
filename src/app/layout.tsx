@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { isMobileApp } from "@/lib/build-target";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -57,7 +58,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, montserrat.variable, "font-sans")}
+      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, montserrat.variable, "font-sans", isMobileApp && "native-app")}
     >
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>
