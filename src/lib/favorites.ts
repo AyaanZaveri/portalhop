@@ -208,3 +208,30 @@ export async function migrateFavoriteKeys(mappings: Map<string, string[]>) {
     // update, and showing a favorite is preferable to silently losing it.
   }
 }
+
+/**
+ * Reorders the cached favourites to match a saved sequence. The cache is a Set,
+ * whose iteration order is what the UI renders, so rebuilding it in the new
+ * order is the reorder. Keys not in the sequence keep their existing relative
+ * order at the end — the sequence is only ever the visible subset, since the
+ * list can be filtered by source or hidden category.
+ */
+export function reorderFavoritesLocal(channelKeys: string[]): void {
+  const current = cache
+  const desired = channelKeys.filter((key) => current.has(key))
+
+  if (!desired.length) {
+    return
+  }
+
+  const moved = new Set(desired)
+  const next = new Set<string>(desired)
+
+  for (const key of current) {
+    if (!moved.has(key)) {
+      next.add(key)
+    }
+  }
+
+  setCache(next)
+}

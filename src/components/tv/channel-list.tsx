@@ -74,6 +74,7 @@ import {
   getCachedFavoriteGroups,
   getFavoriteGroupIcon,
   GroupMembershipDrawer,
+  reorderFavoriteGroupChannelsLocal,
   loadFavoriteGroups,
   subscribeToFavoriteGroups,
   type FavoriteGroup,
@@ -81,6 +82,7 @@ import {
 import { chipButtonProps, chipLabelCollapse } from "@/components/tv/chip-button"
 import { toast } from "sonner"
 
+import { reorderFavoritesLocal } from "@/lib/favorites"
 import { cn } from "@/lib/utils"
 import {
   TV_MOBILE_LAYOUT_QUERY,
@@ -296,6 +298,15 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       browseFilter.type === "favoriteGroup"
         ? `/api/favorite-groups/${browseFilter.groupId}/order`
         : "/api/favorites/order"
+
+    // The saved order is applied to the client's own copy too. Neither cache
+    // can be force-reloaded — both return early once populated — so the list
+    // would otherwise render its original order until a full page load.
+    if (browseFilter.type === "favoriteGroup") {
+      reorderFavoriteGroupChannelsLocal(browseFilter.groupId, channelKeys)
+    } else {
+      reorderFavoritesLocal(channelKeys)
+    }
 
     try {
       const response = await fetch(endpoint, {

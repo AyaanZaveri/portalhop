@@ -146,6 +146,41 @@ export function getCachedFavoriteGroups() {
   return cachedFavoriteGroups
 }
 
+/**
+ * Reorders one cached group's channels to match a saved sequence, then notifies
+ * subscribers. Without this the list keeps rendering the order it loaded with
+ * until the next full page load. Keys not in the sequence keep their existing
+ * relative order at the end, since the sequence is only the visible subset.
+ */
+export function reorderFavoriteGroupChannelsLocal(
+  groupId: number,
+  channelKeys: string[],
+): void {
+  if (!cachedFavoriteGroups) {
+    return
+  }
+
+  cacheFavoriteGroups(
+    cachedFavoriteGroups.map((group) => {
+      if (group.id !== groupId) {
+        return group
+      }
+
+      const existing = new Set(group.channelKeys)
+      const desired = channelKeys.filter((key) => existing.has(key))
+      const moved = new Set(desired)
+
+      return {
+        ...group,
+        channelKeys: [
+          ...desired,
+          ...group.channelKeys.filter((key) => !moved.has(key)),
+        ],
+      }
+    }),
+  )
+}
+
 /** Notifies when the shared favorite-group cache changes, so views filtered by
  * a group can drop or add rows without a refetch. */
 export function subscribeToFavoriteGroups(listener: () => void) {
