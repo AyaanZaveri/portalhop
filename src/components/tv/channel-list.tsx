@@ -1013,8 +1013,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                   // renders transparent over the page while dragging. Matching
                   // the panel keeps it looking like the row it came from.
                   className={cn(
-                    "h-[78px] rounded-xl backdrop-blur-md",
-                    isMobileLayout ? "bg-background/95" : "bg-card/95",
+                    "h-[78px] rounded-xl",
+                    isMobileLayout ? "bg-background" : "bg-card",
                   )}
                 >
                   {/* The handle is the row. SortableItem keeps its drag
