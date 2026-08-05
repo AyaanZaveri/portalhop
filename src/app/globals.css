@@ -194,31 +194,34 @@
   }
 }
 
-/* The packaged Android app gets the same treatment. Its webview is not an
-   installed PWA, so `display-mode: standalone` never matches even though
-   Android 15+ forces it to draw under the system bars with no opt-out.
+/* The packaged Android app. Its webview is not an installed PWA, so
+   `display-mode: standalone` never matches even though Android 15+ forces it to
+   draw under the system bars with no opt-out.
 
-   Capacitor's SystemBars plugin (insetsHandling: "css") injects
-   --safe-area-inset-* because older Android WebViews report env() as zero even
-   when the app really is edge to edge. env() is the fallback for the webviews
-   that do support it, and 0px for anything that supports neither. */
+   These use env() and deliberately NOT Capacitor's --safe-area-inset-*
+   variables, even though the plugin sets both. Capacitor only lets env() report
+   the real insets when the WebView is version 140+ and the page opts in with
+   viewport-fit=cover; below that it physically pads the webview instead and
+   still publishes the variables. Padding by the variable would then inset an
+   already-inset webview and double every gap. env() is the value that is zero
+   in exactly the cases where the padding has already been applied for us. */
 .native-app {
-  --inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
-  --inset-bottom: var(
-    --safe-area-inset-bottom,
-    env(safe-area-inset-bottom, 0px)
-  );
-  --inset-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
-  --inset-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --inset-top: env(safe-area-inset-top, 0px);
+  --inset-bottom: env(safe-area-inset-bottom, 0px);
+  --inset-left: env(safe-area-inset-left, 0px);
+  --inset-right: env(safe-area-inset-right, 0px);
 }
 
 .native-app body {
   padding-inline: var(--inset-left) var(--inset-right);
 }
 
+/* Only the top is padded. The bottom is left alone so content runs under the
+   gesture bar the way native apps do — a band of app background above the bar
+   reads as letterboxing, not as chrome. Scrollable regions add their own bottom
+   inset below so nothing comes to rest underneath the bar. */
 .native-app .tv-shell {
   padding-block-start: var(--inset-top);
-  padding-block-end: var(--inset-bottom);
 }
 
 /* Opaque strip behind the status bar so its icons never sit on top of scrolling
@@ -233,6 +236,16 @@
   background: var(--background);
   z-index: 70;
   pointer-events: none;
+}
+
+/* Anything anchored to the bottom of the screen has to clear the gesture bar
+   itself, since the shell no longer reserves room for it. Lifting the sheet
+   also moves its bottom corners out of the display's rounded corners, which
+   were clipping them, so they get the same radius as the top edge. */
+.native-app [data-slot="drawer-popup"][data-swipe-direction="down"] {
+  margin-block-end: calc(var(--drawer-inset, 0px) + var(--inset-bottom));
+  border-end-start-radius: var(--radius-xl);
+  border-end-end-radius: var(--radius-xl);
 }
 
 /* Touch devices only: a long press on a row should feel like a native app

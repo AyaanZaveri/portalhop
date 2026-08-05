@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api-fetch"
+import { useHaptics } from "@/hooks/use-haptics"
 import { channelHref, useActiveChannelSlug } from "@/hooks/use-active-channel"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { useWebHaptics } from "web-haptics/react"
 import {
   CheckIcon,
   EyeIcon,
@@ -167,7 +167,7 @@ export function ChannelList({
   const router = useRouter()
   const activeSlug = useActiveChannelSlug()
   const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
-  const { trigger: triggerHaptic } = useWebHaptics()
+  const triggerHaptic = useHaptics()
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const categoryTriggerRef = useRef<HTMLButtonElement>(null)
@@ -1065,7 +1065,7 @@ export function ChannelList({
               }
 
               lastDragOverIdRef.current = overId
-              void triggerHaptic([{ duration: 10 }], { intensity: 0.3 })
+              triggerHaptic("light")
             }}
             className="flex flex-col gap-1.5 py-[3px]"
           >
@@ -1539,7 +1539,7 @@ export function ChannelList({
                     const isFavorited = isChannelFavorited(contextChannel)
                     toggleFavorite(getChannelKey(contextChannel))
                     if (!isFavorited) {
-                      void triggerHaptic([{ duration: 15 }], { intensity: 0.4 })
+                      triggerHaptic("medium")
                     }
                     setContextChannel(null)
                   }}

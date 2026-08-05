@@ -121,7 +121,9 @@ export default function SettingsLayout({
       </SidebarInset>
 
       {/* Floating dock nav (mobile only). */}
-      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center p-4 md:hidden">
+      {/* pb clears the Android gesture bar, which the app draws underneath;
+          env() is 0 everywhere else, leaving the plain p-4. */}
+      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:hidden">
         <Dock
           className="pointer-events-auto mt-0 h-auto gap-2 rounded-full border bg-background/70 p-2 shadow-2xl shadow-primary/20 backdrop-blur-xl"
           iconSize={44}
