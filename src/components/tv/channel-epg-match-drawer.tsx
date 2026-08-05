@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { CheckIcon, SearchIcon, TvIcon } from "lucide-react"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
+import { Spinner } from "@/components/ui/spinner"
 import { ThinkingOrb } from "thinking-orbs"
 import { toast } from "sonner"
 
@@ -57,7 +58,7 @@ export function ChannelEpgMatchDrawer({
   isMobileLayout: boolean
   useImageProxy: boolean
   onOpenChange: (open: boolean) => void
-  onMatched: (xmltvId: string) => void
+  onMatched: (xmltvId: string, logoUrl?: string) => void
 }) {
   const [query, setQuery] = useState("")
   const [seededFor, setSeededFor] = useState<number | null>(null)
@@ -117,7 +118,7 @@ export function ChannelEpgMatchDrawer({
 
   const currentXmltvId = channel ? normalizeXmltvId(channel.xmltvId) : ""
 
-  async function assign(xmltvId: string, label?: string) {
+  async function assign(xmltvId: string, label?: string, logoUrl?: string) {
     if (!channel || isSaving) {
       return
     }
@@ -138,7 +139,7 @@ export function ChannelEpgMatchDrawer({
         throw new Error()
       }
 
-      onMatched(normalizeXmltvId(xmltvId))
+      onMatched(normalizeXmltvId(xmltvId), logoUrl)
       // Names what was saved rather than just that something was: the whole
       // point of the drawer is picking a specific listing.
       toast.success(
@@ -190,7 +191,7 @@ export function ChannelEpgMatchDrawer({
           ) : null}
 
           <ScrollArea className="min-h-40 flex-1" viewportTabIndex={-1}>
-            <div className="flex flex-col gap-1 pr-2">
+            <div className="flex flex-col gap-1">
               {visibleResults.length ? (
                 visibleResults.map((match) => {
                   const logoUrl = match.logoUrl
@@ -204,7 +205,7 @@ export function ChannelEpgMatchDrawer({
                       type="button"
                       variant="ghost"
                       disabled={isSaving}
-                      onClick={() => void assign(match.xmltvId, match.name)}
+                      onClick={() => void assign(match.xmltvId, match.name, match.logoUrl)}
                       className={cn(
                         "hover:bg-accent hover:text-accent-foreground h-auto w-full justify-start gap-3 rounded-md py-2 pr-2 pl-2 text-sm font-normal focus-visible:ring-inset",
                         selected && "bg-accent",
@@ -237,9 +238,7 @@ export function ChannelEpgMatchDrawer({
                         </span>
                       </span>
                       {savingId === match.xmltvId ? (
-                        <span className="shrink-0">
-                          <ThinkingOrb state="working" size={20} />
-                        </span>
+                        <Spinner className="text-muted-foreground shrink-0" />
                       ) : selected ? (
                         <CheckIcon className="text-primary size-4 shrink-0" />
                       ) : null}

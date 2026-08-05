@@ -91,6 +91,7 @@ type TvContextValue = {
     sourceId: number,
     savedChannelId: number,
     xmltvId: string,
+    logoUrl?: string,
   ) => void
   iptvOrgLoading: boolean
 
@@ -174,7 +175,12 @@ export function TvProvider({
   // the one row changes. This updates it on the spot; the cache bump then keeps
   // it correct on the next visit.
   const applyChannelXmltvId = useCallback(
-    (sourceId: number, savedChannelId: number, xmltvId: string) => {
+    (
+      sourceId: number,
+      savedChannelId: number,
+      xmltvId: string,
+      logoUrl?: string,
+    ) => {
       setLoadedPortals((current) => {
         const entry = current[sourceId]
         if (!entry) return current
@@ -187,7 +193,16 @@ export function TvProvider({
               ...entry.response,
               channels: entry.response.channels.map((channel) =>
                 channel.savedChannelId === savedChannelId
-                  ? { ...channel, xmltvId }
+                  ? {
+                      ...channel,
+                      xmltvId,
+                      // getChannelLogoUrl falls through to the channel's own
+                      // logoUrl, so the row keeps the old artwork unless this
+                      // moves with the id. Left alone when clearing, since the
+                      // provider's original logo is not known here — the cache
+                      // bump restores it on the next load.
+                      ...(logoUrl ? { logoUrl } : {}),
+                    }
                   : channel,
               ),
             },

@@ -1240,7 +1240,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
         onOpenChange={(open) => {
           if (!open) setEpgMatchChannel(null)
         }}
-        onMatched={(xmltvId) => {
+        onMatched={(xmltvId, logoUrl) => {
           // Patched in place rather than reloading the source: the save already
           // bumped the source's updatedAt, so the IndexedDB cache is invalid
           // and will refill on the next visit. This is only about the row
@@ -1250,6 +1250,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
               epgMatchChannel.sourceId,
               epgMatchChannel.savedChannelId,
               xmltvId,
+              logoUrl,
             )
           }
         }}
