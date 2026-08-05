@@ -241,11 +241,27 @@
 /* Anything anchored to the bottom of the screen has to clear the gesture bar
    itself, since the shell no longer reserves room for it. Lifting the sheet
    also moves its bottom corners out of the display's rounded corners, which
-   were clipping them, so they get the same radius as the top edge. */
+   were clipping them, so they get the same radius as the top edge.
+
+   The closing transform grows by the same amount the sheet was lifted. Without
+   that it runs out of travel while still on screen and vanishes mid-animation
+   instead of sliding away. */
 .native-app [data-slot="drawer-popup"][data-swipe-direction="down"] {
   margin-block-end: calc(var(--drawer-inset, 0px) + var(--inset-bottom));
   border-end-start-radius: var(--radius-xl);
   border-end-end-radius: var(--radius-xl);
+  --closed-transform: translate3d(
+    0,
+    calc(100% + var(--drawer-inset, 0px) + var(--inset-bottom) + 2px),
+    0
+  );
+}
+
+/* The status-bar inset already separates the header from the system clock, so
+   the header's own generous top padding stacks on top of it and reads as a
+   gap. The sides and bottom keep theirs. */
+.native-app .tv-list-header {
+  padding-block-start: 0.5rem;
 }
 
 /* Touch devices only: a long press on a row should feel like a native app

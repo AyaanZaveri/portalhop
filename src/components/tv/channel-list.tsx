@@ -601,7 +601,9 @@ export function ChannelList({
     >
       <div
         className={cn(
-          "flex flex-col gap-3 p-5 pb-2",
+          // tv-list-header lets the packaged app trim the top padding, which
+          // otherwise stacks on top of the status-bar inset.
+          "tv-list-header flex flex-col gap-3 p-5 pb-2",
           !isMobileLayout && "p-4 pb-2",
         )}
       >
