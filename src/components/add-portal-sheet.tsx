@@ -538,7 +538,7 @@ export function AddPortalSheet({
           }
         }}
       >
-        <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:90dvh]">
+        <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:90dvh]">
           <DrawerHeader className="pb-2">
             <div className="flex min-w-0 flex-col gap-0.5 pr-8">
               <DrawerTitle className="flex items-center gap-1.5">
@@ -809,7 +809,7 @@ export function AddPortalSheet({
               </div>
             </ScrollArea>
 
-            <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t p-0 pt-4">
+            <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t px-4 pt-4 pb-4">
               {testResult ? (
                 <>
                   <Tooltip>

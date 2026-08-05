@@ -9,7 +9,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { TV_MOBILE_LAYOUT_QUERY, useMediaQuery } from "@/hooks/use-media-query"
 import { SettingsHeader } from "@/components/settings-header"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
 import { Switch } from "@/components/ui/switch"
@@ -127,6 +128,7 @@ export default function EpgAndLogosSettingsPage() {
 }
 
 function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean; onOpenChange: (open: boolean) => void; source: UserEpgSource | null; onSaved: (source: UserEpgSource) => void }) {
+  const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const [name, setName] = React.useState(""); const [url, setUrl] = React.useState(""); const [saving, setSaving] = React.useState(false)
   React.useEffect(() => {
     if (open) {
@@ -135,16 +137,16 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
     }
   }, [open, source])
   async function save() { setSaving(true); try { const res = await fetch(source ? `/api/epg-sources/${source.id}` : "/api/epg-sources", { method: source ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, url }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error); onSaved(data.source); toast.success(data.refreshError ? "Saved, but the first refresh failed." : "EPG source saved.") } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save EPG source.") } finally { setSaving(false) } }
-  return <Sheet open={open} onOpenChange={onOpenChange}>
-    <SheetContent className="gap-0 backdrop-blur-md sm:max-w-xl! dark:bg-background/50">
-      <SheetHeader>
+  return <Drawer open={open} onOpenChange={onOpenChange} swipeDirection={isMobileLayout ? "down" : "left"}>
+    <DrawerContent className="bg-background/95 dark:bg-background/85 gap-0 rounded-xl backdrop-blur-md dark:border data-[swipe-axis=y]:w-full sm:max-w-xl! [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:auto]">
+      <DrawerHeader>
         <div className="flex min-w-0 flex-col gap-0.5 pr-8">
-          <SheetTitle className="flex items-center gap-1.5">
+          <DrawerTitle className="flex items-center gap-1.5">
             <TvIcon className="size-4 text-primary brightness-75 dark:brightness-100 -mt-0.5" />
             EPG Source
-          </SheetTitle>
+          </DrawerTitle>
         </div>
-      </SheetHeader>
+      </DrawerHeader>
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-4 pb-4">
           <FieldGroup>
@@ -160,13 +162,13 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
           </FieldGroup>
         </div>
       </ScrollArea>
-      <SheetFooter className="flex-row! justify-end gap-2 border-t pt-4">
+      <DrawerFooter className="mt-0 flex-row! justify-end gap-2 border-t px-4 pt-4 pb-4">
         <Button onClick={save} disabled={saving || !name.trim() || !url.trim()} className="cursor-pointer">
           {saving ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : null}
           {saving ? "Saving…" : "Save source"}
         </Button>
-      </SheetFooter>
-    </SheetContent>
-  </Sheet>
+      </DrawerFooter>
+    </DrawerContent>
+  </Drawer>
 }
 function Stat({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 truncate text-sm font-medium">{value}</p></div> }
