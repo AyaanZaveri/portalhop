@@ -15,7 +15,7 @@ import {
   ListFilterIcon,
   MoreVerticalIcon,
   PencilIcon,
-  SquareChartGanttIcon,
+  ScanSearchIcon,
   SearchIcon,
   ShapesIcon,
   StarIcon,
@@ -1063,7 +1063,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                                   setEpgMatchChannel(toEpgMatchChannel(channel))
                                 }
                               >
-                                <SquareChartGanttIcon />
+                                <ScanSearchIcon />
                                 Change guide match
                               </DropdownMenuItem>
                             ) : null}
@@ -1200,8 +1200,8 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                     )}
                   />
                   {isChannelFavorited(contextChannel)
-                    ? "Unfavorite"
-                    : "Favorite"}
+                    ? "Remove from favorites"
+                    : "Add to favorites"}
                 </Button>
                 <div
                   className={cn(
@@ -1241,7 +1241,7 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                       setContextChannel(null)
                     }}
                   >
-                    <SquareChartGanttIcon />
+                    <ScanSearchIcon />
                     Guide match
                   </Button>
                 ) : null}
