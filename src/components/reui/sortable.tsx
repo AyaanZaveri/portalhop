@@ -350,7 +350,12 @@ function SortableItem({
         "data-slot": "sortable-item",
         "data-value": value,
         "data-dragging": true,
-        className: cn(className),
+        // A small lift, only on the copy that follows the cursor. The item is
+        // picked up off the surface, so it grows rather than pressing in the
+        // way a button does. The placeholder left behind is untouched — the
+        // same data attributes appear on both, so this cannot be done from a
+        // consumer's className.
+        className: cn("scale-[1.02] shadow-lg", className),
         children: props.children,
       }
     : {
