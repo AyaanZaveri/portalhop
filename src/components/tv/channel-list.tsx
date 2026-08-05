@@ -1053,6 +1053,9 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
                               </DropdownMenuItem>
                             ) : null}
                             {toEpgMatchChannel(channel) ? (
+                              <DropdownMenuSeparator />
+                            ) : null}
+                            {toEpgMatchChannel(channel) ? (
                               <DropdownMenuItem
                                 className="py-1.5 whitespace-nowrap"
                                 onClick={() =>
@@ -1231,7 +1234,6 @@ export function ChannelList({ headerControls }: { headerControls?: ReactNode }) 
       </Drawer>
       <ChannelEpgMatchDrawer
         channel={epgMatchChannel}
-        epgChannels={epgChannels}
         isMobileLayout={isMobileLayout}
         useImageProxy={useImageProxy}
         onOpenChange={(open) => {

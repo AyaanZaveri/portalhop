@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { CheckIcon, SearchIcon, TvIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -22,10 +22,13 @@ import { proxyImageUrl } from "@/lib/image-proxy"
 import { cn } from "@/lib/utils"
 import { normalizeXmltvId } from "@/lib/xmltv-id"
 
-// The directory runs to tens of thousands of entries. Scanning it per keystroke
-// is cheap, but rendering more than a screenful is not, and a long list is not
-// how anyone picks a match — they recognise the right one or refine the search.
+// Five results: a longer list is not how anyone recognises a channel, they
+// either see it or refine the search.
 const MATCH_RESULT_LIMIT = 5
+
+// Long enough that typing a channel name is one request rather than one per
+// letter, short enough that the list feels like it is keeping up.
+const SEARCH_DEBOUNCE_MS = 250
 
 export type EpgMatchChannel = {
   savedChannelId: number
@@ -34,11 +37,6 @@ export type EpgMatchChannel = {
   xmltvId: string
 }
 
-type EpgDirectory = Record<
-  string,
-  { name: string; logoUrl?: string; countryCode?: string }
->
-
 type EpgMatch = {
   xmltvId: string
   name: string
@@ -46,50 +44,14 @@ type EpgMatch = {
   countryCode?: string
 }
 
-function searchEpgChannels(
-  directory: EpgDirectory,
-  query: string,
-): EpgMatch[] {
-  const normalized = query.trim().toLowerCase()
-
-  if (!normalized) {
-    return []
-  }
-
-  const matches: EpgMatch[] = []
-
-  for (const [xmltvId, entry] of Object.entries(directory)) {
-    if (
-      !xmltvId.toLowerCase().includes(normalized) &&
-      !entry.name.toLowerCase().includes(normalized)
-    ) {
-      continue
-    }
-
-    matches.push({ xmltvId, ...entry })
-  }
-
-  // A name that starts with the query is almost always the one being looked
-  // for; substring hits are the long tail behind it.
-  matches.sort((a, b) => {
-    const aStarts = a.name.toLowerCase().startsWith(normalized) ? 0 : 1
-    const bStarts = b.name.toLowerCase().startsWith(normalized) ? 0 : 1
-    return aStarts - bStarts || a.name.length - b.name.length
-  })
-
-  return matches.slice(0, MATCH_RESULT_LIMIT)
-}
-
 export function ChannelEpgMatchDrawer({
   channel,
-  epgChannels,
   isMobileLayout,
   useImageProxy,
   onOpenChange,
   onMatched,
 }: {
   channel: EpgMatchChannel | null
-  epgChannels: EpgDirectory
   isMobileLayout: boolean
   useImageProxy: boolean
   onOpenChange: (open: boolean) => void
@@ -98,6 +60,13 @@ export function ChannelEpgMatchDrawer({
   const [query, setQuery] = useState("")
   const [seededFor, setSeededFor] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  // Results are stored with the query they answer, so "still searching" and
+  // "nothing to show yet" are derived rather than tracked in their own state —
+  // which also keeps every setState out of the effect body.
+  const [results, setResults] = useState<{ query: string; items: EpgMatch[] }>({
+    query: "",
+    items: [],
+  })
 
   // Seed the search with the channel's own name: the match being looked for is
   // usually a near-spelling of it, so the first useful results are there before
@@ -109,13 +78,41 @@ export function ChannelEpgMatchDrawer({
     setQuery(channel.name)
   }
 
-  const results = useMemo(
-    () => searchEpgChannels(epgChannels, query),
-    [epgChannels, query],
-  )
+  const trimmedQuery = query.trim()
+  const isSearching = Boolean(channel) && trimmedQuery !== "" && results.query !== trimmedQuery
+  const visibleResults = results.query === trimmedQuery ? results.items : []
+
+  // The directory is ~28,000 listings and 5.8MB, so it stays on the server and
+  // only the handful being shown crosses the wire.
+  useEffect(() => {
+    if (!channel || !trimmedQuery) {
+      return
+    }
+
+    let cancelled = false
+
+    const timer = setTimeout(() => {
+      fetch(
+        `/api/epg/channels?limit=${MATCH_RESULT_LIMIT}&q=${encodeURIComponent(trimmedQuery)}`,
+      )
+        .then((response) => (response.ok ? response.json() : { results: [] }))
+        .then((data: { results?: EpgMatch[] }) => {
+          if (!cancelled) {
+            setResults({ query: trimmedQuery, items: data.results ?? [] })
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setResults({ query: trimmedQuery, items: [] })
+        })
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [channel, trimmedQuery])
 
   const currentXmltvId = channel ? normalizeXmltvId(channel.xmltvId) : ""
-  const currentMatch = currentXmltvId ? epgChannels[currentXmltvId] : undefined
 
   async function assign(xmltvId: string) {
     if (!channel || isSaving) {
@@ -178,7 +175,7 @@ export function ChannelEpgMatchDrawer({
             </InputGroupAddon>
           </InputGroup>
 
-          {currentMatch ? (
+          {currentXmltvId ? (
             <p className="text-muted-foreground text-xs">
               Currently matched to{" "}
               <span className="text-foreground font-mono">{currentXmltvId}</span>
@@ -187,8 +184,8 @@ export function ChannelEpgMatchDrawer({
 
           <ScrollArea className="min-h-40 flex-1" viewportTabIndex={-1}>
             <div className="flex flex-col gap-1 pr-3">
-              {results.length ? (
-                results.map((match) => {
+              {visibleResults.length ? (
+                visibleResults.map((match) => {
                   const logoUrl = match.logoUrl
                     ? proxyImageUrl(match.logoUrl, useImageProxy)
                     : ""
@@ -236,9 +233,11 @@ export function ChannelEpgMatchDrawer({
                 })
               ) : (
                 <p className="text-muted-foreground py-6 text-center text-sm">
-                  {query.trim()
-                    ? `No guide listings match “${query.trim()}”.`
-                    : "Search for a guide listing."}
+                  {isSearching
+                    ? "Searching…"
+                    : trimmedQuery
+                      ? `No guide listings match “${trimmedQuery}”.`
+                      : "Search for a guide listing."}
                 </p>
               )}
             </div>
