@@ -100,8 +100,10 @@ export default function SettingsLayout({
       </Sidebar>
 
       <SidebarInset className="overflow-y-auto">
-        {/* Match the TV home header while the settings navigation lives in the dock. */}
-        <div className="flex flex-col gap-3 p-5 pb-2 md:hidden">
+        {/* Match the TV home header while the settings navigation lives in the
+            dock — tv-list-header included, or the header would sit 12px lower
+            here than on TV in the packaged app, which trims that padding. */}
+        <div className="tv-list-header flex flex-col gap-3 p-5 pb-2 md:hidden">
           <div className="mb-1 flex items-center justify-between gap-3">
             <Link
               href="/tv"

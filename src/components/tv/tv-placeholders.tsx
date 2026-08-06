@@ -116,7 +116,10 @@ function ChannelListSkeleton({
 }) {
   return (
     <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden min-[940px]:min-w-80 min-[940px]:rounded-2xl min-[940px]:bg-card">
-      <div className="flex flex-col gap-3 p-5 pb-2 min-[940px]:p-4 min-[940px]:pb-2">
+      {/* tv-list-header, like the real list's header: the packaged app trims
+          the top padding there, and without the same class here the whole
+          header dropped 12px the moment channels finished loading. */}
+      <div className="tv-list-header flex flex-col gap-3 p-5 pb-2 min-[940px]:p-4 min-[940px]:pb-2">
         <div className="mb-1 flex items-center justify-between gap-3">
           <PortalHopWordmark />
           {headerControls ? (
