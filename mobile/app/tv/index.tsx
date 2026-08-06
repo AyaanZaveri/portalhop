@@ -186,7 +186,7 @@ export default function ChannelListScreen() {
 
         {/* The same four the web has. Categories and Groups open sheets rather
             than filtering directly, since each needs a list to pick from. */}
-        <View className="flex-row items-center gap-1.5">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Chip
             label="Favorites"
             icon={Star}

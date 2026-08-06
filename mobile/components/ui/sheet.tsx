@@ -52,7 +52,10 @@ export const Sheet = forwardRef<
       backgroundStyle={{ backgroundColor: colors.background }}
       handleIndicatorStyle={{ backgroundColor: colors["muted-foreground"] }}
     >
-      <Text className="px-4 pt-2 pb-3 font-heading text-[22px] tracking-tight text-foreground">
+      <Text
+        className="font-heading text-[22px] tracking-tight text-foreground"
+        style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}
+      >
         {title}
       </Text>
       {children}

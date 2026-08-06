@@ -1,5 +1,5 @@
 import type { ComponentType } from "react"
-import { Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
 import type { LucideProps } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
@@ -8,24 +8,25 @@ import { PressableScale } from "@/components/ui/pressable-scale"
 /**
  * A filter chip above the channel list.
  *
- * Mirrors the web's chipButtonProps: a pill that is filled when active and
- * outlined-with-muted-text when not. Taller than the web's desktop chip because
- * on touch these are the main way to move around the list.
+ * Geometry comes from StyleSheet rather than className. Two attempts at the
+ * latter rendered the colour but none of the size — Uniwind resolves classes at
+ * build time, and neither a template literal nor an object lookup is
+ * statically analyzable. A chip has exactly four variants, so spelling them out
+ * here is both shorter and certain.
  */
-// Every variant spelled out as a complete literal rather than assembled with
-// interpolation. Uniwind resolves className at build time, and a template
-// literal is not statically analyzable — which is why the chips rendered with
-// their colour but none of their geometry.
-const CHIP_CLASSES = {
-  active: {
-    wide: "h-9 flex-row items-center justify-center gap-1.5 rounded-full bg-primary px-3.5",
-    icon: "h-9 w-9 flex-row items-center justify-center gap-1.5 rounded-full bg-primary",
+const styles = StyleSheet.create({
+  base: {
+    height: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 999,
   },
-  idle: {
-    wide: "h-9 flex-row items-center justify-center gap-1.5 rounded-full border border-border px-3.5",
-    icon: "h-9 w-9 flex-row items-center justify-center gap-1.5 rounded-full border border-border",
-  },
-} as const
+  wide: { paddingHorizontal: 14 },
+  icon: { width: 36 },
+  idle: { borderWidth: 1 },
+})
 
 export function Chip({
   label,
@@ -52,14 +53,24 @@ export function Chip({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
-      className={CHIP_CLASSES[active ? "active" : "idle"][iconOnly ? "icon" : "wide"]}
+      style={[
+        styles.base,
+        iconOnly ? styles.icon : styles.wide,
+        active
+          ? { backgroundColor: colors.primary }
+          : [styles.idle, { borderColor: colors.border }],
+      ]}
     >
       <Icon size={15} color={foreground} />
       {iconOnly ? null : (
         <Text
           numberOfLines={1}
-          className="text-[13px] font-medium"
-          style={{ color: foreground, includeFontPadding: false }}
+          style={{
+            color: foreground,
+            fontSize: 13,
+            fontFamily: "Geist-Medium",
+            includeFontPadding: false,
+          }}
         >
           {label}
         </Text>
