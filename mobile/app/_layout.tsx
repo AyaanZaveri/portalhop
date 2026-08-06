@@ -1,7 +1,7 @@
 import "../global.css"
 
 import { useEffect, useState } from "react"
-import { useColorScheme } from "nativewind"
+import { Uniwind, useUniwind } from "uniwind"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
@@ -40,8 +40,8 @@ const queryClient = new QueryClient({
 })
 
 export default function RootLayout() {
-  const { colorScheme, setColorScheme } = useColorScheme()
-  const isDark = colorScheme === "dark"
+  const { theme } = useUniwind()
+  const isDark = theme === "dark"
   const tokens = isDark ? darkTokens : lightTokens
 
   const [themeLoaded, setThemeLoaded] = useState(false)
@@ -52,16 +52,16 @@ export default function RootLayout() {
     let cancelled = false
     void loadThemePreference().then((preference) => {
       if (cancelled) return
-      setColorScheme(preference)
+      Uniwind.setTheme(preference)
       setThemeLoaded(true)
     })
     return () => {
       cancelled = true
     }
-  }, [setColorScheme])
+  }, [])
 
-  // Registered under the names tailwind.config.js maps to. Each weight is its
-  // own family because Android does not synthesise bold.
+  // Registered under the names global.css's @theme maps to. Each weight is
+  // its own family because Android does not synthesise bold.
   const [fontsLoaded, fontError] = useFonts({
     "Geist-Regular": Geist_400Regular,
     "Geist-Medium": Geist_500Medium,
