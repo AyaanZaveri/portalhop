@@ -17,7 +17,7 @@ import { ChannelRow } from "@/components/channel-row"
 
 export default function ChannelListScreen() {
   const insets = useSafeAreaInsets()
-  const { colors } = useTheme()
+  const { colors, iconPrimary } = useTheme()
   const { data: session, isPending: sessionPending } = useSession()
   const signedIn = Boolean(session?.user)
 
@@ -106,7 +106,7 @@ export default function ChannelListScreen() {
           stays as a small brand mark. */}
       <View className="gap-3 px-4 pt-1 pb-2">
         <View className="h-10 flex-row items-center gap-2">
-          <Rabbit size={22} color={colors.primary} />
+          <Rabbit size={22} color={iconPrimary} />
           <Text
             className="flex-1 font-heading text-[22px] tracking-tight text-foreground"
             style={{ includeFontPadding: false }}
@@ -120,8 +120,9 @@ export default function ChannelListScreen() {
           className="h-11 flex-row items-center gap-2 rounded-lg border px-3"
           style={{ borderColor: colors.border }}
         >
-          {/* Colour comes from a prop, not a class: NativeWind does not style
-              lucide's icons, so className left them at the default colour. */}
+          {/* lucide's icons take a colour prop rather than a class. Wrapping
+              them with Uniwind's withUniwind would allow className here; worth
+              doing once there are more than a handful. */}
           <Search size={17} color={colors["muted-foreground"]} />
           <TextInput
             value={query}

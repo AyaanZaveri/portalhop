@@ -1,5 +1,5 @@
 import { forwardRef, useCallback } from "react"
-import { Text, View, useColorScheme } from "react-native"
+import { Text, View } from "react-native"
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -9,7 +9,7 @@ import {
 import { Check, LayoutGrid, Tv } from "lucide-react-native"
 
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
-import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
+import { useTheme } from "@/lib/theme"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 // The standard gorhom arrangement — a plain bottom sheet, not the web app's
@@ -22,8 +22,7 @@ export const PortalFilterSheet = forwardRef<
     onChange: (ids: Set<number>) => void
   }
 >(function PortalFilterSheet({ portals, selectedIds, onChange }, ref) {
-  const isDark = useColorScheme() === "dark"
-  const tokens = isDark ? darkTokens : lightTokens
+  const { colors: tokens, iconPrimary } = useTheme()
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -53,9 +52,10 @@ export const PortalFilterSheet = forwardRef<
       handleIndicatorStyle={{ backgroundColor: tokens["muted-foreground"] }}
     >
       <BottomSheetView className="gap-1 px-4 pt-2 pb-8">
-        <Text className="mb-1 font-heading text-lg text-foreground">Portals</Text>
-        <Text className="mb-3 text-sm text-muted-foreground">
-          Choose which sources the channel list draws from.
+        {/* No description: the rows say what they do, and a sentence explaining
+            a list of portals is just something to read past. */}
+        <Text className="mb-3 font-heading text-[22px] tracking-tight text-foreground">
+          Portals
         </Text>
 
         <PressableScale
@@ -63,7 +63,7 @@ export const PortalFilterSheet = forwardRef<
           onPress={() => onChange(new Set())}
           className="h-11 flex-row items-center gap-2 rounded-md px-2"
         >
-          <LayoutGrid size={16} color={tokens.primary} />
+          <LayoutGrid size={16} color={iconPrimary} />
           <Text className="flex-1 font-mono-medium text-[15px] text-foreground">
             All Portals
           </Text>
@@ -79,7 +79,7 @@ export const PortalFilterSheet = forwardRef<
             onPress={() => toggle(portal.id)}
             className="h-11 flex-row items-center gap-2 rounded-md px-2"
           >
-            <Tv size={16} color={tokens.primary} />
+            <Tv size={16} color={iconPrimary} />
             <Text
               numberOfLines={1}
               className="flex-1 font-mono-medium text-[15px] text-foreground"

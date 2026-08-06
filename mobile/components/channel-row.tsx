@@ -61,7 +61,9 @@ export const ChannelRow = memo(function ChannelRow({
         <Text
           numberOfLines={1}
           className="text-xs text-muted-foreground"
-          style={{ lineHeight: 15, includeFontPadding: false }}
+          // 2pt of separation, on top of the line heights: without it the
+          // two lines read as one block.
+          style={{ lineHeight: 15, includeFontPadding: false, marginTop: 2 }}
         >
           {channel.genre || "Uncategorized"}
         </Text>
