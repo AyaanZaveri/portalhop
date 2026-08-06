@@ -642,6 +642,15 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
               backBufferLength: 90,
             }}
             preload="auto"
+            // A 1x1 transparent GIF. With no poster and no decoded frame yet,
+            // Chromium on Android paints its own placeholder — a black play
+            // glyph in a circle on a light panel, scaled to fill the element —
+            // which sits over the player for as long as the stream takes to
+            // start. Hiding the control pseudo-elements doesn't reach it,
+            // because it is the poster frame rather than a control. Any poster
+            // replaces it, and a transparent one leaves the black container
+            // showing until the first frame arrives.
+            poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
             targetLiveWindow={30}
             // "any" rather than a bare autoPlay: a plain boolean calls play()
             // and swallows the rejection, so a reload — which has no user
