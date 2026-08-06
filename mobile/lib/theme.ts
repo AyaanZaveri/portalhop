@@ -3,7 +3,7 @@ import { useColorScheme } from "nativewind"
 
 import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 
-import { setStoredTheme } from "./preferences"
+import { saveThemePreference } from "./preferences"
 
 /**
  * The active palette, plus a toggle.
@@ -20,7 +20,7 @@ export function useTheme() {
   const toggle = useCallback(() => {
     const next = isDark ? "light" : "dark"
     setColorScheme(next)
-    setStoredTheme(next)
+    void saveThemePreference(next)
   }, [isDark, setColorScheme])
 
   return { isDark, colors: isDark ? darkTokens : lightTokens, toggle }

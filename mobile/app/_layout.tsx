@@ -24,7 +24,7 @@ import { Toaster } from "sonner-native"
 
 import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 
-import { getStoredTheme } from "@/lib/preferences"
+import { loadThemePreference } from "@/lib/preferences"
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
@@ -44,9 +44,21 @@ export default function RootLayout() {
   const isDark = colorScheme === "dark"
   const tokens = isDark ? darkTokens : lightTokens
 
-  // Applied once, synchronously from MMKV, before anything paints — an async
-  // read would show the system scheme first and then snap to the saved one.
-  useState(() => setColorScheme(getStoredTheme()))
+  const [themeLoaded, setThemeLoaded] = useState(false)
+
+  // Resolved before the splash comes down, so the saved scheme is already in
+  // place on the first frame rather than snapping a moment later.
+  useEffect(() => {
+    let cancelled = false
+    void loadThemePreference().then((preference) => {
+      if (cancelled) return
+      setColorScheme(preference)
+      setThemeLoaded(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [setColorScheme])
 
   // Registered under the names tailwind.config.js maps to. Each weight is its
   // own family because Android does not synthesise bold.
@@ -62,10 +74,11 @@ export default function RootLayout() {
   useEffect(() => {
     // Hide only once the fonts have resolved, so the first paint isn't a
     // fallback typeface swapping under the user a frame later.
-    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {})
-  }, [fontsLoaded, fontError])
+    if ((fontsLoaded || fontError) && themeLoaded)
+      SplashScreen.hideAsync().catch(() => {})
+  }, [fontsLoaded, fontError, themeLoaded])
 
-  if (!fontsLoaded && !fontError) return null
+  if ((!fontsLoaded && !fontError) || !themeLoaded) return null
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
