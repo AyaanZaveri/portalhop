@@ -3,18 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import {
-  CheckIcon,
   DicesIcon,
-  LaptopMinimalIcon,
   LogInIcon,
   Loader2Icon,
   LogOutIcon,
-  MoonIcon,
   SettingsIcon,
-  SunIcon,
-  SunMoonIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
 import { toast } from "sonner"
 
 import { authClient, clearStoredSession } from "@/lib/auth-client"
@@ -25,16 +19,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  ResponsiveMenu,
+  ResponsiveMenuContent,
+  ResponsiveMenuGroup,
+  ResponsiveMenuItem,
+  ResponsiveMenuSeparator,
+  ResponsiveMenuTrigger,
+} from "@/components/ui/responsive-menu"
+import { ThemeSegmentedControl } from "@/components/theme-segmented-control"
 import {
   Dialog,
   DialogContent,
@@ -266,8 +258,6 @@ function AccountMenu({
 }) {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isShuffling, setIsShuffling] = React.useState(false)
-  const { theme, setTheme } = useTheme()
-  const currentTheme = theme ?? "system"
 
   async function signOut() {
     setIsSigningOut(true)
@@ -309,8 +299,8 @@ function AccountMenu({
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <ResponsiveMenu>
+      <ResponsiveMenuTrigger
         render={
           <Button
             variant="ghost"
@@ -321,8 +311,8 @@ function AccountMenu({
         }
       >
         <UserAvatar user={user} className="size-5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
+      </ResponsiveMenuTrigger>
+      <ResponsiveMenuContent align="end" title="Account" className="w-60">
         <div className="flex min-w-0 items-center gap-2 px-1 py-1.5 text-left text-sm">
           <UserAvatar user={user} className="size-8" />
           <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
@@ -336,14 +326,21 @@ function AccountMenu({
             ) : null}
           </div>
         </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
+        <ResponsiveMenuSeparator />
+        {/* A segmented control rather than the submenu this used to be: the
+            active theme is visible without opening anything, and switching is
+            one tap instead of two — which mattered most on touch, where a
+            submenu has no good gesture at all. */}
+        <div className="px-1 py-1.5">
+          <ThemeSegmentedControl />
+        </div>
+        <ResponsiveMenuSeparator />
+        <ResponsiveMenuGroup>
           {showAvatarControls ? (
-            <DropdownMenuItem
+            <ResponsiveMenuItem
               closeOnClick={false}
               disabled={isShuffling}
               onClick={shuffleAvatar}
-              className="py-1.5"
             >
               {isShuffling ? (
                 <Loader2Icon className="animate-spin" />
@@ -351,62 +348,26 @@ function AccountMenu({
                 <DicesIcon />
               )}
               <span>Shuffle avatar</span>
-            </DropdownMenuItem>
+            </ResponsiveMenuItem>
           ) : null}
           {!hideSettings ? (
-            <DropdownMenuItem
-              render={<Link href="/settings" />}
-              className="py-1.5"
-            >
+            <ResponsiveMenuItem render={<Link href="/settings" />}>
               <SettingsIcon />
               <span>Settings</span>
-            </DropdownMenuItem>
+            </ResponsiveMenuItem>
           ) : null}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="py-1.5">
-              <SunMoonIcon />
-              <span>Theme</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => setTheme("light")} className="py-1.5">
-                <SunIcon />
-                <span>Light</span>
-                {currentTheme === "light" ? (
-                  <CheckIcon className="ml-auto" />
-                ) : null}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark")} className="py-1.5">
-                <MoonIcon />
-                <span>Dark</span>
-                {currentTheme === "dark" ? (
-                  <CheckIcon className="ml-auto" />
-                ) : null}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("system")} className="py-1.5">
-                <LaptopMinimalIcon />
-                <span>System</span>
-                {currentTheme === "system" ? (
-                  <CheckIcon className="ml-auto" />
-                ) : null}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={isSigningOut}
-          onClick={signOut}
-          className="py-1.5"
-        >
+        </ResponsiveMenuGroup>
+        <ResponsiveMenuSeparator />
+        <ResponsiveMenuItem disabled={isSigningOut} onClick={signOut}>
           {isSigningOut ? (
-            <Loader2Icon className="size-4 animate-spin" />
+            <Loader2Icon className="animate-spin" />
           ) : (
-            <LogOutIcon className="size-4" />
+            <LogOutIcon />
           )}
           Sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </ResponsiveMenuItem>
+      </ResponsiveMenuContent>
+    </ResponsiveMenu>
   )
 }
 
