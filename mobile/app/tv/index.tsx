@@ -52,19 +52,20 @@ export default function ChannelListScreen() {
   const [filter, setFilter] = useState<BrowseFilter>({ type: "all" })
 
   const { data: portals, error: portalsError } = usePortals(signedIn)
-  // First cut loads one source. Merging every enabled source is the next step;
-  // it needs the same enabled-ids logic the web provider has.
-  const activePortal = useMemo(() => {
-    if (!portals?.length) return undefined
-    if (!selectedPortalIds.size) return portals[0]
-    return portals.find((p) => selectedPortalIds.has(p.id)) ?? portals[0]
+
+  // An empty selection means "All Portals", not "none" — the sheet offers it as
+  // the default and every source should be in view until one is singled out.
+  const activePortals = useMemo(() => {
+    if (!portals?.length) return []
+    if (!selectedPortalIds.size) return portals
+    return portals.filter((portal) => selectedPortalIds.has(portal.id))
   }, [portals, selectedPortalIds])
 
   const {
-    data: channels,
+    channels: withSource,
     isPending: channelsPending,
     error: channelsError,
-  } = usePortalChannels(activePortal)
+  } = usePortalChannels(activePortals)
 
   const { data: favorites } = useFavorites(signedIn)
   const { data: groups } = useFavoriteGroups(signedIn)
@@ -74,22 +75,11 @@ export default function ChannelListScreen() {
   useEffect(() => {
     console.log(
       `[portalhop] signedIn=${signedIn} portals=${portals?.length ?? "—"} ` +
-        `active=${activePortal?.name ?? "none"} channels=${channels?.length ?? "—"}` +
+        `active=${activePortals.length} channels=${withSource.length}` +
         (portalsError ? ` portalsError=${portalsError.message}` : "") +
         (channelsError ? ` channelsError=${channelsError.message}` : ""),
     )
-  }, [signedIn, portals, activePortal, channels, portalsError, channelsError])
-
-  const withSource = useMemo<PortalChannelWithSource[]>(
-    () =>
-      (channels ?? []).map((channel) => ({
-        ...channel,
-        portalSource: activePortal
-          ? { id: activePortal.id, name: activePortal.name }
-          : undefined,
-      })),
-    [channels, activePortal],
-  )
+  }, [signedIn, portals, activePortals, withSource, portalsError, channelsError])
 
   // Derived from everything in the source, not from what the chip currently
   // shows — otherwise picking a category would empty the category list.
@@ -251,7 +241,7 @@ export default function ChannelListScreen() {
             {query
               ? "No channels match."
               : portals?.length
-                ? `No channels in ${activePortal?.name ?? "this source"}.`
+                ? "No channels in the selected sources."
                 : "No sources yet — add one on the web app."}
           </Text>
         </View>
