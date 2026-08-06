@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react"
 
-import type { EpgProgramme } from "@/lib/stalker-types"
+import type { EpgProgramme } from "@portalhop/shared/stalker-types"
 import type { PortalChannelWithSource } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
 import { apiFetch } from "@/lib/api-fetch"

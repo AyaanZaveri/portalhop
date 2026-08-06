@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { selectSavedSource } from "@/db/saved-sources"
 import { savedChannels } from "@/db/schema"
-import { readErrorDetails } from "@/lib/errors"
+import { readErrorDetails } from "@portalhop/shared/errors"
 import { resolveStalkerChannelLink } from "@/lib/stalker-link"
 
 export const runtime = "nodejs"

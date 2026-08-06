@@ -17,7 +17,9 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@lucide/lab": "^0.1.2",
         "@mux/mux-video-react": "^0.31.0",
+        "@mux/playback-core": "0.35.0",
         "@paper-design/shaders-react": "^0.0.76",
+        "@portalhop/shared": "workspace:*",
         "@tanstack/react-virtual": "^3.14.3",
         "ai": "^6.0.208",
         "better-auth": "^1.6.19",
@@ -59,6 +61,10 @@
         "tailwindcss": "^4",
         "typescript": "^5",
       },
+    },
+    "packages/shared": {
+      "name": "@portalhop/shared",
+      "version": "0.0.0",
     },
   },
   "packages": {
@@ -351,6 +357,8 @@
     "@paper-design/shaders": ["@paper-design/shaders@0.0.76", "", {}, "sha512-AcNDY4J66YQHUfQYFInkCP7M9VOje0od7wLpOR7LtCmc532opJy6ll+h1W9zBovz8tt9U7OADUmJ/qKEXyOX/A=="],
 
     "@paper-design/shaders-react": ["@paper-design/shaders-react@0.0.76", "", { "dependencies": { "@paper-design/shaders": "0.0.76" }, "peerDependencies": { "@types/react": "^18 || ^19", "react": "^18 || ^19" } }, "sha512-uPJWrYRf6cJdO2H+fuXlahaqz0QjYglNAyUTaRfIInpzCa/d6guxBIK003soAZQFuQ035yg9FhtfFzKNWm+a5A=="],
+
+    "@portalhop/shared": ["@portalhop/shared@workspace:packages/shared"],
 
     "@rtsao/scc": ["@rtsao/scc@1.1.0", "", {}, "sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g=="],
 

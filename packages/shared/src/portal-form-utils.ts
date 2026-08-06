@@ -1,5 +1,5 @@
-import type { SourceType } from "@/lib/source-types"
-import type { EpgMode } from "@/lib/source-types"
+import type { SourceType } from "./source-types"
+import type { EpgMode } from "./source-types"
 
 export function readSourceType(value: unknown): SourceType {
   return value === "xtream" || value === "m3u" ? value : "stalker"

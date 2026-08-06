@@ -19,7 +19,7 @@ import {
   readEpgSourceId,
   readSourceType,
   stringValue,
-} from "@/lib/portal-form-utils"
+} from "@portalhop/shared/portal-form-utils"
 import { requireUser } from "@/lib/session"
 
 export const runtime = "nodejs"

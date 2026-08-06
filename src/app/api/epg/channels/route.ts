@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEpgChannels } from "@/lib/epg-store";
-import { rankEpgMatches } from "@/lib/epg-search";
+import { rankEpgMatches } from "@portalhop/shared/epg-search";
 import { getUserEpgChannelMaps } from "@/lib/user-epg-store";
 import { requireUser } from "@/lib/session";
 

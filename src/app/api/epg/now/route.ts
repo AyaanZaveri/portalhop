@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { selectUserEpgSource } from "@/db/user-epg-sources"
 import { getDb } from "@/db/client"
-import { EPG_SOURCES } from "@/lib/epg-sources"
+import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
 import { fetchEpgWindow, type EpgWindow } from "@/lib/epg-parser"
 import { requireUser } from "@/lib/session"
 

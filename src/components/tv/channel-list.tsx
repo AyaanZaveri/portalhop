@@ -95,7 +95,7 @@ import {
   type PortalChannelWithSource,
   type PortalSource,
 } from "@/lib/tv-channels"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { useEpgNow } from "@/hooks/use-epg-now"
 import { useTv } from "@/components/tv/tv-provider"
 

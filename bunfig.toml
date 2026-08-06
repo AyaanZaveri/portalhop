@@ -1,0 +1,10 @@
+# Adding workspaces flipped bun to isolated installs, which moves packages to
+# node_modules/.bun/<name>@<version>+<hash>/. Capacitor's `cap sync` writes
+# whatever path it resolves into android/capacitor.settings.gradle, so those
+# hashes ended up committed — and they change on every install, which would
+# break the Android CI build on a different machine.
+#
+# Hoisted linking restores the flat node_modules layout the Android tooling
+# expects. Revisit once Capacitor is retired.
+[install]
+linker = "hoisted"

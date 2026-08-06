@@ -1,7 +1,7 @@
-import type { PortalChannel, PortalResponse } from "@/lib/stalker-types"
-import type { SavedSourceRecord, SourceRequest } from "@/lib/source-types"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
+import type { SavedSourceRecord, SourceRequest } from "@portalhop/shared/source-types"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {
   getCachedPortalChannels,
   setCachedPortalChannels,

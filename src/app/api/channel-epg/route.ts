@@ -11,8 +11,8 @@ import {
   getEndpointCandidates,
   normalizePortalRequest,
 } from "@/lib/stalker-client"
-import type { SourceType } from "@/lib/source-types"
-import type { EpgProgramme, PortalRequest } from "@/lib/stalker-types"
+import type { SourceType } from "@portalhop/shared/source-types"
+import type { EpgProgramme, PortalRequest } from "@portalhop/shared/stalker-types"
 
 type EpgRequest = PortalRequest & {
   sourceType?: SourceType

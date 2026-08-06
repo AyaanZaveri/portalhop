@@ -6,7 +6,7 @@ import { authClient } from "@/lib/auth-client"
 import {
   DEFAULT_USER_SETTINGS,
   type UserSettingsData,
-} from "@/lib/user-settings"
+} from "@portalhop/shared/user-settings"
 import { apiFetch } from "@/lib/api-fetch"
 
 type UseUserSettings = {

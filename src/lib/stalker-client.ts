@@ -3,7 +3,7 @@ import type {
   PortalChannel,
   PortalRequest,
   PortalResponse,
-} from "@/lib/stalker-types"
+} from "@portalhop/shared/stalker-types"
 
 type StalkerEnvelope = {
   js?: unknown

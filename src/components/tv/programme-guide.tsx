@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProgrammeCategoryIcon } from "@/components/programme-category-icon"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { cn } from "@/lib/utils"
-import type { EpgProgramme } from "@/lib/stalker-types"
+import type { EpgProgramme } from "@portalhop/shared/stalker-types"
 import {
   formatScheduleDate,
   formatTimeRange,

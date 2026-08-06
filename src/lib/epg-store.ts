@@ -3,9 +3,9 @@ import { desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { epgChannels, epgCountries } from "@/db/schema";
 import type { NewEpgChannelRow } from "@/db/schema";
-import { EPG_SOURCES } from "@/lib/epg-sources";
+import { EPG_SOURCES } from "@portalhop/shared/epg-sources";
 import type { EpgChannel } from "@/lib/epg-parser";
-import { normalizeXmltvId } from "@/lib/xmltv-id";
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id";
 
 export interface EpgManifest {
   lastFetchedAt: number | null;

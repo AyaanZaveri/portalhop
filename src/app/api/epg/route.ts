@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { EPG_SOURCES } from "@/lib/epg-sources";
+import { EPG_SOURCES } from "@portalhop/shared/epg-sources";
 import { fetchAndParseEpg } from "@/lib/epg-parser";
 import { saveEpgChannels, getEpgManifest } from "@/lib/epg-store";
 

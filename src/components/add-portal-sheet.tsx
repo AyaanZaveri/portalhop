@@ -60,13 +60,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import type { PortalRequest, PortalResponse } from "@/lib/stalker-types"
+import type { PortalRequest, PortalResponse } from "@portalhop/shared/stalker-types"
 import type {
   SavedSourceRecord,
   SourceRequest,
   SourceType,
   EpgMode,
-} from "@/lib/source-types"
+} from "@portalhop/shared/source-types"
 import { useTheme } from "next-themes"
 import { apiFetch } from "@/lib/api-fetch"
 

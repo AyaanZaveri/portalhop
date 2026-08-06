@@ -19,7 +19,7 @@ import { toast } from "sonner"
 
 import { authClient, clearStoredSession } from "@/lib/auth-client"
 import { generatedAvatarUrl, randomAvatarSeed } from "@/lib/avatar"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

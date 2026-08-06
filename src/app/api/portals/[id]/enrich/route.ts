@@ -24,7 +24,7 @@ import {
   type RerankItem,
 } from "@/lib/channel-enrich-ai"
 import { getEpgChannels } from "@/lib/epg-store"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 export const runtime = "nodejs"
 export const maxDuration = 300

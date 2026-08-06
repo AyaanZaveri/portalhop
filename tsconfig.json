@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@portalhop/shared": ["./packages/shared/src/index.ts"],
+      "@portalhop/shared/*": ["./packages/shared/src/*"]
     }
   },
   "include": [
@@ -30,5 +32,6 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "comment": "packages/shared is deliberately inside the web typecheck — if shared stops compiling under the web app's settings, that is a break worth catching here. mobile/ is excluded: it carries React Native types that conflict with the DOM lib above.",
+  "exclude": ["node_modules", "mobile"]
 }

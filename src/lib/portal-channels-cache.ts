@@ -1,4 +1,4 @@
-import type { PortalChannel } from "@/lib/stalker-types"
+import type { PortalChannel } from "@portalhop/shared/stalker-types"
 
 // Caches each saved source's channel list in IndexedDB, keyed by source id,
 // so a normal page refresh doesn't re-download every enabled portal's full

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { selectSavedSource } from "@/db/saved-sources"
 import { savedChannels } from "@/db/schema"
-import { escapeM3uAttribute, filenameSafe, m3uExtinf } from "@/lib/m3u-export"
+import { escapeM3uAttribute, filenameSafe, m3uExtinf } from "@portalhop/shared/m3u-export"
 
 export const runtime = "nodejs"
 

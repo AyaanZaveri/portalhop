@@ -4,7 +4,7 @@ import { userSettings } from "@/db/schema"
 import {
   DEFAULT_USER_SETTINGS,
   type UserSettingsData,
-} from "@/lib/user-settings"
+} from "@portalhop/shared/user-settings"
 
 type Db = ReturnType<typeof import("@/db/client").getDb>
 

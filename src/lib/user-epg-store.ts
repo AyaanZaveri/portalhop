@@ -4,7 +4,7 @@ import { getDb } from "@/db/client"
 import { userEpgChannels, userEpgSources } from "@/db/schema"
 import type { NewUserEpgChannelRow } from "@/db/schema"
 import { fetchAndParseEpg, type EpgChannel } from "@/lib/epg-parser"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 const INSERT_CHUNK_SIZE = 1000
 

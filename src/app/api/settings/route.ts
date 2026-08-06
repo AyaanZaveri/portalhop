@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { getUserSettings, updateUserSettings } from "@/db/user-settings"
 import { requireUser } from "@/lib/session"
-import { sanitizeSettingsPatch } from "@/lib/user-settings"
+import { sanitizeSettingsPatch } from "@portalhop/shared/user-settings"
 
 export const runtime = "nodejs"
 
