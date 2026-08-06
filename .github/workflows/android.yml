@@ -11,6 +11,13 @@ on:
   # So a build can be kicked off without pushing.
   workflow_dispatch:
 
+# A push and a manual run landing together left two builds competing for a
+# runner, and one would be cancelled seemingly at random. Superseding the older
+# run makes that deliberate, and the newer commit is the one worth building.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
