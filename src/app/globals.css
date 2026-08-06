@@ -259,6 +259,31 @@
   padding-block-end: calc(var(--inset-bottom) + 1rem);
 }
 
+/* The player draws its own controls, so Chromium's built-in ones are only ever
+   in the way. Android's WebView is the one that shows them unprompted: it
+   renders a large centred start-playback button — a black play glyph on a light
+   panel — over any video that has not begun, which covers the stream while it
+   loads. Desktop Chrome never draws these without a `controls` attribute, so
+   this is inert there.
+
+   The Media Session metadata the player sets for lock-screen and notification
+   controls is a separate mechanism and is unaffected. */
+video::-webkit-media-controls,
+video::-webkit-media-controls-enclosure,
+video::-webkit-media-controls-panel,
+video::-webkit-media-controls-overlay-play-button,
+video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Until the first frame decodes the element paints its default background,
+   which is white and flashes against a dark player. */
+video {
+  background-color: #000;
+}
+
 /* Sheet controls are sized for a cursor: the default button is 32px tall and
    even `lg` is only 36px, against Android's 48dp guidance and iOS's 44pt. One
    rule here rather than a size on every button, so sheets built later can't
