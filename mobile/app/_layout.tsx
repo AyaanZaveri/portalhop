@@ -3,7 +3,12 @@ import "../global.css"
 import { useEffect, useState } from "react"
 import { Uniwind, useUniwind } from "uniwind"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { AppState } from "react-native"
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query"
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core"
 import {
   Geist_400Regular,
@@ -75,6 +80,26 @@ export default function RootLayout() {
   const tokens = isDark ? darkTokens : lightTokens
 
   const [themeLoaded, setThemeLoaded] = useState(false)
+
+  /**
+   * Bringing the app back to the foreground counts as a refocus.
+   *
+   * On the web this is free — the browser fires focus events and TanStack
+   * refetches stale queries on its own. React Native has no such event, and
+   * resuming from the background remounts nothing, so without this the app
+   * could sit on a week-old list until it was force quit.
+   *
+   * What this actually costs is three small requests, and only past the stale
+   * window: the portal list, favourites and groups. Catalogues are keyed by
+   * their source's updatedAt, so they come down only when one has genuinely
+   * been re-synced.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (status) => {
+      focusManager.setFocused(status === "active")
+    })
+    return () => subscription.remove()
+  }, [])
 
   // Re-syncing a source gives its catalogue a new key, so the row holding the
   // previous one is never read again — nothing else would ever delete it.

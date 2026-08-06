@@ -27,18 +27,25 @@ export function useFavorites(enabled: boolean) {
     enabled,
   })
 
-  // The Set is built here rather than in a `select`. An inline select is a new
-  // function every render, so TanStack re-runs it and hands back a new Set each
-  // time — which changed the identity of a dependency the channel filter is
-  // memoized on, and made that filter re-run on every single render rather than
-  // when the filter actually changed.
+  // The array is the user's manual order (the API sorts by `position`), and the
+  // Set is for membership tests. Both are built here rather than in a `select`:
+  // an inline select is a new function every render, so TanStack re-runs it and
+  // hands back new objects each time — which changed the identity of a
+  // dependency the channel filter is memoized on, and made that filter re-run
+  // on every single render rather than when the filter actually changed.
+  const favoriteKeys = query.data?.favorites
   const favorites = useMemo(
-    () => new Set(query.data?.favorites ?? []),
-    [query.data],
+    () => ({
+      keys: favoriteKeys ?? [],
+      set: new Set(favoriteKeys ?? []),
+    }),
+    [favoriteKeys],
   )
 
   return { favorites, isPending: query.isPending }
 }
+
+export type Favorites = { keys: string[]; set: Set<string> }
 
 export function useFavoriteGroups(enabled: boolean) {
   return useQuery({
@@ -84,17 +91,23 @@ export function useCategories(channels: PortalChannelWithSource[]) {
 /** Applies the active chip's filter to the channel list. */
 export function applyBrowseFilter(
   channels: PortalChannelWithSource[],
+  byKey: Map<string, PortalChannelWithSource>,
   filter: BrowseFilter,
-  favorites: Set<string> | undefined,
+  favorites: Favorites | undefined,
   groups: FavoriteGroup[] | undefined,
 ) {
   switch (filter.type) {
     case "all":
       return channels
 
+    // Walks the saved keys rather than the catalogue, so the rows come out in
+    // the order the user arranged them. A key with no channel behind it is
+    // skipped: a source can be removed while its favourites remain.
     case "favorites": {
-      if (!favorites?.size) return []
-      return channels.filter((channel) => favorites.has(channel.key))
+      if (!favorites?.keys.length) return []
+      return favorites.keys
+        .map((key) => byKey.get(key))
+        .filter((channel): channel is PortalChannelWithSource => Boolean(channel))
     }
 
     case "category":
@@ -105,11 +118,13 @@ export function applyBrowseFilter(
             (channel.portalSource?.id ?? 0) === filter.sourceId),
       )
 
+    // Same again — a group carries its own per-group ordering.
     case "favoriteGroup": {
       const group = groups?.find((entry) => entry.id === filter.groupId)
       if (!group) return []
-      const keys = new Set(group.channelKeys)
-      return channels.filter((channel) => keys.has(channel.key))
+      return group.channelKeys
+        .map((key) => byKey.get(key))
+        .filter((channel): channel is PortalChannelWithSource => Boolean(channel))
     }
   }
 }

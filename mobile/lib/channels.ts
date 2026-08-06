@@ -96,8 +96,19 @@ export function usePortalChannels(portals: SavedSourceRecord[]) {
     [signature],
   )
 
+  // Favourites and groups are stored as an ordered list of keys, so they are
+  // resolved by lookup rather than by filtering the catalogue — that is what
+  // keeps the user's manual order instead of replacing it with catalogue order,
+  // and it costs one pass over the favourites rather than one over all 59k.
+  const byKey = useMemo(() => {
+    const index = new Map<string, PortalChannelWithSource>()
+    for (const channel of channels) index.set(channel.key, channel)
+    return index
+  }, [channels])
+
   return {
     channels,
+    byKey,
     /**
      * Held until every source has settled, rather than showing whichever
      * arrived first.

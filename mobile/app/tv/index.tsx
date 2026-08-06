@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Text, TextInput, View } from "react-native"
 import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList } from "@shopify/flash-list"
+import { useQueryClient } from "@tanstack/react-query"
 import { router } from "expo-router"
 import {
   FolderHeart,
@@ -70,6 +71,32 @@ export default function ChannelListScreen() {
     }
   }, [])
 
+  /**
+   * Pull to refresh.
+   *
+   * Only the three small queries are invalidated, never the catalogues
+   * directly. A catalogue is keyed by its source's updatedAt, so re-reading the
+   * portal list is what discovers that a source changed — and then only the
+   * sources that actually did refetch. Invalidating them by hand would pull
+   * roughly 9MB down every time the user tugged the list, to arrive at the same
+   * answer.
+   */
+  const queryClient = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["portals"] }),
+        queryClient.invalidateQueries({ queryKey: ["favorites"] }),
+        queryClient.invalidateQueries({ queryKey: ["favorite-groups"] }),
+      ])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [queryClient])
+
   const changeSelectedPortals = useCallback((ids: Set<number>) => {
     setSelectedPortalIds(ids)
     void saveSelectedPortalIds(ids)
@@ -91,6 +118,7 @@ export default function ChannelListScreen() {
 
   const {
     channels: withSource,
+    byKey,
     isPending: channelsPending,
     isFetching: channelsFetching,
     error: channelsError,
@@ -115,11 +143,11 @@ export default function ChannelListScreen() {
   const categories = useCategories(withSource)
 
   const visible = useMemo(() => {
-    const filtered = applyBrowseFilter(withSource, filter, favorites, groups)
+    const filtered = applyBrowseFilter(withSource, byKey, filter, favorites, groups)
     const q = query.trim().toLowerCase()
     if (!q) return filtered
     return filtered.filter((channel) => channel.searchName.includes(q))
-  }, [withSource, filter, favorites, groups, query])
+  }, [withSource, byKey, filter, favorites, groups, query])
 
   const openChannel = useCallback((channel: PortalChannelWithSource) => {
     router.push(`/tv/${encodeURIComponent(channelSlug(channel))}`)
@@ -322,6 +350,8 @@ export default function ChannelListScreen() {
           keyExtractor={channelKey}
           renderItem={renderChannel}
           contentContainerStyle={listPadding}
+          refreshing={refreshing}
+          onRefresh={refresh}
         />
       )}
 
