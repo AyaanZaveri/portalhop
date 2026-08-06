@@ -5,6 +5,7 @@ import { Tv } from "lucide-react-native"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
+import { CategoryVisual } from "@/components/category-visual"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 // Tighter than the web's 84pt row: a phone shows far less at once, so padding
@@ -61,15 +62,25 @@ export const ChannelRow = memo(function ChannelRow({
         >
           {channel.name || `Channel ${channel.number}`}
         </Text>
-        <Text
-          numberOfLines={1}
-          className="text-xs text-muted-foreground"
-          // 2pt of separation, on top of the line heights: without it the
-          // two lines read as one block.
-          style={{ lineHeight: 15, includeFontPadding: false, marginTop: 2 }}
+        {/* 2pt of separation on top of the line heights: without it the two
+            lines read as one block. */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 5,
+            marginTop: 2,
+          }}
         >
-          {channel.genre || "Uncategorized"}
-        </Text>
+          <CategoryVisual category={channel.genre || "Uncategorized"} size={12} />
+          <Text
+            numberOfLines={1}
+            className="flex-1 text-xs text-muted-foreground"
+            style={{ lineHeight: 15, includeFontPadding: false }}
+          >
+            {channel.genre || "Uncategorized"}
+          </Text>
+        </View>
       </View>
     </PressableScale>
   )

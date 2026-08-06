@@ -1,12 +1,13 @@
 import { forwardRef, useMemo, useState } from "react"
 import { Text, TextInput, View } from "react-native"
 import { BottomSheetFlatList, type BottomSheetModal } from "@gorhom/bottom-sheet"
-import { Check, Search, Shapes } from "lucide-react-native"
+import { Check, Search } from "lucide-react-native"
 
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 
 import { useTheme } from "@/lib/theme"
 import type { CategoryEntry } from "@/lib/filters"
+import { CategoryVisual } from "@/components/category-visual"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { Sheet } from "@/components/ui/sheet"
 
@@ -18,7 +19,7 @@ export const CategoriesSheet = forwardRef<
     onSelect: (category: CategoryEntry) => void
   }
 >(function CategoriesSheet({ categories, filter, onSelect }, ref) {
-  const { colors, iconPrimary } = useTheme()
+  const { colors } = useTheme()
   const [search, setSearch] = useState("")
 
   const visible = useMemo(() => {
@@ -78,7 +79,7 @@ export const CategoriesSheet = forwardRef<
                   : "h-11 flex-row items-center gap-2 rounded-md px-2"
               }
             >
-              <Shapes size={16} color={iconPrimary} />
+              <CategoryVisual category={item.genre} />
               <Text
                 numberOfLines={1}
                 className="flex-1 font-mono-medium text-[15px] tracking-tight text-foreground"
