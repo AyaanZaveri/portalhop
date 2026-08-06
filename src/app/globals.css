@@ -232,10 +232,43 @@
 
 /* Bottom sheets reach the bottom of the screen rather than stopping above the
    gesture bar: a floating sheet leaves a strip of blurred backdrop below it
-   that reads as a misplaced sheet, where native ones run under the bar. Only
-   the content is inset, so nothing comes to rest beneath the bar itself. */
+   that reads as a misplaced sheet, where native ones run under the bar.
+
+   Their bottom corners take the display's own radius, published by
+   MainActivity, so the sheet ends on exactly the curve the hardware does
+   instead of pushing square corners into it and appearing clipped. */
 .native-app [data-slot="drawer-popup"][data-swipe-direction="down"] {
+  border-end-start-radius: var(--display-corner-radius, 0px);
+  border-end-end-radius: var(--display-corner-radius, 0px);
+}
+
+/* The inset goes on the scrollable content, not the sheet. Padding the sheet
+   shortens the viewport, which cuts the last row in half against a band of
+   flat background; padding the scroll container instead extends how far it
+   scrolls, so the last row can travel clear of the gesture bar. */
+.native-app
+  [data-slot="drawer-popup"][data-swipe-direction="down"]
+  [data-slot="scroll-area-viewport"] {
   padding-block-end: var(--inset-bottom);
+}
+
+/* Action rows don't scroll, so they take the inset directly. */
+.native-app
+  [data-slot="drawer-popup"][data-swipe-direction="down"]
+  [data-slot="drawer-footer"] {
+  padding-block-end: calc(var(--inset-bottom) + 1rem);
+}
+
+/* A 10px scrollbar is far too small a touch target: the drawer decides whether
+   a drag is a scroll or a dismiss by hit-testing the point under the finger,
+   and a near miss lands on a list row and dismisses the sheet. Widening the
+   track fixes the hit test and the ergonomics together; the thumb stays thin
+   because the extra width is padding. */
+@media (pointer: coarse) {
+  [data-slot="scroll-area-scrollbar"][data-orientation="vertical"] {
+    width: 1.5rem;
+    padding-inline: 0.5rem;
+  }
 }
 
 /* The status-bar inset already separates the header from the system clock, so
