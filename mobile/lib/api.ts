@@ -1,24 +1,7 @@
-import Constants from "expo-constants"
-import * as SecureStore from "expo-secure-store"
+import { authClient } from "./auth"
+import { apiBaseUrl } from "./config"
 
-// The app has no backend of its own — it calls the deployed Next.js instance,
-// exactly as the Capacitor build does. Configured per EAS profile via app.json's
-// `extra`, so a dev build can point at a LAN server without a code change.
-export const apiBaseUrl = String(
-  Constants.expoConfig?.extra?.apiBaseUrl ?? "https://portalhop.vercel.app",
-).replace(/\/$/, "")
-
-// better-auth's Expo plugin owns this key; we read it to authenticate the app's
-// own /api calls, which don't go through the auth client.
-const SESSION_KEY = "portalhop.session_token"
-
-export async function getSessionToken() {
-  try {
-    return await SecureStore.getItemAsync(SESSION_KEY)
-  } catch {
-    return null
-  }
-}
+export { apiBaseUrl }
 
 export class ApiError extends Error {
   constructor(
@@ -33,20 +16,22 @@ export class ApiError extends Error {
 /**
  * `fetch` for the app's own API routes.
  *
- * Native fetch sends no Origin header and isn't subject to CORS, so unlike the
- * web build there is nothing to negotiate — the bearer token is the whole story.
+ * Authentication is a Cookie header, not a bearer token. better-auth's Expo
+ * plugin keeps a cookie jar in SecureStore and replays it on the auth client's
+ * own calls; `getCookie()` is how anything else borrows the same session. The
+ * Capacitor build used bearer only because a webview cannot send a cross-site
+ * cookie — native fetch has no such restriction and no CORS to negotiate.
  */
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
-  const token = await getSessionToken()
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`)
-  }
+
+  const cookie = authClient.getCookie()
+  if (cookie && !headers.has("Cookie")) headers.set("Cookie", cookie)
 
   return fetch(`${apiBaseUrl}${path}`, { ...init, headers })
 }
 
-/** apiFetch plus JSON parsing and a thrown error for non-2xx. */
+/** apiFetch plus JSON parsing, throwing ApiError on a non-2xx. */
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(path, init)
 

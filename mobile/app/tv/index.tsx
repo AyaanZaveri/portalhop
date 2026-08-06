@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Text, TextInput, View } from "react-native"
 import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList } from "@shopify/flash-list"
@@ -25,7 +25,7 @@ export default function ChannelListScreen() {
   )
   const filterSheet = useRef<BottomSheetModal>(null)
 
-  const { data: portals } = usePortals(signedIn)
+  const { data: portals, error: portalsError } = usePortals(signedIn)
   // First cut loads one source. Merging every enabled source is the next step;
   // it needs the same enabled-ids logic the web provider has.
   const activePortal = useMemo(() => {
@@ -34,8 +34,22 @@ export default function ChannelListScreen() {
     return portals.find((p) => selectedPortalIds.has(p.id)) ?? portals[0]
   }, [portals, selectedPortalIds])
 
-  const { data: channels, isPending: channelsPending } =
-    usePortalChannels(activePortal)
+  const {
+    data: channels,
+    isPending: channelsPending,
+    error: channelsError,
+  } = usePortalChannels(activePortal)
+
+  // Loud on purpose while the data layer is new: a silent empty list gives no
+  // clue whether the request failed, returned nothing, or was never made.
+  useEffect(() => {
+    console.log(
+      `[portalhop] signedIn=${signedIn} portals=${portals?.length ?? "—"} ` +
+        `active=${activePortal?.name ?? "none"} channels=${channels?.length ?? "—"}` +
+        (portalsError ? ` portalsError=${portalsError.message}` : "") +
+        (channelsError ? ` channelsError=${channelsError.message}` : ""),
+    )
+  }, [signedIn, portals, activePortal, channels, portalsError, channelsError])
 
   const visible = useMemo<PortalChannelWithSource[]>(() => {
     const list = (channels ?? []).map((channel) => ({
@@ -113,7 +127,19 @@ export default function ChannelListScreen() {
         </View>
       </View>
 
-      {channelsPending ? (
+      {/* Surfaced rather than swallowed: an empty list and a failed request
+          look identical otherwise, which is exactly the case worth telling
+          apart while the data layer is new. */}
+      {portalsError || channelsError ? (
+        <View className="flex-1 items-center justify-center gap-2 px-8">
+          <Text className="text-center font-medium text-destructive">
+            Couldn&apos;t load channels
+          </Text>
+          <Text className="text-center text-xs text-muted-foreground">
+            {(portalsError ?? channelsError)?.message}
+          </Text>
+        </View>
+      ) : channelsPending ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator />
         </View>
@@ -121,7 +147,11 @@ export default function ChannelListScreen() {
         <View className="flex-1 items-center justify-center gap-2 px-8">
           <Tv size={28} className="text-muted-foreground" />
           <Text className="text-center text-sm text-muted-foreground">
-            {query ? "No channels match." : "No channels in this source yet."}
+            {query
+              ? "No channels match."
+              : portals?.length
+                ? `No channels in ${activePortal?.name ?? "this source"}.`
+                : "No sources yet — add one on the web app."}
           </Text>
         </View>
       ) : (

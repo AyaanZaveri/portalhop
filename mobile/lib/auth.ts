@@ -2,12 +2,13 @@ import { expoClient } from "@better-auth/expo/client"
 import { createAuthClient } from "better-auth/react"
 import * as SecureStore from "expo-secure-store"
 
-import { apiBaseUrl } from "./api"
+import { apiBaseUrl } from "./config"
 
-// The server already runs better-auth with the bearer() plugin, which is what
-// the Capacitor build authenticates against by hand — capturing set-auth-token
-// and replaying Authorization. The Expo plugin does that by design, backed by
-// the keychain rather than localStorage, so the manual version goes away.
+// The plugin keeps a cookie jar in SecureStore under `<storagePrefix>_cookie`
+// and replays it as a Cookie header. That is why apiFetch borrows
+// authClient.getCookie() rather than reading a bearer token: there isn't one.
+// The Capacitor build needed bearer only because a webview cannot send a
+// cross-site cookie; native fetch is under no such constraint.
 export const authClient = createAuthClient({
   baseURL: apiBaseUrl,
   plugins: [
