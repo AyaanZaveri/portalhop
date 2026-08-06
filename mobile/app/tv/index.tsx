@@ -96,6 +96,42 @@ export default function ChannelListScreen() {
     router.push(`/tv/${encodeURIComponent(channelSlug(channel))}`)
   }, [])
 
+  // Every prop below is held stable on purpose. FlashList re-renders its
+  // internals when a prop changes by reference, and with a list this size an
+  // inline renderItem or style object is enough to send it into a loop that
+  // never commits — which is what "Exceeded max renders without commit" was.
+  const renderChannel = useCallback(
+    ({ item }: { item: PortalChannelWithSource }) => (
+      <ChannelRow channel={item} onPress={openChannel} />
+    ),
+    [openChannel],
+  )
+
+  const listPadding = useMemo(
+    () => ({ paddingHorizontal: 12, paddingBottom: insets.bottom + 12 }),
+    [insets.bottom],
+  )
+
+  // Duplicate keys are the other thing FlashList blames for that warning, and
+  // 44k channels across 12 sources is exactly where a collision would hide.
+  // Checked once per data change in development so it is a log line rather
+  // than a mystery.
+  useEffect(() => {
+    if (!__DEV__ || !visible.length) return
+    const seen = new Set<string>()
+    let duplicates = 0
+    for (const channel of visible) {
+      const key = getChannelKey(channel)
+      if (seen.has(key)) duplicates++
+      else seen.add(key)
+    }
+    if (duplicates) {
+      console.warn(
+        `[portalhop] ${duplicates} duplicate channel keys of ${visible.length} — FlashList will not settle with these`,
+      )
+    }
+  }, [visible])
+
   if (sessionPending) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
@@ -249,13 +285,8 @@ export default function ChannelListScreen() {
         <FlashList
           data={visible}
           keyExtractor={getChannelKey}
-          renderItem={({ item }) => (
-            <ChannelRow channel={item} onPress={openChannel} />
-          )}
-          contentContainerStyle={{
-            paddingHorizontal: 12,
-            paddingBottom: insets.bottom + 12,
-          }}
+          renderItem={renderChannel}
+          contentContainerStyle={listPadding}
         />
       )}
 
