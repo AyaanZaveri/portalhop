@@ -3,12 +3,18 @@
 import * as React from "react"
 import Link from "next/link"
 import {
+  CheckIcon,
   DicesIcon,
+  LaptopMinimalIcon,
   LogInIcon,
   Loader2Icon,
   LogOutIcon,
+  MoonIcon,
   SettingsIcon,
+  SunIcon,
+  SunMoonIcon,
 } from "lucide-react"
+import { useTheme } from "next-themes"
 import { toast } from "sonner"
 
 import { authClient, clearStoredSession } from "@/lib/auth-client"
@@ -19,14 +25,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
-  ResponsiveMenu,
-  ResponsiveMenuContent,
-  ResponsiveMenuGroup,
-  ResponsiveMenuItem,
-  ResponsiveMenuSeparator,
-  ResponsiveMenuTrigger,
-} from "@/components/ui/responsive-menu"
-import { ThemeSegmentedControl } from "@/components/theme-segmented-control"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -41,6 +49,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(false)
@@ -258,6 +267,10 @@ function AccountMenu({
 }) {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isShuffling, setIsShuffling] = React.useState(false)
+  const { theme, setTheme } = useTheme()
+  const currentTheme = theme ?? "system"
+  const isMobile = useIsMobile()
+  const [menuOpen, setMenuOpen] = React.useState(false)
 
   async function signOut() {
     setIsSigningOut(true)
@@ -298,9 +311,120 @@ function AccountMenu({
     }
   }
 
+  // Touch gets a sheet built from the same pieces as the category and group
+  // sheets — same surface, same header shape, same full-width actions — so the
+  // account menu doesn't look like it came from a different app. The dropdown
+  // below is untouched and still serves every pointer device.
+  if (isMobile) {
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 cursor-pointer rounded-md text-muted-foreground hover:text-foreground min-[940px]:size-8"
+          aria-label="Account"
+          onClick={() => setMenuOpen(true)}
+        >
+          <UserAvatar user={user} className="size-5" />
+        </Button>
+        <Drawer open={menuOpen} onOpenChange={setMenuOpen} showSwipeHandle>
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden dark:border">
+            <div className="flex flex-col gap-4 p-4 pt-2">
+              <div className="flex min-w-0 items-center gap-3">
+                <UserAvatar user={user} className="size-10" />
+                <div className="min-w-0 flex-1">
+                  <DrawerTitle className="truncate text-left">
+                    {user.name || "Signed in"}
+                  </DrawerTitle>
+                  {user.email ? (
+                    <DrawerDescription className="truncate text-left">
+                      {user.email}
+                    </DrawerDescription>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* The desktop menu nests these in a submenu, which has no good
+                  touch gesture. Three exclusive options fit across one row. */}
+              <Tabs
+                value={currentTheme}
+                onValueChange={(value) => setTheme(value as string)}
+              >
+                <TabsList className="grid h-9 w-full grid-cols-3">
+                  <TabsTrigger value="light" className="gap-1.5">
+                    <SunIcon className="size-4" />
+                    Light
+                  </TabsTrigger>
+                  <TabsTrigger value="dark" className="gap-1.5">
+                    <MoonIcon className="size-4" />
+                    Dark
+                  </TabsTrigger>
+                  <TabsTrigger value="system" className="gap-1.5">
+                    <LaptopMinimalIcon className="size-4" />
+                    System
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <div className="flex flex-col gap-2">
+                {showAvatarControls ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-center gap-2"
+                    disabled={isShuffling}
+                    onClick={shuffleAvatar}
+                  >
+                    {isShuffling ? (
+                      <Loader2Icon className="animate-spin" />
+                    ) : (
+                      <DicesIcon />
+                    )}
+                    Shuffle avatar
+                  </Button>
+                ) : null}
+                {/* Settings is the reason this sheet gets opened; signing out
+                    is rare. Sharing a row keeps the sheet short, and the 2:1
+                    split puts the common action under the thumb while leaving
+                    sign out clearly labelled rather than a bare icon. */}
+                <div className="flex gap-2">
+                  {!hideSettings ? (
+                    <Button
+                      variant="outline"
+                      className="w-full flex-[2] justify-center gap-2"
+                      render={<Link href="/settings" />}
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <SettingsIcon />
+                      Settings
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full flex-1 justify-center gap-2"
+                    disabled={isSigningOut}
+                    onClick={signOut}
+                  >
+                    {isSigningOut ? (
+                      <Loader2Icon className="animate-spin" />
+                    ) : (
+                      <LogOutIcon />
+                    )}
+                    Sign out
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </>
+    )
+  }
+
   return (
-    <ResponsiveMenu>
-      <ResponsiveMenuTrigger
+    <DropdownMenu>
+      <DropdownMenuTrigger
         render={
           <Button
             variant="ghost"
@@ -311,8 +435,8 @@ function AccountMenu({
         }
       >
         <UserAvatar user={user} className="size-5" />
-      </ResponsiveMenuTrigger>
-      <ResponsiveMenuContent align="end" title="Account" className="w-60">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
         <div className="flex min-w-0 items-center gap-2 px-1 py-1.5 text-left text-sm">
           <UserAvatar user={user} className="size-8" />
           <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
@@ -326,21 +450,14 @@ function AccountMenu({
             ) : null}
           </div>
         </div>
-        <ResponsiveMenuSeparator />
-        {/* A segmented control rather than the submenu this used to be: the
-            active theme is visible without opening anything, and switching is
-            one tap instead of two — which mattered most on touch, where a
-            submenu has no good gesture at all. */}
-        <div className="px-1 py-1.5">
-          <ThemeSegmentedControl />
-        </div>
-        <ResponsiveMenuSeparator />
-        <ResponsiveMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
           {showAvatarControls ? (
-            <ResponsiveMenuItem
+            <DropdownMenuItem
               closeOnClick={false}
               disabled={isShuffling}
               onClick={shuffleAvatar}
+              className="py-1.5"
             >
               {isShuffling ? (
                 <Loader2Icon className="animate-spin" />
@@ -348,26 +465,62 @@ function AccountMenu({
                 <DicesIcon />
               )}
               <span>Shuffle avatar</span>
-            </ResponsiveMenuItem>
+            </DropdownMenuItem>
           ) : null}
           {!hideSettings ? (
-            <ResponsiveMenuItem render={<Link href="/settings" />}>
+            <DropdownMenuItem
+              render={<Link href="/settings" />}
+              className="py-1.5"
+            >
               <SettingsIcon />
               <span>Settings</span>
-            </ResponsiveMenuItem>
+            </DropdownMenuItem>
           ) : null}
-        </ResponsiveMenuGroup>
-        <ResponsiveMenuSeparator />
-        <ResponsiveMenuItem disabled={isSigningOut} onClick={signOut}>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="py-1.5">
+              <SunMoonIcon />
+              <span>Theme</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onClick={() => setTheme("light")} className="py-1.5">
+                <SunIcon />
+                <span>Light</span>
+                {currentTheme === "light" ? (
+                  <CheckIcon className="ml-auto" />
+                ) : null}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")} className="py-1.5">
+                <MoonIcon />
+                <span>Dark</span>
+                {currentTheme === "dark" ? (
+                  <CheckIcon className="ml-auto" />
+                ) : null}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")} className="py-1.5">
+                <LaptopMinimalIcon />
+                <span>System</span>
+                {currentTheme === "system" ? (
+                  <CheckIcon className="ml-auto" />
+                ) : null}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={isSigningOut}
+          onClick={signOut}
+          className="py-1.5"
+        >
           {isSigningOut ? (
-            <Loader2Icon className="animate-spin" />
+            <Loader2Icon className="size-4 animate-spin" />
           ) : (
-            <LogOutIcon />
+            <LogOutIcon className="size-4" />
           )}
           Sign out
-        </ResponsiveMenuItem>
-      </ResponsiveMenuContent>
-    </ResponsiveMenu>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

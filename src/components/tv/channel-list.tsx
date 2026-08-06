@@ -132,6 +132,18 @@ function sortByKeyOrder(
   })
 }
 
+// The category list tints its icons with the primary colour and knocks the
+// brightness back so they read as accents rather than competing with the label.
+// Light mode needs the heavier reduction; dark mode is already dim enough.
+//
+// The colour is forced because the dropdown item repaints every descendant on
+// hover (focus:**:text-accent-foreground), to keep muted text legible against
+// the accent fill. That's right for text and wrong for an accent icon: hovering
+// only shifts the background by 3% lightness, so there is nothing to stay
+// legible against, and the icon would otherwise be the one row out of the list
+// rendered in a different colour.
+const portalIconClassName = "!text-primary brightness-75 dark:brightness-90"
+
 export function ChannelList({
   headerControls,
 }: {
@@ -190,6 +202,9 @@ export function ChannelList({
     null,
   )
   const [isManagingCategories, setIsManagingCategories] = useState(false)
+  // Local rather than in the TV context: nothing outside this list opens the
+  // portal filter, unlike the category menu the header can also trigger.
+  const [portalFilterOpen, setPortalFilterOpen] = useState(false)
   const [isReordering, setIsReordering] = useState(false)
   // Holds the order during and just after a drag. The saved order only comes
   // back once favourites or the group reloads, so without this the list would
@@ -629,7 +644,97 @@ export function ChannelList({
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
-          {portals.length > 1 ? (
+          {portals.length > 1 && isMobileLayout ? (
+            <InputGroupAddon align="inline-end">
+              {/* Same sheet as Categories, Groups and the account menu: same
+                  surface, header and row treatment. Content-sized rather than
+                  the categories drawer's fixed 75dvh, since a handful of
+                  portals in a three-quarter-height sheet is mostly empty. */}
+              <Drawer
+                open={portalFilterOpen}
+                onOpenChange={setPortalFilterOpen}
+                showSwipeHandle
+              >
+                <DrawerTrigger
+                  render={
+                    <InputGroupButton
+                      aria-label="Filter by portal"
+                      className="gap-1"
+                    />
+                  }
+                >
+                  <ListFilterIcon />
+                  {isPortalFiltered ? (
+                    <span className="font-mono tabular-nums">
+                      {selectedPortalIds.size}
+                    </span>
+                  ) : null}
+                </DrawerTrigger>
+                <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden dark:border">
+                  <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
+                    <DrawerTitle className="text-lg">Portals</DrawerTitle>
+                    <DrawerDescription>
+                      Choose which sources the channel list draws from.
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <ScrollArea
+                    className="min-h-0 flex-1"
+                    viewportTabIndex={-1}
+                    viewportClassName="px-4 pt-3 pb-2"
+                  >
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className={cn(
+                          "hover:bg-accent hover:text-accent-foreground h-9 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal focus-visible:ring-inset",
+                          !isPortalFiltered && "bg-accent",
+                        )}
+                        onClick={() => setSelectedPortalIds(new Set())}
+                      >
+                        <LayoutGridIcon className={portalIconClassName} />
+                        <span className="min-w-0 flex-1 truncate text-left font-mono font-medium tracking-tight">
+                          All Portals
+                        </span>
+                        {!isPortalFiltered ? (
+                          <CheckIcon className="size-4 shrink-0" />
+                        ) : null}
+                      </Button>
+                    </div>
+                    {portals.map((portal) => {
+                      const isSelected = selectedPortalIds.has(portal.id)
+
+                      return (
+                        <div
+                          key={portal.id}
+                          className="flex items-center gap-1"
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className={cn(
+                              "hover:bg-accent hover:text-accent-foreground h-9 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal focus-visible:ring-inset",
+                              isSelected && "bg-accent",
+                            )}
+                            onClick={() => togglePortal(portal.id, !isSelected)}
+                          >
+                            <TvIcon className={portalIconClassName} />
+                            <span className="min-w-0 flex-1 truncate text-left font-mono font-medium tracking-tight">
+                              {portal.name}
+                            </span>
+                            {isSelected ? (
+                              <CheckIcon className="size-4 shrink-0" />
+                            ) : null}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </ScrollArea>
+                </DrawerContent>
+              </Drawer>
+            </InputGroupAddon>
+          ) : null}
+          {portals.length > 1 && !isMobileLayout ? (
             <InputGroupAddon align="inline-end">
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -648,16 +753,23 @@ export function ChannelList({
                   ) : null}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
+                  {/* No separator between "All Portals" and the list: the two
+                      are one set of choices, and the rule read as a section
+                      break that isn't there. Icons take the same tinted
+                      treatment as the category list — see portalIconClassName. */}
                   <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onClick={() => setSelectedPortalIds(new Set())}
+                    {/* A checkbox item like the rest, not a plain action: with
+                        no separator the odd one out looked misaligned, since
+                        only the others reserved room for an indicator. Showing
+                        it as selected when nothing is filtered also makes the
+                        current state readable at a glance. */}
+                    <DropdownMenuCheckboxItem
+                      checked={!isPortalFiltered}
+                      onCheckedChange={() => setSelectedPortalIds(new Set())}
                     >
-                      <LayoutGridIcon />
+                      <LayoutGridIcon className={portalIconClassName} />
                       All Portals
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
+                    </DropdownMenuCheckboxItem>
                     {portals.map((portal) => (
                       <DropdownMenuCheckboxItem
                         key={portal.id}
@@ -666,7 +778,7 @@ export function ChannelList({
                           togglePortal(portal.id, checked)
                         }
                       >
-                        <TvIcon />
+                        <TvIcon className={portalIconClassName} />
                         <span className="min-w-0 flex-1 truncate">
                           {portal.name}
                         </span>
@@ -810,8 +922,11 @@ export function ChannelList({
                             // viewport clips anything drawn outside a row, and
                             // padding it away would push the first category off
                             // the top of the list.
-                            "hover:bg-accent hover:text-accent-foreground h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal focus-visible:ring-inset",
-                            isManagingCategories ? "py-1" : "py-2",
+                            // Fixed height, like the groups drawer's rows: the
+                            // manage toggle changes what a row contains, and a
+                            // content-sized row would resize the whole list
+                            // when it does.
+                            "hover:bg-accent hover:text-accent-foreground h-9 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-normal focus-visible:ring-inset",
                             isActiveGenre && "bg-accent",
                           )}
                         >
@@ -860,7 +975,7 @@ export function ChannelList({
                           category.sourceId,
                           category.genre,
                         )}
-                        className="text-muted-foreground flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm"
+                        className="text-muted-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
                       >
                         <CategoryVisual category={category.genre} />
                         <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">

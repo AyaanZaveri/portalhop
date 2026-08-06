@@ -259,6 +259,25 @@
   padding-block-end: calc(var(--inset-bottom) + 1rem);
 }
 
+/* Sheet controls are sized for a cursor: the default button is 32px tall and
+   even `lg` is only 36px, against Android's 48dp guidance and iOS's 44pt. One
+   rule here rather than a size on every button, so sheets built later can't
+   drift back to cursor-sized targets. Scoped to full-width actions, leaving
+   icon buttons and badges inside sheets alone. */
+@media (pointer: coarse) {
+  [data-slot="drawer-popup"] [data-slot="button"]:where(.w-full) {
+    min-height: 2.75rem;
+  }
+
+  [data-slot="drawer-popup"] [data-slot="tabs-list"] {
+    height: 2.75rem;
+  }
+
+  [data-slot="drawer-popup"] [data-slot="tabs-trigger"] {
+    min-height: 2.25rem;
+  }
+}
+
 /* A 10px scrollbar is far too small a touch target: the drawer decides whether
    a drag is a scroll or a dismiss by hit-testing the point under the finger,
    and a near miss lands on a list row and dismisses the sheet. Widening the
