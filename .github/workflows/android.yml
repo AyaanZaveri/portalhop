@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # bun, not npm: bun.lock is the lockfile that is actually maintained here
       # (Capacitor was installed with it) and package-lock.json has since
@@ -27,12 +27,12 @@ jobs:
 
       # Gradle and the Android plugin need a JDK they support; the runner's
       # default is newer than this project builds against.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       # Matches compileSdkVersion/targetSdkVersion in android/variables.gradle.
       # No NDK: Capacitor's Android project is Java and Kotlin only.
@@ -49,7 +49,7 @@ jobs:
         run: node scripts/build-android-apk.mjs --debug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: portal-hop-debug-apk
           path: dist-android/*.apk
