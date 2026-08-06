@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Uniwind, useUniwind } from "uniwind"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core"
 import {
   Geist_400Regular,
   Geist_500Medium,
@@ -25,8 +26,31 @@ import { Toaster } from "sonner-native"
 import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 
 import { loadThemePreference } from "@/lib/preferences"
+import { sqliteStorage } from "@/lib/query-storage"
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
+
+/**
+ * Persisted per query rather than as one dehydrated cache.
+ *
+ * PersistQueryClientProvider writes the entire cache as a single blob, which
+ * for this app means serialising every channel of every portal on each change
+ * and parsing all of it back on the JS thread at launch. This variant keys each
+ * query separately, so a portal is restored on its own and only the portals
+ * actually in view are read.
+ */
+const persister = experimental_createQueryPersister({
+  storage: sqliteStorage,
+  prefix: "portalhop",
+  // A catalogue is addressed by its source's updatedAt (see usePortalChannels),
+  // so an entry is either current or unreachable — there is nothing for the
+  // default 24h expiry to protect against, and expiring it only forces a
+  // download the app already knows it does not need.
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+  // Bump when the stored shape changes; mismatched entries are discarded rather
+  // than deserialised into something the app no longer understands.
+  buster: "v1",
+})
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +59,12 @@ const queryClient = new QueryClient({
       // short stale window mostly generates pointless requests.
       staleTime: 5 * 60 * 1000,
       retry: 1,
+      // Restored data is served immediately and refetched behind it when stale,
+      // which is what lets the list paint before the network answers.
+      persister: persister.persisterFn,
+      // Must outlive the process for anything to be worth persisting; the
+      // default 5 minutes would evict entries before the next launch.
+      gcTime: 30 * 24 * 60 * 60 * 1000,
     },
   },
 })
@@ -45,6 +75,13 @@ export default function RootLayout() {
   const tokens = isDark ? darkTokens : lightTokens
 
   const [themeLoaded, setThemeLoaded] = useState(false)
+
+  // Re-syncing a source gives its catalogue a new key, so the row holding the
+  // previous one is never read again — nothing else would ever delete it.
+  // Fire-and-forget: it touches only entries no query can reach.
+  useEffect(() => {
+    void persister.persisterGc().catch(() => {})
+  }, [])
 
   // Resolved before the splash comes down, so the saved scheme is already in
   // place on the first frame rather than snapping a moment later.

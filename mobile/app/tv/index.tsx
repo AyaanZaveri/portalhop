@@ -27,6 +27,10 @@ import {
 } from "@/lib/filters"
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 import { useSession } from "@/lib/auth"
+import {
+  loadSelectedPortalIds,
+  saveSelectedPortalIds,
+} from "@/lib/preferences"
 import { useTheme } from "@/lib/theme"
 import { CategoriesSheet } from "@/components/categories-sheet"
 import { GroupsSheet } from "@/components/groups-sheet"
@@ -49,6 +53,27 @@ export default function ChannelListScreen() {
   const [selectedPortalIds, setSelectedPortalIds] = useState<Set<number>>(
     () => new Set(),
   )
+  // Nothing is fetched until the saved selection has been read back, otherwise
+  // the first frame would start downloading every portal on the "all" default
+  // and only then discover the user had narrowed it down.
+  const [portalsHydrated, setPortalsHydrated] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void loadSelectedPortalIds().then((ids) => {
+      if (cancelled) return
+      setSelectedPortalIds(ids)
+      setPortalsHydrated(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const changeSelectedPortals = useCallback((ids: Set<number>) => {
+    setSelectedPortalIds(ids)
+    void saveSelectedPortalIds(ids)
+  }, [])
   const filterSheet = useRef<BottomSheetModal>(null)
   const categoriesSheet = useRef<BottomSheetModal>(null)
   const groupsSheet = useRef<BottomSheetModal>(null)
@@ -59,14 +84,15 @@ export default function ChannelListScreen() {
   // An empty selection means "All Portals", not "none" — the sheet offers it as
   // the default and every source should be in view until one is singled out.
   const activePortals = useMemo(() => {
-    if (!portals?.length) return []
+    if (!portals?.length || !portalsHydrated) return []
     if (!selectedPortalIds.size) return portals
     return portals.filter((portal) => selectedPortalIds.has(portal.id))
-  }, [portals, selectedPortalIds])
+  }, [portals, selectedPortalIds, portalsHydrated])
 
   const {
     channels: withSource,
     isPending: channelsPending,
+    isFetching: channelsFetching,
     error: channelsError,
   } = usePortalChannels(activePortals)
 
@@ -173,11 +199,18 @@ export default function ChannelListScreen() {
         <View className="h-10 flex-row items-center gap-2">
           <Rabbit size={22} color={iconPrimary} />
           <Text
-            className="flex-1 font-heading text-[22px] tracking-tight text-foreground"
+            className="font-heading text-[22px] tracking-tight text-foreground"
             style={{ includeFontPadding: false }}
           >
             Channels
           </Text>
+          {/* Only while the list already has something to show: during the
+              first load the list itself is a spinner, and two at once just
+              reads as a stutter. */}
+          {channelsFetching && !channelsPending ? (
+            <ActivityIndicator size="small" color={colors["muted-foreground"]} />
+          ) : null}
+          <View className="flex-1" />
           <ThemeToggle />
         </View>
 
@@ -296,7 +329,7 @@ export default function ChannelListScreen() {
         ref={filterSheet}
         portals={portals ?? []}
         selectedIds={selectedPortalIds}
-        onChange={setSelectedPortalIds}
+        onChange={changeSelectedPortals}
       />
 
       <CategoriesSheet

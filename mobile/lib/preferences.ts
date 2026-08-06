@@ -25,3 +25,32 @@ export async function saveThemePreference(preference: ThemePreference) {
     // The choice simply won't survive a restart; not worth interrupting for.
   }
 }
+
+const PORTALS_KEY = "portalhop.selectedPortals"
+
+/**
+ * Which sources the list draws from, across launches.
+ *
+ * An empty set means "all portals" — the same convention the sheet uses — so
+ * the absence of a saved value and an explicit "all" are indistinguishable on
+ * purpose, and both land on the default.
+ */
+export async function loadSelectedPortalIds(): Promise<Set<number>> {
+  try {
+    const value = await AsyncStorage.getItem(PORTALS_KEY)
+    if (!value) return new Set()
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((id): id is number => typeof id === "number"))
+  } catch {
+    return new Set()
+  }
+}
+
+export async function saveSelectedPortalIds(ids: Set<number>) {
+  try {
+    await AsyncStorage.setItem(PORTALS_KEY, JSON.stringify([...ids]))
+  } catch {
+    // Same as above: the selection just won't survive a restart.
+  }
+}

@@ -98,9 +98,24 @@ export function usePortalChannels(portals: SavedSourceRecord[]) {
 
   return {
     channels,
-    // Only blocks the list while nothing at all has arrived. A source still
-    // loading alongside others that have shouldn't hide what is already there.
-    isPending: results.length > 0 && results.every((r) => r.isPending),
+    /**
+     * Held until every source has settled, rather than showing whichever
+     * arrived first.
+     *
+     * Sources are concatenated in a fixed order, so one resolving splices its
+     * catalogue into the middle of the list and shifts everything after it —
+     * with twelve of them that happened twelve times, and what the list showed
+     * in between was whatever had landed so far, at whatever offset. A restored
+     * cache makes this wait short; a cold one is better spent on a spinner than
+     * on a list reshuffling under the reader.
+     *
+     * `isPending` is false as soon as a query has data or has failed, so a
+     * source that errors unblocks the rest rather than holding them.
+     */
+    isPending: results.some((result) => result.isPending),
+    // For the background indicator: data is already on screen, and a refresh is
+    // in flight behind it.
+    isFetching: results.some((result) => result.isFetching),
     error: results.find((r) => r.error)?.error ?? null,
   }
 }
