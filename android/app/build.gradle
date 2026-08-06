@@ -16,6 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Without this, debug builds are signed with ~/.android/debug.keystore,
+    // which Gradle generates per machine — and freshly on every CI run, since
+    // the runner is thrown away. Android refuses to update an installed app
+    // when the signature changes, so a CI-built APK could not be installed over
+    // a locally built one, or over an earlier CI build. Checking the keystore
+    // in makes every build interchangeable.
+    //
+    // These are Android's own well-known debug credentials. A debug keystore
+    // grants nothing: it cannot sign a Play Store release, and the default one
+    // shipped with the SDK uses this exact password. Do not add a release
+    // keystore here — that one belongs in a secret.
+    signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
