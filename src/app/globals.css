@@ -303,6 +303,17 @@ video {
   }
 }
 
+/* Page-level scroll regions don't carry a persistent scrollbar in native apps —
+   a track running down the side of the player and guide reads as chrome rather
+   than as content. Opt in per region: drawers keep theirs, where the list is
+   long and grabbing the bar is genuinely useful. Pointer devices keep it
+   everywhere, since a cursor has no other way to drag-scroll. */
+@media (pointer: coarse) {
+  .touch-hide-scrollbar [data-slot="scroll-area-scrollbar"] {
+    display: none;
+  }
+}
+
 /* A 10px scrollbar is far too small a touch target: the drawer decides whether
    a drag is a scroll or a dismiss by hit-testing the point under the finger,
    and a near miss lands on a list row and dismisses the sheet. Widening the

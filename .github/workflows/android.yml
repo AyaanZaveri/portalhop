@@ -1,0 +1,56 @@
+name: Android debug APK
+
+# Builds the same debug APK as `npm run android:build -- --debug` locally, and
+# attaches it to the run so it can be downloaded without a local Android
+# toolchain. Debug rather than release because a release APK is unsigned and
+# Android refuses to install it; the debug one is signed with the standard
+# debug key and installs straight away.
+on:
+  push:
+    branches: [master]
+  # So a build can be kicked off without pushing.
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # bun, not npm: bun.lock is the lockfile that is actually maintained here
+      # (Capacitor was installed with it) and package-lock.json has since
+      # fallen behind, so npm would resolve a different dependency tree.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+
+      # Gradle and the Android plugin need a JDK they support; the runner's
+      # default is newer than this project builds against.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      # Matches compileSdkVersion/targetSdkVersion in android/variables.gradle.
+      # No NDK: Capacitor's Android project is Java and Kotlin only.
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.1.0"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Runs the static Next.js export, `cap sync`, and Gradle — the same script
+      # used locally, so CI can't drift from what is tested on a device. The
+      # backend URL defaults to the deployed instance, so no secrets are needed.
+      - name: Build debug APK
+        run: node scripts/build-android-apk.mjs --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-hop-debug-apk
+          path: dist-android/*.apk
+          if-no-files-found: error

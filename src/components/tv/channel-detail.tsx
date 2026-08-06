@@ -130,7 +130,7 @@ export function ChannelDetail() {
         </motion.button>
       </div>
       <ScrollArea
-        className="min-h-0 flex-1 px-4 pb-4"
+        className="touch-hide-scrollbar min-h-0 flex-1 px-4 pb-4"
         viewportClassName="focus-visible:ring-0 focus-visible:outline-none"
       >
         <ChannelEpgProvider channel={channel}>
