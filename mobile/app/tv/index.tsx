@@ -15,7 +15,7 @@ import {
 } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-import { channelSlug, getChannelKey } from "@/lib/channel-keys"
+import { channelSlug } from "@/lib/channel-keys"
 import { usePortalChannels, usePortals, type PortalChannelWithSource } from "@/lib/channels"
 import {
   applyBrowseFilter,
@@ -35,6 +35,9 @@ import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
+
+// Module scope so FlashList sees the same function every render.
+const channelKey = (channel: PortalChannelWithSource) => channel.key
 
 export default function ChannelListScreen() {
   const insets = useSafeAreaInsets()
@@ -67,7 +70,7 @@ export default function ChannelListScreen() {
     error: channelsError,
   } = usePortalChannels(activePortals)
 
-  const { data: favorites } = useFavorites(signedIn)
+  const { favorites } = useFavorites(signedIn)
   const { data: groups } = useFavoriteGroups(signedIn)
 
   // Loud on purpose while the data layer is new: a silent empty list gives no
@@ -89,7 +92,7 @@ export default function ChannelListScreen() {
     const filtered = applyBrowseFilter(withSource, filter, favorites, groups)
     const q = query.trim().toLowerCase()
     if (!q) return filtered
-    return filtered.filter((channel) => channel.name.toLowerCase().includes(q))
+    return filtered.filter((channel) => channel.searchName.includes(q))
   }, [withSource, filter, favorites, groups, query])
 
   const openChannel = useCallback((channel: PortalChannelWithSource) => {
@@ -121,9 +124,8 @@ export default function ChannelListScreen() {
     const seen = new Set<string>()
     let duplicates = 0
     for (const channel of visible) {
-      const key = getChannelKey(channel)
-      if (seen.has(key)) duplicates++
-      else seen.add(key)
+      if (seen.has(channel.key)) duplicates++
+      else seen.add(channel.key)
     }
     if (duplicates) {
       console.warn(
@@ -284,7 +286,7 @@ export default function ChannelListScreen() {
       ) : (
         <FlashList
           data={visible}
-          keyExtractor={getChannelKey}
+          keyExtractor={channelKey}
           renderItem={renderChannel}
           contentContainerStyle={listPadding}
         />

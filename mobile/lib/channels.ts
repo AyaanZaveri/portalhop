@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useQueries, useQuery } from "@tanstack/react-query"
 
+import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
 import type { UserSettingsData } from "@portalhop/shared/user-settings"
@@ -9,6 +10,17 @@ import { apiJson } from "./api"
 
 export type PortalChannelWithSource = PortalChannel & {
   portalSource?: { id: number; name: string }
+  /**
+   * The favourite key and a lowercased name, computed once when a catalogue
+   * arrives rather than per filter pass.
+   *
+   * `getChannelKey` is a `JSON.stringify`, so the favourites filter was running
+   * tens of thousands of them synchronously every time it ran, and the search
+   * box another `toLowerCase` per channel per keystroke. Both answers are fixed
+   * for the life of the channel, so neither belongs in the hot path.
+   */
+  key: string
+  searchName: string
 }
 
 export function usePortals(enabled: boolean) {
@@ -66,10 +78,17 @@ export function usePortalChannels(portals: SavedSourceRecord[]) {
       results.flatMap((result, index) => {
         const portal = portals[index]
         if (!result.data || !portal) return []
-        return result.data.channels.map((channel) => ({
-          ...channel,
-          portalSource: { id: portal.id, name: portal.name },
-        }))
+        return result.data.channels.map((channel) => {
+          const withSource = {
+            ...channel,
+            portalSource: { id: portal.id, name: portal.name },
+          }
+          return {
+            ...withSource,
+            key: getChannelKey(withSource),
+            searchName: (channel.name ?? "").toLowerCase(),
+          }
+        })
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- results and
     // portals are fresh arrays each render; the signature is what changes only
