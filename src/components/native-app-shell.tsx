@@ -18,17 +18,76 @@ export function NativeAppShell() {
     if (!isMobileApp) return
 
     let cancelled = false
+    let frame = 0
+
+    /**
+     * Resolves once the safe-area insets have actually landed.
+     *
+     * Capacitor applies window insets after the document is ready: until then
+     * the webview is padded by the system bars and env() reports zero, and
+     * afterwards it draws edge to edge with the real values. The layout moves
+     * at that moment — everything above the fold slides — so the splash has to
+     * outlast it rather than reveal it.
+     *
+     * The value is measured off a probe element instead of read from the
+     * custom property, because a custom property's computed value can come
+     * back as the unresolved env() expression rather than a length.
+     */
+    function waitForInsets() {
+      return new Promise<void>((resolve) => {
+        const probe = document.createElement("div")
+        probe.style.cssText =
+          "position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)"
+        document.body.appendChild(probe)
+
+        // Plenty of devices have no top inset at all and will never report one,
+        // so this can't wait indefinitely for a value that isn't coming.
+        const deadline = performance.now() + 500
+
+        const check = () => {
+          if (cancelled) {
+            probe.remove()
+            resolve()
+            return
+          }
+
+          const settled =
+            probe.getBoundingClientRect().height > 0 ||
+            performance.now() > deadline
+
+          if (!settled) {
+            frame = requestAnimationFrame(check)
+            return
+          }
+
+          probe.remove()
+          // One more frame so the layout that consumes the inset has painted
+          // before the splash comes down.
+          frame = requestAnimationFrame(() => resolve())
+        }
+
+        frame = requestAnimationFrame(check)
+      })
+    }
 
     void (async () => {
       const { Capacitor } = await import("@capacitor/core")
       if (cancelled || !Capacitor.isNativePlatform()) return
 
       const { SplashScreen } = await import("@capacitor/splash-screen")
-      await SplashScreen.hide()
+
+      // launchAutoHide is off, so nothing else will take the splash down. The
+      // wait must never be able to strand the app behind it.
+      try {
+        await waitForInsets()
+      } finally {
+        if (!cancelled) await SplashScreen.hide()
+      }
     })()
 
     return () => {
       cancelled = true
+      cancelAnimationFrame(frame)
     }
   }, [])
 
