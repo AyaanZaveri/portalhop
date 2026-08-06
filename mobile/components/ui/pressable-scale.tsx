@@ -29,18 +29,24 @@ export type PressableScalePreset = keyof typeof PRESETS
 export const PressableScale = forwardRef<
   View,
   PressableProps & { preset?: PressableScalePreset }
->(function PressableScale({ preset = "button", onPressIn, onPressOut, ...props }, ref) {
+>(function PressableScale(
+  { preset = "button", onPressIn, onPressOut, style: styleProp, ...props },
+  ref,
+) {
   const { scale, duration } = PRESETS[preset]
   const pressed = useSharedValue(1)
 
-  const style = useAnimatedStyle(() => ({
+  const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pressed.value }],
   }))
 
   return (
     <AnimatedPressable
       ref={ref}
-      style={style}
+      // Merged, not replaced. Uniwind resolves className into a style, and the
+      // caller may pass one too — setting the animated style alone dropped
+      // whichever arrived by prop, which is what flattened the filter chips.
+      style={[styleProp, animatedStyle]}
       onPressIn={(event) => {
         pressed.value = withTiming(scale, { duration, easing: EASE_OUT })
         onPressIn?.(event)

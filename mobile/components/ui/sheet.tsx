@@ -43,6 +43,11 @@ export const Sheet = forwardRef<
       ref={ref}
       enablePanDownToClose
       snapPoints={snapPoints}
+      // v5 defaults this to true, which sizes the sheet to its content and
+      // quietly overrides snapPoints — with a list inside, it measured almost
+      // nothing and the sheet opened as a sliver. Dynamic sizing is still what
+      // we want when no snap point is given, as on the portals sheet.
+      enableDynamicSizing={!snapPoints}
       backdropComponent={renderBackdrop}
       backgroundStyle={{ backgroundColor: colors.background }}
       handleIndicatorStyle={{ backgroundColor: colors["muted-foreground"] }}

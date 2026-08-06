@@ -39,9 +39,11 @@ export const GroupsSheet = forwardRef<
             <PressableScale
               preset="row"
               onPress={() => onSelect(item)}
-              className={`h-11 flex-row items-center gap-2 rounded-md px-2 ${
-                active ? "bg-accent" : ""
-              }`}
+              className={
+                active
+                  ? "h-11 flex-row items-center gap-2 rounded-md bg-accent px-2"
+                  : "h-11 flex-row items-center gap-2 rounded-md px-2"
+              }
             >
               {/* Every group carries its own icon name from a fixed allowlist.
                   Rendering the right one needs that name-to-component map,
