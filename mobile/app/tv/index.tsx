@@ -3,14 +3,35 @@ import { ActivityIndicator, Text, TextInput, View } from "react-native"
 import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList } from "@shopify/flash-list"
 import { router } from "expo-router"
-import { ListFilter, Rabbit, Search, Tv } from "lucide-react-native"
+import {
+  FolderHeart,
+  LayoutGrid,
+  ListFilter,
+  Rabbit,
+  Search,
+  Shapes,
+  Star,
+  Tv,
+} from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { channelSlug, getChannelKey } from "@/lib/channel-keys"
 import { usePortalChannels, usePortals, type PortalChannelWithSource } from "@/lib/channels"
+import {
+  applyBrowseFilter,
+  useCategories,
+  useFavoriteGroups,
+  useFavorites,
+  type CategoryEntry,
+  type FavoriteGroup,
+} from "@/lib/filters"
+import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 import { useSession } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
+import { CategoriesSheet } from "@/components/categories-sheet"
+import { GroupsSheet } from "@/components/groups-sheet"
 import { PortalFilterSheet } from "@/components/portal-filter-sheet"
+import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
@@ -26,6 +47,9 @@ export default function ChannelListScreen() {
     () => new Set(),
   )
   const filterSheet = useRef<BottomSheetModal>(null)
+  const categoriesSheet = useRef<BottomSheetModal>(null)
+  const groupsSheet = useRef<BottomSheetModal>(null)
+  const [filter, setFilter] = useState<BrowseFilter>({ type: "all" })
 
   const { data: portals, error: portalsError } = usePortals(signedIn)
   // First cut loads one source. Merging every enabled source is the next step;
@@ -42,6 +66,9 @@ export default function ChannelListScreen() {
     error: channelsError,
   } = usePortalChannels(activePortal)
 
+  const { data: favorites } = useFavorites(signedIn)
+  const { data: groups } = useFavoriteGroups(signedIn)
+
   // Loud on purpose while the data layer is new: a silent empty list gives no
   // clue whether the request failed, returned nothing, or was never made.
   useEffect(() => {
@@ -53,17 +80,27 @@ export default function ChannelListScreen() {
     )
   }, [signedIn, portals, activePortal, channels, portalsError, channelsError])
 
-  const visible = useMemo<PortalChannelWithSource[]>(() => {
-    const list = (channels ?? []).map((channel) => ({
-      ...channel,
-      portalSource: activePortal
-        ? { id: activePortal.id, name: activePortal.name }
-        : undefined,
-    }))
+  const withSource = useMemo<PortalChannelWithSource[]>(
+    () =>
+      (channels ?? []).map((channel) => ({
+        ...channel,
+        portalSource: activePortal
+          ? { id: activePortal.id, name: activePortal.name }
+          : undefined,
+      })),
+    [channels, activePortal],
+  )
+
+  // Derived from everything in the source, not from what the chip currently
+  // shows — otherwise picking a category would empty the category list.
+  const categories = useCategories(withSource)
+
+  const visible = useMemo(() => {
+    const filtered = applyBrowseFilter(withSource, filter, favorites, groups)
     const q = query.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((channel) => channel.name.toLowerCase().includes(q))
-  }, [channels, query, activePortal])
+    if (!q) return filtered
+    return filtered.filter((channel) => channel.name.toLowerCase().includes(q))
+  }, [withSource, filter, favorites, groups, query])
 
   const openChannel = useCallback((channel: PortalChannelWithSource) => {
     router.push(`/tv/${encodeURIComponent(channelSlug(channel))}`)
@@ -146,6 +183,49 @@ export default function ChannelListScreen() {
             </PressableScale>
           ) : null}
         </View>
+
+        {/* The same four the web has. Categories and Groups open sheets rather
+            than filtering directly, since each needs a list to pick from. */}
+        <View className="flex-row items-center gap-1.5">
+          <Chip
+            label="Favorites"
+            icon={Star}
+            active={filter.type === "favorites"}
+            onPress={() => setFilter({ type: "favorites" })}
+          />
+          <Chip
+            label="All"
+            icon={LayoutGrid}
+            active={filter.type === "all"}
+            onPress={() => setFilter({ type: "all" })}
+          />
+          <Chip
+            label="Categories"
+            icon={Shapes}
+            active={filter.type === "category"}
+            onPress={() => categoriesSheet.current?.present()}
+          />
+          <Chip
+            label="Groups"
+            icon={FolderHeart}
+            iconOnly
+            active={filter.type === "favoriteGroup"}
+            onPress={() => groupsSheet.current?.present()}
+          />
+        </View>
+
+        {/* Which category or group is showing is otherwise invisible once the
+            sheet closes — the chip only says that one is active. */}
+        {filter.type === "category" || filter.type === "favoriteGroup" ? (
+          <Text
+            numberOfLines={1}
+            className="font-mono-medium text-sm tracking-tight text-foreground"
+          >
+            {filter.type === "category"
+              ? filter.genre
+              : (groups?.find((g) => g.id === filter.groupId)?.name ?? "Group")}
+          </Text>
+        ) : null}
       </View>
 
       {/* Surfaced rather than swallowed: an empty list and a failed request
@@ -194,6 +274,30 @@ export default function ChannelListScreen() {
         portals={portals ?? []}
         selectedIds={selectedPortalIds}
         onChange={setSelectedPortalIds}
+      />
+
+      <CategoriesSheet
+        ref={categoriesSheet}
+        categories={categories}
+        filter={filter}
+        onSelect={(category: CategoryEntry) => {
+          setFilter({
+            type: "category",
+            genre: category.genre,
+            sourceId: category.sourceId,
+          })
+          categoriesSheet.current?.dismiss()
+        }}
+      />
+
+      <GroupsSheet
+        ref={groupsSheet}
+        groups={groups ?? []}
+        filter={filter}
+        onSelect={(group: FavoriteGroup) => {
+          setFilter({ type: "favoriteGroup", groupId: group.id })
+          groupsSheet.current?.dismiss()
+        }}
       />
     </View>
   )
