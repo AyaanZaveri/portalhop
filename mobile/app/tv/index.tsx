@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Text, TextInput, View } from "react-native"
 import { BottomSheetModal } from "@gorhom/bottom-sheet"
-import { FlashList } from "@shopify/flash-list"
+import { FlashList, type FlashListRef } from "@shopify/flash-list"
 import { useQueryClient } from "@tanstack/react-query"
 import { router } from "expo-router"
 import {
@@ -41,8 +41,9 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
 
-// Module scope so FlashList sees the same function every render.
+// Module scope so FlashList sees the same function and object every render.
 const channelKey = (channel: PortalChannelWithSource) => channel.key
+const MAINTAIN_POSITION = { disabled: true }
 
 export default function ChannelListScreen() {
   const insets = useSafeAreaInsets()
@@ -163,6 +164,16 @@ export default function ChannelListScreen() {
     ),
     [openChannel],
   )
+
+  // Each filter is a different list, so it starts where a list starts. Without
+  // this the scroll offset carries over, and switching from a scrolled position
+  // in All to a short Favorites lands somewhere arbitrary in it — or past its
+  // end, which is the other way blank space appears.
+  const listRef = useRef<FlashListRef<PortalChannelWithSource>>(null)
+
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false })
+  }, [filter, query])
 
   const listPadding = useMemo(
     () => ({ paddingHorizontal: 12, paddingBottom: insets.bottom + 12 }),
@@ -356,6 +367,13 @@ export default function ChannelListScreen() {
           contentContainerStyle={listPadding}
           refreshing={refreshing}
           onRefresh={refresh}
+          ref={listRef}
+          // On by default in v2, and its own known-issues page names this case:
+          // it anchors the rows that were on screen when the data changes, so
+          // catalogues arriving during load left the list pinned below a gap of
+          // empty space. Worth having in a chat, where content grows upward —
+          // here every change is a new list that should start at the top.
+          maintainVisibleContentPosition={MAINTAIN_POSITION}
         />
       )}
 
