@@ -11,6 +11,7 @@ import { usePortalChannels, usePortals, type PortalChannelWithSource } from "@/l
 import { useSession } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
 import { PortalFilterSheet } from "@/components/portal-filter-sheet"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
 
@@ -107,11 +108,12 @@ export default function ChannelListScreen() {
         <View className="h-10 flex-row items-center gap-2">
           <Rabbit size={22} color={colors.primary} />
           <Text
-            className="font-heading text-[22px] tracking-tight text-foreground"
+            className="flex-1 font-heading text-[22px] tracking-tight text-foreground"
             style={{ includeFontPadding: false }}
           >
             Channels
           </Text>
+          <ThemeToggle />
         </View>
 
         <View

@@ -1,7 +1,7 @@
 import "../global.css"
 
-import { useEffect } from "react"
-import { useColorScheme } from "react-native"
+import { useEffect, useState } from "react"
+import { useColorScheme } from "nativewind"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
@@ -24,6 +24,8 @@ import { Toaster } from "sonner-native"
 
 import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 
+import { getStoredTheme } from "@/lib/preferences"
+
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 const queryClient = new QueryClient({
@@ -38,9 +40,13 @@ const queryClient = new QueryClient({
 })
 
 export default function RootLayout() {
-  const scheme = useColorScheme()
-  const isDark = scheme === "dark"
+  const { colorScheme, setColorScheme } = useColorScheme()
+  const isDark = colorScheme === "dark"
   const tokens = isDark ? darkTokens : lightTokens
+
+  // Applied once, synchronously from MMKV, before anything paints — an async
+  // read would show the system scheme first and then snap to the saved one.
+  useState(() => setColorScheme(getStoredTheme()))
 
   // Registered under the names tailwind.config.js maps to. Each weight is its
   // own family because Android does not synthesise bold.
@@ -62,7 +68,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }} className={isDark ? "dark" : ""}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <BottomSheetModalProvider>

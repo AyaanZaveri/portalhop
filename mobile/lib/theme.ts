@@ -1,15 +1,27 @@
-import { useColorScheme } from "react-native"
+import { useCallback } from "react"
+import { useColorScheme } from "nativewind"
 
 import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 
+import { setStoredTheme } from "./preferences"
+
 /**
- * The active palette as plain values.
+ * The active palette, plus a toggle.
  *
- * Needed because a good deal of React Native takes colours as props rather than
- * styles — lucide icons, BottomSheet's background, TextInput's placeholder —
- * and NativeWind's className cannot reach any of those.
+ * Reads NativeWind's scheme rather than React Native's so a manual override
+ * reaches both the `dark:` classes and these raw values — a good deal of React
+ * Native takes colours as props (lucide icons, BottomSheet backgrounds,
+ * placeholder text) where a className cannot reach.
  */
 export function useTheme() {
-  const isDark = useColorScheme() === "dark"
-  return { isDark, colors: isDark ? darkTokens : lightTokens }
+  const { colorScheme, setColorScheme } = useColorScheme()
+  const isDark = colorScheme === "dark"
+
+  const toggle = useCallback(() => {
+    const next = isDark ? "light" : "dark"
+    setColorScheme(next)
+    setStoredTheme(next)
+  }, [isDark, setColorScheme])
+
+  return { isDark, colors: isDark ? darkTokens : lightTokens, toggle }
 }
