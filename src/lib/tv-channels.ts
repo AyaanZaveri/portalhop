@@ -109,8 +109,7 @@ export function getExternalPlayerUrl(
   }
 }
 
-const proxyBaseUrl = process.env.NEXT_PUBLIC_PROXY_URL
-const proxyManifestUrl = `${proxyBaseUrl}/proxy/hls/manifest.m3u8`
+const proxyBaseUrl = process.env.NEXT_PUBLIC_PROXY_URL?.replace(/\/$/, "")
 
 export const defaultSourceRequest: SourceRequest = {
   sourceType: "stalker",
@@ -179,9 +178,20 @@ export async function resolveChannelLink(
 }
 
 export function proxyStreamUrl(streamUrl: string) {
-  const url = new URL(proxyManifestUrl)
+  // No proxy configured: play direct. Interpolating an undefined base produced
+  // "undefined/proxy/hls/manifest.m3u8", which is not an absolute URL, so
+  // `new URL` threw "Failed to construct 'URL'" and the player went red — a
+  // hard failure for an optional feature, in any build missing the variable.
+  if (!proxyBaseUrl) return streamUrl
+
+  const url = new URL(`${proxyBaseUrl}/proxy/hls/manifest.m3u8`)
   url.searchParams.set("d", streamUrl)
   return url.href
+}
+
+/** Whether stream proxying can actually be used in this build. */
+export function isStreamProxyConfigured() {
+  return Boolean(proxyBaseUrl)
 }
 
 export function formatStreamVariant({

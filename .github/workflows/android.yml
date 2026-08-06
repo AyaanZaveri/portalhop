@@ -15,6 +15,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # To attach the APK to a release, so it can be downloaded as a plain file.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v5
 
@@ -43,14 +47,37 @@ jobs:
         run: bun install --frozen-lockfile
 
       # Runs the static Next.js export, `cap sync`, and Gradle — the same script
-      # used locally, so CI can't drift from what is tested on a device. The
-      # backend URL defaults to the deployed instance, so no secrets are needed.
+      # used locally, so CI can't drift from what is tested on a device.
       - name: Build debug APK
+        env:
+          # These come from .env locally, which is gitignored and so absent
+          # here. Without them CI silently produced a different build: a missing
+          # proxy URL left the player unable to construct a stream URL at all.
+          # NEXT_PUBLIC_* values are compiled into the client bundle and shipped
+          # to every user, so they are repository variables rather than secrets.
+          NEXT_PUBLIC_PROXY_URL: ${{ vars.NEXT_PUBLIC_PROXY_URL }}
+          NEXT_PUBLIC_MUX_ENV_KEY: ${{ vars.NEXT_PUBLIC_MUX_ENV_KEY }}
         run: node scripts/build-android-apk.mjs --debug
 
-      - name: Upload APK
+      # Kept for per-run history. GitHub always serves artifacts as a zip, which
+      # is why the release below exists.
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v5
         with:
           name: portal-hop-debug-apk
           path: dist-android/*.apk
           if-no-files-found: error
+
+      # A release asset downloads as the file itself, so the APK can be tapped
+      # and installed straight from a phone with no unzipping.
+      - name: Publish APK to the rolling debug release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-latest
+          name: Latest debug build
+          body: >
+            Debug APK built from ${{ github.sha }}.
+            Replaced on every push to master.
+          prerelease: true
+          make_latest: false
+          files: dist-android/*.apk
