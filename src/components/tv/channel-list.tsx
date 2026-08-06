@@ -887,7 +887,13 @@ export function ChannelList({
                           category.sourceId,
                           category.genre,
                         )}
-                        className="flex w-full items-center gap-1"
+                        // category-row: lets the browser skip rendering the
+                        // rows that are off screen. This list runs to hundreds
+                        // of entries, most carrying a remote flag image, and
+                        // all of it lives inside the sheet that transforms
+                        // while you drag it — which is why this drawer stutters
+                        // where the groups drawer, a handful of rows, does not.
+                        className="category-row flex w-full items-center gap-1"
                       >
                         {/* The row surface sits on the button, so the whole row
                             presses rather than the label scaling inside a fixed
@@ -975,7 +981,7 @@ export function ChannelList({
                           category.sourceId,
                           category.genre,
                         )}
-                        className="text-muted-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
+                        className="category-row text-muted-foreground flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
                       >
                         <CategoryVisual category={category.genre} />
                         <span className="min-w-0 flex-1 truncate font-mono font-medium tracking-tight">

@@ -303,23 +303,17 @@ video {
   }
 }
 
-/* Blur is the most expensive thing on screen while a sheet is being dragged. A
-   backdrop-filter cannot be cached when the element carrying it moves, so the
-   compositor re-blurs the region every frame — and there are two stacked here,
-   the sheet's over the overlay's, with an animating shader behind them that
-   keeps invalidating the source. Suspending both for the duration of the swipe
-   hands that budget back to the transform, and costs nothing visually: blur
-   detail is imperceptible on a surface tracking your finger. The filters come
-   back the moment the drag ends.
+/* The category list runs to hundreds of rows, most carrying a remote flag
+   image, and the whole thing sits inside a sheet that transforms while being
+   dragged — so every frame of the drag rasterises rows nobody can see. The
+   groups drawer, a handful of rows, never had the problem.
 
-   Written unprefixed, and !important, on purpose. Declaring the -webkit- pair
-   let the minifier collapse it to the prefixed property alone, which Chromium
-   ignores while the unprefixed declaration stays in force; emptying Tailwind's
-   --tw-backdrop-* variables had the rule dropped as an empty value; and plain
-   `none` is the property's initial value, so it was optimised away too. */
-[data-slot="drawer-popup"][data-swiping],
-[data-slot="drawer-overlay"][data-swiping] {
-  backdrop-filter: none !important;
+   content-visibility lets the browser skip layout and paint for rows outside
+   the viewport. The intrinsic size matches the row's fixed h-9, so skipped
+   rows still occupy the right space and the scrollbar doesn't jump. */
+.category-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2.25rem;
 }
 
 /* Page-level scroll regions don't carry a persistent scrollbar in native apps —
