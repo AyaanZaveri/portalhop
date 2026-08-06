@@ -173,20 +173,24 @@ export default function ChannelListScreen() {
   // 44k channels across 12 sources is exactly where a collision would hide.
   // Checked once per data change in development so it is a log line rather
   // than a mystery.
+  // Checked against the merged catalogue rather than the filtered list: a
+  // collision can only come from merging sources, and hanging this off `visible`
+  // meant a full pass over every row each time a filter changed — a development
+  // cost on precisely the interaction that needs to stay quick.
   useEffect(() => {
-    if (!__DEV__ || !visible.length) return
+    if (!__DEV__ || !withSource.length) return
     const seen = new Set<string>()
     let duplicates = 0
-    for (const channel of visible) {
+    for (const channel of withSource) {
       if (seen.has(channel.key)) duplicates++
       else seen.add(channel.key)
     }
     if (duplicates) {
       console.warn(
-        `[portalhop] ${duplicates} duplicate channel keys of ${visible.length} — FlashList will not settle with these`,
+        `[portalhop] ${duplicates} duplicate channel keys of ${withSource.length} — FlashList will not settle with these`,
       )
     }
-  }, [visible])
+  }, [withSource])
 
   if (sessionPending) {
     return (
