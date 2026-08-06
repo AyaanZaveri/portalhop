@@ -224,37 +224,18 @@
   padding-block-start: var(--inset-top);
 }
 
-/* Opaque strip behind the status bar so its icons never sit on top of scrolling
-   content. It tracks the theme rather than being hard-coded dark, because the
-   app draws all the way up to the bezel in both themes. */
-.native-app body::before {
-  content: "";
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline: 0;
-  height: var(--inset-top);
-  background: var(--background);
-  z-index: 70;
-  pointer-events: none;
-}
+/* No opaque strip behind the status bar here, unlike the iOS PWA above. The
+   shell's own top padding already keeps content clear of the clock, so the
+   strip only ever painted over whatever was on screen — including a drawer's
+   backdrop blur, leaving a hard band of flat colour across the top of an
+   otherwise seamless overlay. */
 
-/* Anything anchored to the bottom of the screen has to clear the gesture bar
-   itself, since the shell no longer reserves room for it. Lifting the sheet
-   also moves its bottom corners out of the display's rounded corners, which
-   were clipping them, so they get the same radius as the top edge.
-
-   The closing transform grows by the same amount the sheet was lifted. Without
-   that it runs out of travel while still on screen and vanishes mid-animation
-   instead of sliding away. */
+/* Bottom sheets reach the bottom of the screen rather than stopping above the
+   gesture bar: a floating sheet leaves a strip of blurred backdrop below it
+   that reads as a misplaced sheet, where native ones run under the bar. Only
+   the content is inset, so nothing comes to rest beneath the bar itself. */
 .native-app [data-slot="drawer-popup"][data-swipe-direction="down"] {
-  margin-block-end: calc(var(--drawer-inset, 0px) + var(--inset-bottom));
-  border-end-start-radius: var(--radius-xl);
-  border-end-end-radius: var(--radius-xl);
-  --closed-transform: translate3d(
-    0,
-    calc(100% + var(--drawer-inset, 0px) + var(--inset-bottom) + 2px),
-    0
-  );
+  padding-block-end: var(--inset-bottom);
 }
 
 /* The status-bar inset already separates the header from the system clock, so
