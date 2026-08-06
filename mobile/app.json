@@ -42,7 +42,12 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "https://portalhop.vercel.app"
-    }
+      "apiBaseUrl": "https://portalhop.vercel.app",
+      "router": {},
+      "eas": {
+        "projectId": "66c35a72-c6d0-4e4a-9582-955aaae05fab"
+      }
+    },
+    "owner": "ayaanzaveri"
   }
 }
