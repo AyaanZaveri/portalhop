@@ -7,7 +7,10 @@ import type { PortalChannelWithSource } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
-export const CHANNEL_ROW_HEIGHT = 72
+// Tighter than the web's 84pt row: a phone shows far less at once, so padding
+// that reads as comfortable on a desktop list just costs you rows here. 64
+// leaves the 44pt logo 10pt of breathing room above and below.
+export const CHANNEL_ROW_HEIGHT = 64
 
 export const ChannelRow = memo(function ChannelRow({
   channel,
@@ -23,7 +26,7 @@ export const ChannelRow = memo(function ChannelRow({
     <PressableScale
       preset="row"
       onPress={() => onPress(channel)}
-      className="mb-1 flex-row items-center gap-3 rounded-xl px-2"
+      className="mb-0.5 flex-row items-center gap-3 rounded-xl px-2"
       style={{ height: CHANNEL_ROW_HEIGHT }}
     >
       <View
