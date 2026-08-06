@@ -54,7 +54,8 @@ export const Sheet = forwardRef<
     >
       <Text
         className="font-heading text-[22px] tracking-tight text-foreground"
-        style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}
+        // No top padding: the drag handle above already provides it.
+        style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14 }}
       >
         {title}
       </Text>

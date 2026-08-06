@@ -16,15 +16,17 @@ import { PressableScale } from "@/components/ui/pressable-scale"
  */
 const styles = StyleSheet.create({
   base: {
-    height: 36,
+    // 32pt matches the web's touch chip (h-8); 36 read as chunky next to the
+    // search field above it.
+    height: 32,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
     borderRadius: 999,
   },
-  wide: { paddingHorizontal: 14 },
-  icon: { width: 36 },
+  wide: { paddingHorizontal: 11 },
+  icon: { width: 32 },
   idle: { borderWidth: 1 },
 })
 
