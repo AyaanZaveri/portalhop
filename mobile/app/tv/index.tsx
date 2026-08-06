@@ -2,20 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Text, TextInput, View } from "react-native"
 import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList } from "@shopify/flash-list"
-import { Image } from "expo-image"
 import { router } from "expo-router"
-import { ListFilter, Search, Tv } from "lucide-react-native"
+import { ListFilter, Rabbit, Search, Tv } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { channelSlug, getChannelKey } from "@/lib/channel-keys"
 import { usePortalChannels, usePortals, type PortalChannelWithSource } from "@/lib/channels"
 import { useSession } from "@/lib/auth"
+import { useTheme } from "@/lib/theme"
 import { PortalFilterSheet } from "@/components/portal-filter-sheet"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
 
 export default function ChannelListScreen() {
   const insets = useSafeAreaInsets()
+  const { colors } = useTheme()
   const { data: session, isPending: sessionPending } = useSession()
   const signedIn = Boolean(session?.user)
 
@@ -99,29 +100,46 @@ export default function ChannelListScreen() {
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header — mirrors the web list header, minus the desktop-only controls */}
-      <View className="gap-3 px-5 pt-2 pb-2">
-        <Text className="font-wordmark text-xl tracking-tight text-foreground">
-          Portal Hop
-        </Text>
+      {/* The wordmark is gone: a native app does not need to tell you which app
+          you just opened, and the space is better spent on content. The bunny
+          stays as a small brand mark. */}
+      <View className="gap-3 px-4 pt-1 pb-2">
+        <View className="h-10 flex-row items-center gap-2">
+          <Rabbit size={22} color={colors.primary} />
+          <Text
+            className="font-heading text-[22px] tracking-tight text-foreground"
+            style={{ includeFontPadding: false }}
+          >
+            Channels
+          </Text>
+        </View>
 
-        <View className="h-11 flex-row items-center gap-2 rounded-lg border border-border px-3">
-          <Search size={16} className="text-muted-foreground" />
+        <View
+          className="h-11 flex-row items-center gap-2 rounded-lg border px-3"
+          style={{ borderColor: colors.border }}
+        >
+          {/* Colour comes from a prop, not a class: NativeWind does not style
+              lucide's icons, so className left them at the default colour. */}
+          <Search size={17} color={colors["muted-foreground"]} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder={`Search ${visible.length.toLocaleString()} channels`}
-            className="h-full flex-1 font-sans text-[15px] text-foreground"
-            placeholderTextColor="#737373"
+            className="flex-1 font-sans text-[15px] text-foreground"
+            placeholderTextColor={colors["muted-foreground"]}
             autoCorrect={false}
+            // Android vertically centres text in a TextInput only when told to,
+            // and its default font padding pushes the baseline up besides.
+            textAlignVertical="center"
+            style={{ paddingVertical: 0, includeFontPadding: false }}
           />
           {portals && portals.length > 1 ? (
             <PressableScale
               preset="icon"
-              hitSlop={8}
+              hitSlop={10}
               onPress={() => filterSheet.current?.present()}
             >
-              <ListFilter size={18} className="text-muted-foreground" />
+              <ListFilter size={18} color={colors["muted-foreground"]} />
             </PressableScale>
           ) : null}
         </View>
@@ -145,7 +163,7 @@ export default function ChannelListScreen() {
         </View>
       ) : visible.length === 0 ? (
         <View className="flex-1 items-center justify-center gap-2 px-8">
-          <Tv size={28} className="text-muted-foreground" />
+          <Tv size={28} color={colors["muted-foreground"]} />
           <Text className="text-center text-sm text-muted-foreground">
             {query
               ? "No channels match."

@@ -3,11 +3,14 @@ import { router, useLocalSearchParams } from "expo-router"
 import { ChevronLeft } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import { useTheme } from "@/lib/theme"
+
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 export default function ChannelDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>()
   const insets = useSafeAreaInsets()
+  const { colors } = useTheme()
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -18,7 +21,7 @@ export default function ChannelDetailScreen() {
           onPress={() => router.back()}
           className="size-9 items-center justify-center rounded-lg"
         >
-          <ChevronLeft size={22} className="text-foreground" />
+          <ChevronLeft size={22} color={colors.foreground} />
         </PressableScale>
         <Text numberOfLines={1} className="flex-1 font-heading text-base text-foreground">
           Channel
