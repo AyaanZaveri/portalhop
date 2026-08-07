@@ -4,6 +4,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList, type FlashListRef } from "@shopify/flash-list"
 import { useQueryClient } from "@tanstack/react-query"
 import { router } from "expo-router"
+import * as Haptics from "expo-haptics"
 import {
   FolderHeart,
   LayoutGrid,
@@ -47,6 +48,8 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
 import { invalidateFeeds } from "@/lib/epg"
+import { ChannelActionsSheet } from "@/components/channel-actions-sheet"
+import { GroupMembershipSheet } from "@/components/group-membership-sheet"
 import { EpgProvider } from "@/components/epg-provider"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
@@ -113,6 +116,10 @@ export default function ChannelListScreen() {
     void saveSelectedPortalIds(ids)
   }, [])
   const filterSheet = useRef<BottomSheetModal>(null)
+  const actionsSheet = useRef<BottomSheetModal>(null)
+  const membershipSheet = useRef<BottomSheetModal>(null)
+  const [actionChannel, setActionChannel] =
+    useState<PortalChannelWithSource | null>(null)
   const categoriesSheet = useRef<BottomSheetModal>(null)
   const groupsSheet = useRef<BottomSheetModal>(null)
   const [filter, setFilterState] = useState<BrowseFilter>({ type: "all" })
@@ -241,11 +248,21 @@ export default function ChannelListScreen() {
   // internals when a prop changes by reference, and with a list this size an
   // inline renderItem or style object is enough to send it into a loop that
   // never commits — which is what "Exceeded max renders without commit" was.
+  const openActions = useCallback((channel: PortalChannelWithSource) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setActionChannel(channel)
+    actionsSheet.current?.present()
+  }, [])
+
   const renderChannel = useCallback(
     ({ item }: { item: PortalChannelWithSource }) => (
-      <ChannelRow channel={item} onPress={openChannel} />
+      <ChannelRow
+        channel={item}
+        onPress={openChannel}
+        onLongPress={openActions}
+      />
     ),
-    [openChannel],
+    [openChannel, openActions],
   )
 
   // Each filter is a different list, so it starts where a list starts. Without
@@ -513,6 +530,26 @@ export default function ChannelListScreen() {
             })
             categoriesSheet.current?.dismiss()
           }}
+        />
+
+        <ChannelActionsSheet
+          ref={actionsSheet}
+          channel={actionChannel}
+          favorites={favorites.set}
+          groups={groups}
+          signedIn={signedIn}
+          onEditGroups={() => {
+            // Dismissed first so the two sheets do not overlap mid-animation.
+            actionsSheet.current?.dismiss()
+            membershipSheet.current?.present()
+          }}
+          onClose={() => actionsSheet.current?.dismiss()}
+        />
+
+        <GroupMembershipSheet
+          ref={membershipSheet}
+          channel={actionChannel}
+          groups={groups}
         />
 
         <GroupsSheet

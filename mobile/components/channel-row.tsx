@@ -19,9 +19,11 @@ export const CHANNEL_ROW_HEIGHT = 72
 export const ChannelRow = memo(function ChannelRow({
   channel,
   onPress,
+  onLongPress,
 }: {
   channel: PortalChannelWithSource
   onPress: (channel: PortalChannelWithSource) => void
+  onLongPress: (channel: PortalChannelWithSource) => void
 }) {
   const { colors } = useTheme()
   const logo = channel.logoUrl || channel.logo
@@ -31,6 +33,7 @@ export const ChannelRow = memo(function ChannelRow({
     <PressableScale
       preset="row"
       onPress={() => onPress(channel)}
+      onLongPress={() => onLongPress(channel)}
       className="mb-0.5 flex-row items-center gap-3 rounded-xl px-2"
       // Back to one fixed height for every row. Because the guide replaces the
       // category line rather than adding to it, the tall case is three short
