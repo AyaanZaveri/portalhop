@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import * as Haptics from "expo-haptics"
 import {
   Maximize,
+  Minimize,
   Pause,
   PictureInPicture2,
   Play,
@@ -13,6 +14,9 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react-native"
+import * as ScreenOrientation from "expo-screen-orientation"
+import { StatusBar } from "expo-status-bar"
+import { BackHandler } from "react-native"
 
 import { resolveChannelLink } from "@/lib/stream"
 import { PressableScale } from "@/components/ui/pressable-scale"
@@ -20,15 +24,16 @@ import { PressableScale } from "@/components/ui/pressable-scale"
 /** How long the controls stay up after a tap. */
 const HIDE_AFTER_MS = 3500
 
-/** Landscape and filling the screen, which is the only reason to go fullscreen on a phone. */
-const FULLSCREEN = { enable: true, orientation: "landscape" as const }
-
 export function ChannelPlayer({
   sourceId,
   savedChannelId,
+  fullscreen,
+  onFullscreenChange,
 }: {
   sourceId: number | undefined
   savedChannelId: number | undefined
+  fullscreen: boolean
+  onFullscreenChange: (next: boolean) => void
 }) {
   // Both must be real ids. The route hands these over as strings, and an absent
   // one becomes Number("") — which is 0, not NaN, so a plain isFinite check
@@ -134,6 +139,41 @@ export function ChannelPlayer({
     setControlsVisible(true)
   }, [player])
 
+  /**
+   * Fullscreen, ours rather than the platform's.
+   *
+   * VideoView.enterFullscreen hands the video to the system player, and its own
+   * documentation is explicit about the two reasons that will not do here: the
+   * native controls are forced back on whatever nativeControls says, and on
+   * Android the JS runtime is paused for the duration — so React controls could
+   * not run over it even in principle.
+   *
+   * Instead the same view simply grows. The screen hides its header and guide,
+   * this container goes from a 16:9 box to filling what is left, and the
+   * VideoView never unmounts — so playback continues rather than restarting
+   * against a fresh buffer.
+   */
+  useEffect(() => {
+    if (!fullscreen) return
+
+    void ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.LANDSCAPE,
+    )
+
+    // Back should leave fullscreen before it leaves the channel. Predictive
+    // back may claim the gesture first on Android 13+, in which case the exit
+    // button is still there.
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      onFullscreenChange(false)
+      return true
+    })
+
+    return () => {
+      back.remove()
+      void ScreenOrientation.unlockAsync()
+    }
+  }, [fullscreen, onFullscreenChange])
+
   if (!canPlay) {
     return (
       <View className="mx-3 aspect-video items-center justify-center rounded-xl bg-black px-6">
@@ -152,7 +192,16 @@ export function ChannelPlayer({
   const stalled = status === "loading" && Boolean(stream)
 
   return (
-    <View className="mx-3 aspect-video overflow-hidden rounded-xl bg-black">
+    <View
+      className={
+        fullscreen
+          ? "flex-1 bg-black"
+          : "mx-3 aspect-video overflow-hidden rounded-xl bg-black"
+      }
+    >
+      {/* The system bars have no business over a full-screen picture, and the
+          status bar is the one that overlaps it in landscape. */}
+      {fullscreen ? <StatusBar hidden /> : null}
       <VideoView
         ref={viewRef}
         player={player}
@@ -162,7 +211,6 @@ export function ChannelPlayer({
         // which is a limitation worth knowing rather than fighting.
         nativeControls={false}
         contentFit="contain"
-        fullscreenOptions={FULLSCREEN}
         // The manifest flag that makes this possible on Android comes from the
         // expo-video config plugin, so it needs a build rather than a reload.
         allowsPictureInPicture
@@ -314,9 +362,19 @@ export function ChannelPlayer({
                     preset="icon"
                     hitSlop={8}
                     className="size-9 items-center justify-center rounded-lg bg-black/50"
-                    onPress={() => void viewRef.current?.enterFullscreen()}
+                    onPress={() => {
+                      void Haptics.impactAsync(
+                        Haptics.ImpactFeedbackStyle.Light,
+                      )
+                      onFullscreenChange(!fullscreen)
+                      setControlsVisible(true)
+                    }}
                   >
-                    <Maximize size={18} color="#fff" />
+                    {fullscreen ? (
+                      <Minimize size={18} color="#fff" />
+                    ) : (
+                      <Maximize size={18} color="#fff" />
+                    )}
                   </PressableScale>
                 </View>
               </>

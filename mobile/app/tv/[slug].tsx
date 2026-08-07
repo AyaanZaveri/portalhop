@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { ScrollView, Text, View } from "react-native"
 import { Image } from "expo-image"
 import { router, useLocalSearchParams } from "expo-router"
@@ -14,6 +15,11 @@ import { ChannelSchedule } from "@/components/channel-schedule"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 export default function ChannelDetailScreen() {
+  // Fullscreen is the screen's business, not just the player's: what makes the
+  // video fill the display is the header and guide standing down, so the player
+  // is left as the only thing with room to grow. Keeping it here also means the
+  // VideoView never moves in the tree, and so never restarts.
+  const [fullscreen, setFullscreen] = useState(false)
   const {
     name,
     xmltvId,
@@ -46,123 +52,135 @@ export default function ChannelDetailScreen() {
   const portal = portals?.find((entry) => entry.id === Number(portalId))
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+    <View
+      className="bg-background flex-1"
+      style={{ paddingTop: fullscreen ? 0 : insets.top }}
+    >
       {/* Logo, name, category and source — the same block the web's channel
           header carries, and the same logo treatment as a list row so a
-          channel looks like itself on both screens. */}
-      <View className="flex-row items-center gap-3 px-3 pt-2 pb-5">
-        <PressableScale
-          preset="icon"
-          hitSlop={8}
-          onPress={() => router.back()}
-          className="size-9 items-center justify-center rounded-lg"
-        >
-          <ChevronLeft size={22} color={colors.foreground} />
-        </PressableScale>
-
-        <View
-          className="size-11 items-center justify-center overflow-hidden border p-1"
-          style={{
-            borderRadius: 10,
-            borderColor: colors.border,
-            backgroundColor: "#18181b",
-          }}
-        >
-          {logo ? (
-            <Image
-              source={{ uri: logo }}
-              // Radius on the image as well as the parent: Android does not
-              // reliably clip a child to a rounded parent.
-              style={{ width: "100%", height: "100%", borderRadius: 6 }}
-              contentFit="contain"
-              transition={0}
-            />
-          ) : (
-            <Tv size={18} color={colors["muted-foreground"]} />
-          )}
-        </View>
-
-        <View className="min-w-0 flex-1">
-          <Text
-            numberOfLines={1}
-            className="font-medium text-[17px] tracking-tight text-foreground"
-            style={{ lineHeight: 21, includeFontPadding: false }}
+          channel looks like itself on both screens. Stood down in fullscreen,
+          which is what leaves the player the room to fill. */}
+      {fullscreen ? null : (
+        <View className="flex-row items-center gap-3 px-3 pt-2 pb-5">
+          <PressableScale
+            preset="icon"
+            hitSlop={8}
+            onPress={() => router.back()}
+            className="size-9 items-center justify-center rounded-lg"
           >
-            {name || "Live stream"}
-          </Text>
+            <ChevronLeft size={22} color={colors.foreground} />
+          </PressableScale>
 
           <View
+            className="size-11 items-center justify-center overflow-hidden border p-1"
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              marginTop: 2,
+              borderRadius: 10,
+              borderColor: colors.border,
+              backgroundColor: "#18181b",
             }}
           >
-            <CategoryVisual category={genre || "Uncategorized"} size={12} />
+            {logo ? (
+              <Image
+                source={{ uri: logo }}
+                // Radius on the image as well as the parent: Android does not
+                // reliably clip a child to a rounded parent.
+                style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                contentFit="contain"
+                transition={0}
+              />
+            ) : (
+              <Tv size={18} color={colors["muted-foreground"]} />
+            )}
+          </View>
+
+          <View className="min-w-0 flex-1">
             <Text
               numberOfLines={1}
-              className="shrink text-xs text-muted-foreground"
-              style={{ lineHeight: 15, includeFontPadding: false }}
+              className="text-foreground text-[17px] font-medium tracking-tight"
+              style={{ lineHeight: 21, includeFontPadding: false }}
             >
-              {genre || "Uncategorized"}
+              {name || "Live stream"}
             </Text>
-            {portalName ? (
-              // The web's outline Badge. Which source a channel came from
-              // matters most here, where you are about to watch it.
-              <View
-                className="rounded-md border px-2 py-0.5"
-                style={{ borderColor: colors.border }}
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                marginTop: 2,
+              }}
+            >
+              <CategoryVisual category={genre || "Uncategorized"} size={12} />
+              <Text
+                numberOfLines={1}
+                className="text-muted-foreground shrink text-xs"
+                style={{ lineHeight: 15, includeFontPadding: false }}
               >
-                <Text
-                  numberOfLines={1}
-                  className="text-[10px] text-muted-foreground"
-                  // The line height is what sized this badge before: 15pt of
-                  // box around 10pt text, against 6pt of side padding, read as
-                  // though the horizontal padding had gone missing. The box now
-                  // hugs the text and the padding does the spacing.
-                  style={{ lineHeight: 12, includeFontPadding: false }}
+                {genre || "Uncategorized"}
+              </Text>
+              {portalName ? (
+                // The web's outline Badge. Which source a channel came from
+                // matters most here, where you are about to watch it.
+                <View
+                  className="rounded-md border px-2 py-0.5"
+                  style={{ borderColor: colors.border }}
                 >
-                  {portalName}
-                </Text>
-              </View>
-            ) : null}
+                  <Text
+                    numberOfLines={1}
+                    className="text-muted-foreground text-[10px]"
+                    // The line height is what sized this badge before: 15pt of
+                    // box around 10pt text, against 6pt of side padding, read as
+                    // though the horizontal padding had gone missing. The box now
+                    // hugs the text and the padding does the spacing.
+                    style={{ lineHeight: 12, includeFontPadding: false }}
+                  >
+                    {portalName}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
         </View>
-      </View>
+      )}
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <ChannelPlayer
-          sourceId={Number(portalId)}
-          savedChannelId={Number(savedChannelId)}
-        />
+      {/* Outside the ScrollView on purpose: a scrolling child cannot flex to
+          fill the screen, and this has to be able to. */}
+      <ChannelPlayer
+        sourceId={Number(portalId)}
+        savedChannelId={Number(savedChannelId)}
+        fullscreen={fullscreen}
+        onFullscreenChange={setFullscreen}
+      />
 
-        {/* Icon and weight follow the web's guide heading. */}
-        <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
-          {/* Optically centred against the text rather than mathematically:
+      {fullscreen ? null : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Icon and weight follow the web's guide heading. */}
+          <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
+            {/* Optically centred against the text rather than mathematically:
               the icon's mass sits low next to a cap-height word, so it reads
               as sunk when its box is aligned. The web nudges the same icon by
               the same amount with -mt-0.5. */}
-          <Tv
-            size={16}
-            color={colors["muted-foreground"]}
-            style={{ marginTop: -2 }}
-          />
-          <Text className="font-heading text-base text-foreground">
-            Programme Guide
-          </Text>
-        </View>
+            <Tv
+              size={16}
+              color={colors["muted-foreground"]}
+              style={{ marginTop: -2 }}
+            />
+            <Text className="font-heading text-foreground text-base">
+              Programme Guide
+            </Text>
+          </View>
 
-        <ChannelSchedule
-          portal={portal}
-          channelId={channelId}
-          channelName={name}
-          xmltvId={xmltvId}
-        />
-      </ScrollView>
+          <ChannelSchedule
+            portal={portal}
+            channelId={channelId}
+            channelName={name}
+            xmltvId={xmltvId}
+          />
+        </ScrollView>
+      )}
     </View>
   )
 }
