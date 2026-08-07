@@ -120,7 +120,6 @@ export function EpgProvider({
     if (!visibleKey) return
 
     let cancelled = false
-    const ids = visibleKey.split(",")
 
     void (async () => {
       // Only the feeds the visible rows belong to. Downloading every country a
@@ -142,7 +141,10 @@ export function EpgProvider({
 
       if (cancelled) return
 
-      const found = await queryNowPlaying(ids, Date.now())
+      // Everything stored, not just the rows that were reported visible — the
+      // viewport decides which guides to download, never which rows may show
+      // one.
+      const found = await queryNowPlaying(Date.now())
       if (!cancelled) setNowPlaying(found)
     })()
 

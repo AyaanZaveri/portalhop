@@ -1,40 +1,85 @@
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
 import { ActivityIndicator, Text, View } from "react-native"
+import { useQuery } from "@tanstack/react-query"
 
-import { querySchedule, type Programme } from "@/lib/epg"
+import type { EpgProgramme } from "@portalhop/shared/stalker-types"
+import type { SavedSourceRecord } from "@portalhop/shared/source-types"
+
+import { apiFetch } from "@/lib/api"
 import { useTheme } from "@/lib/theme"
-import { formatTime, progressOf } from "@/components/epg-strip"
+import { progressOf } from "@/components/epg-strip"
 
 /**
- * The stored schedule for one channel.
+ * The programme guide for one channel, from /api/channel-epg.
  *
- * Read straight from SQLite rather than fetched: the list screen has already
- * written the guide file this channel belongs to, so opening a channel is a
- * local query rather than another download. It follows that a channel opened
- * without having been scrolled past has nothing to show yet — the empty state
- * says so rather than pretending the channel has no listings.
+ * The same endpoint the web's guide uses, and deliberately not the now-window
+ * the list rows are built on. That window is six hours wide and keyed by
+ * country; this looks a month ahead, asks a Stalker portal for its own guide
+ * when the source is in portal mode, and resolves a custom EPG source by
+ * matching on channel id or name. A channel whose next event is days away —
+ * which is most of what a custom source carries — has nothing at all in the
+ * six-hour window, which is why reading the guide from there showed nothing.
  */
-export function ChannelSchedule({ xmltvId }: { xmltvId: string | undefined }) {
+export function ChannelSchedule({
+  portal,
+  channelId,
+  channelName,
+  xmltvId,
+}: {
+  portal: SavedSourceRecord | undefined
+  channelId: string | undefined
+  channelName: string | undefined
+  xmltvId: string | undefined
+}) {
   const { colors } = useTheme()
-  const [programmes, setProgrammes] = useState<Programme[] | null>(null)
 
-  useEffect(() => {
-    if (!xmltvId) {
-      setProgrammes([])
-      return
+  const query = useQuery({
+    queryKey: ["channel-epg", portal?.id, channelId, xmltvId],
+    enabled: Boolean(channelId || channelName || xmltvId),
+    queryFn: async () => {
+      // The whole source record goes in: the portal-mode branch needs the
+      // endpoint and credentials to ask the portal itself, and the handler
+      // reads sourceType to know an Xtream or M3U source has no guide.
+      const response = await apiFetch("/api/channel-epg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(portal ?? {}),
+          epgMode: portal?.epgMode ?? "portal",
+          epgSourceId: portal?.epgSourceId ?? null,
+          endpoint: portal?.endpoint ?? null,
+          channelId,
+          channelName,
+          xmltvId,
+        }),
+      })
+
+      const data = (await response.json().catch(() => ({}))) as {
+        programmes?: EpgProgramme[]
+        error?: string
+      }
+
+      if (!response.ok) throw new Error(data.error || "Could not load the guide.")
+      return data.programmes ?? []
+    },
+  })
+
+  // Grouped by day, as the web's guide is — a flat list of times is unreadable
+  // once it runs past midnight.
+  const days = useMemo(() => {
+    const grouped = new Map<string, EpgProgramme[]>()
+
+    for (const programme of query.data ?? []) {
+      const day = new Date(programme.startAt).toDateString()
+      const entries = grouped.get(day) ?? []
+      entries.push(programme)
+      grouped.set(day, entries)
     }
 
-    let cancelled = false
-    void querySchedule(xmltvId, Date.now()).then((rows) => {
-      if (!cancelled) setProgrammes(rows)
-    })
+    return [...grouped.entries()]
+  }, [query.data])
 
-    return () => {
-      cancelled = true
-    }
-  }, [xmltvId])
-
-  if (programmes === null) {
+  if (query.isPending) {
     return (
       <View className="items-center py-8">
         <ActivityIndicator />
@@ -42,7 +87,15 @@ export function ChannelSchedule({ xmltvId }: { xmltvId: string | undefined }) {
     )
   }
 
-  if (!programmes.length) {
+  if (query.error) {
+    return (
+      <Text className="px-4 py-8 text-center text-sm text-muted-foreground">
+        {query.error.message}
+      </Text>
+    )
+  }
+
+  if (!days.length) {
     return (
       <Text className="px-4 py-8 text-center text-sm text-muted-foreground">
         No guide data for this channel.
@@ -53,62 +106,87 @@ export function ChannelSchedule({ xmltvId }: { xmltvId: string | undefined }) {
   const now = Date.now()
 
   return (
-    <View className="gap-3 px-4">
-      {programmes.map((programme, index) => {
-        const isNow = programme.startAt <= now && programme.stopAt > now
+    <View className="gap-5 px-4">
+      {days.map(([day, programmes]) => (
+        <View key={day} className="gap-2">
+          <Text className="text-xs text-muted-foreground">
+            {new Date(day).toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </Text>
 
-        return (
-          <View
-            key={`${programme.startAt}-${index}`}
-            className="flex-row gap-3"
-          >
-            {/* Fixed width so every title starts on the same line, which is
-                what makes a schedule scannable rather than ragged. */}
-            <Text
-              className="w-14 font-mono-medium text-xs text-muted-foreground"
-              style={{ lineHeight: 18, includeFontPadding: false }}
-            >
-              {formatTime(programme.startAt)}
-            </Text>
+          {programmes.map((programme) => {
+            const startAt = new Date(programme.startAt).getTime()
+            const stopAt = new Date(programme.stopAt).getTime()
+            const isNow = startAt <= now && stopAt > now
 
-            <View className="min-w-0 flex-1 gap-1.5">
-              <Text
-                numberOfLines={2}
-                className={
-                  isNow
-                    ? "text-sm font-medium text-foreground"
-                    : "text-sm text-muted-foreground"
-                }
-                style={{ lineHeight: 18, includeFontPadding: false }}
+            return (
+              <View
+                key={programme.id}
+                className="gap-1.5 rounded-xl p-3"
+                style={{
+                  backgroundColor: colors.card,
+                  // Only what is on now is outlined. A border on every card
+                  // turns the list into a grid and buries the one row that
+                  // answers "what is on".
+                  borderWidth: isNow ? 1 : 0,
+                  borderColor: isNow ? colors.primary : "transparent",
+                }}
               >
-                {programme.title}
-              </Text>
+                <Text className="font-mono text-[11px] text-muted-foreground">
+                  {formatRange(startAt, stopAt)}
+                </Text>
 
-              {/* Only under what is actually on: a bar against a programme
-                  three hours out would be an empty track saying nothing. */}
-              {isNow ? (
-                <View
-                  style={{
-                    height: 2,
-                    borderRadius: 1,
-                    overflow: "hidden",
-                    backgroundColor: colors.border,
-                  }}
-                >
+                <Text className="text-sm font-medium text-foreground">
+                  {programme.title}
+                </Text>
+
+                {programme.description ? (
+                  <Text
+                    numberOfLines={3}
+                    className="text-xs text-muted-foreground"
+                    style={{ lineHeight: 16 }}
+                  >
+                    {programme.description}
+                  </Text>
+                ) : null}
+
+                {isNow ? (
                   <View
                     style={{
-                      height: "100%",
-                      borderRadius: 1,
-                      width: `${progressOf(programme, now) * 100}%`,
-                      backgroundColor: colors.primary,
+                      height: 3,
+                      borderRadius: 999,
+                      overflow: "hidden",
+                      marginTop: 2,
+                      backgroundColor: colors.border,
                     }}
-                  />
-                </View>
-              ) : null}
-            </View>
-          </View>
-        )
-      })}
+                  >
+                    <View
+                      style={{
+                        height: "100%",
+                        borderRadius: 999,
+                        width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
+                        backgroundColor: colors.primary,
+                      }}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            )
+          })}
+        </View>
+      ))}
     </View>
   )
+}
+
+function formatRange(startAt: number, stopAt: number) {
+  const time = (at: number) =>
+    new Date(at).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  return `${time(startAt)} - ${time(stopAt)}`
 }

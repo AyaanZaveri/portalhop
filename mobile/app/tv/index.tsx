@@ -161,6 +161,8 @@ export default function ChannelListScreen() {
         slug: channelSlug(channel),
         xmltvId: channel.xmltvId ?? "",
         name: channel.name ?? "",
+        channelId: channel.id ?? "",
+        portalId: String(channel.portalSource?.id ?? ""),
       },
     })
   }, [])

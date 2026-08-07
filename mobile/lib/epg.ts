@@ -181,16 +181,22 @@ export function ensureFeed(key: string, wanted: Set<string>) {
   return task
 }
 
-/** What is airing right now on each of the given channels. */
+/**
+ * What is airing right now, for every channel in the table.
+ *
+ * Not narrowed to the rows on screen. Scoping it to the viewport meant a row's
+ * guide depended on it having been reported visible, and a viewability callback
+ * that fired at the wrong moment — during a filter change, say — left channels
+ * blank that had a programme stored the whole time. The table only ever holds
+ * channels the user actually has, and only one programme per channel can be
+ * airing, so the whole answer is one indexed query and a map of at most a few
+ * thousand entries.
+ */
 export async function queryNowPlaying(
-  ids: string[],
   now: number,
 ): Promise<Map<string, NowPlaying>> {
   const found = new Map<string, NowPlaying>()
-  if (!ids.length) return found
-
   const handle = await db
-  const placeholders = ids.map(() => "?").join(",")
 
   const rows = await handle.getAllAsync<{
     xmltv_id: string
@@ -199,8 +205,7 @@ export async function queryNowPlaying(
     title: string
   }>(
     `SELECT xmltv_id, start_at, stop_at, title FROM epg_slot
-     WHERE xmltv_id IN (${placeholders}) AND start_at <= ? AND stop_at > ?`,
-    ...ids,
+     WHERE start_at <= ? AND stop_at > ?`,
     now,
     now,
   )
