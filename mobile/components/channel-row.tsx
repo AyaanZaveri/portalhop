@@ -11,9 +11,10 @@ import { useNowPlaying } from "@/components/epg-provider"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 // Tighter than the web's 84pt row: a phone shows far less at once, so padding
-// that reads as comfortable on a desktop list just costs you rows here. 64
-// leaves the 44pt logo 10pt of breathing room above and below.
-export const CHANNEL_ROW_HEIGHT = 64
+// that reads as comfortable on a desktop list just costs you rows here. 72 is
+// what the guide case needs — name, programme title, and the times either side
+// of the progress bar — with the 44pt logo still clearing it comfortably.
+export const CHANNEL_ROW_HEIGHT = 72
 
 export const ChannelRow = memo(function ChannelRow({
   channel,
@@ -31,11 +32,11 @@ export const ChannelRow = memo(function ChannelRow({
       preset="row"
       onPress={() => onPress(channel)}
       className="mb-0.5 flex-row items-center gap-3 rounded-xl px-2"
-      // minHeight rather than height: a row carrying a guide strip is taller,
-      // and FlashList v2 measures each item rather than assuming one size.
-      // Channels with no schedule keep the compact row instead of reserving
-      // space for something that will never arrive.
-      style={{ minHeight: CHANNEL_ROW_HEIGHT, paddingVertical: 8 }}
+      // Back to one fixed height for every row. Because the guide replaces the
+      // category line rather than adding to it, the tall case is three short
+      // lines (19 + 15 + 12 plus gaps) and fits inside a single size — so the
+      // list keeps uniform rows instead of measuring each one.
+      style={{ height: CHANNEL_ROW_HEIGHT }}
     >
       <View
         className="size-11 items-center justify-center overflow-hidden border p-1"
@@ -69,26 +70,34 @@ export const ChannelRow = memo(function ChannelRow({
         >
           {channel.name || `Channel ${channel.number}`}
         </Text>
-        {/* 2pt of separation on top of the line heights: without it the two
-            lines read as one block. */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 5,
-            marginTop: 2,
-          }}
-        >
-          <CategoryVisual category={channel.genre || "Uncategorized"} size={12} />
-          <Text
-            numberOfLines={1}
-            className="flex-1 text-xs text-muted-foreground"
-            style={{ lineHeight: 15, includeFontPadding: false }}
+        {/* What is on now beats the genre the portal filed the channel under,
+            so it takes those lines rather than pushing the row to four — the
+            same trade the web makes. 2pt of separation on top of the line
+            heights: without it the lines read as one block. */}
+        {programme ? (
+          <EpgStrip programme={programme} />
+        ) : (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              marginTop: 2,
+            }}
           >
-            {channel.genre || "Uncategorized"}
-          </Text>
-        </View>
-        {programme ? <EpgStrip programme={programme} /> : null}
+            <CategoryVisual
+              category={channel.genre || "Uncategorized"}
+              size={12}
+            />
+            <Text
+              numberOfLines={1}
+              className="flex-1 text-xs text-muted-foreground"
+              style={{ lineHeight: 15, includeFontPadding: false }}
+            >
+              {channel.genre || "Uncategorized"}
+            </Text>
+          </View>
+        )}
       </View>
     </PressableScale>
   )

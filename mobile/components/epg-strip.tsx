@@ -33,33 +33,70 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
   const progress = progressOf(programme, Date.now())
 
   return (
-    <View style={{ marginTop: 3, gap: 3 }}>
+    <>
       <Text
         numberOfLines={1}
         className="text-xs text-foreground"
-        style={{ lineHeight: 14, includeFontPadding: false }}
+        style={{ lineHeight: 15, includeFontPadding: false, marginTop: 2 }}
       >
         {programme.title}
       </Text>
+
+      {/* Start, bar, end on one line, as the web has it. */}
       <View
         style={{
-          height: 2,
-          borderRadius: 1,
-          overflow: "hidden",
-          backgroundColor: colors.border,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          marginTop: 3,
         }}
       >
+        <Text
+          className="text-[10px] text-muted-foreground"
+          // Tabular figures so the times hold their width as the clock moves;
+          // proportional digits make the bar twitch on every tick.
+          style={{
+            lineHeight: 12,
+            includeFontPadding: false,
+            fontVariant: ["tabular-nums"],
+          }}
+        >
+          {formatTime(programme.startAt)}
+        </Text>
+
         <View
           style={{
-            height: "100%",
-            borderRadius: 1,
-            // Percentage rather than a measured width: the row is recycled and
-            // a layout pass per row per tick is the one thing this cannot cost.
-            width: `${progress * 100}%`,
-            backgroundColor: colors.primary,
+            flex: 1,
+            height: 3,
+            borderRadius: 999,
+            overflow: "hidden",
+            backgroundColor: colors.border,
           }}
-        />
+        >
+          <View
+            style={{
+              height: "100%",
+              borderRadius: 999,
+              // Percentage rather than a measured width: the row is recycled
+              // and a layout pass per row per tick is the one thing this
+              // cannot cost.
+              width: `${progress * 100}%`,
+              backgroundColor: colors.primary,
+            }}
+          />
+        </View>
+
+        <Text
+          className="text-[10px] text-muted-foreground"
+          style={{
+            lineHeight: 12,
+            includeFontPadding: false,
+            fontVariant: ["tabular-nums"],
+          }}
+        >
+          {formatTime(programme.stopAt)}
+        </Text>
       </View>
-    </View>
+    </>
   )
 }
