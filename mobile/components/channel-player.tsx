@@ -93,10 +93,23 @@ export function ChannelPlayer({
   // averageBitrate and peakBitrate in preference to bitrate, which is
   // deprecated. Average describes what the stream is actually costing; peak is
   // the ceiling, and stands in when only it is known.
+  //
+  // A raw MPEG-TS stream declares neither, which is why the Xtream channels
+  // show no bitrate: the library reports what the stream states about itself,
+  // and there is no manifest there to state it. The web's figure is measured
+  // rather than declared — hls.js weighs the bytes of each fragment — and
+  // nothing expo-video exposes can be measured the same way.
   const bps = videoTrack?.averageBitrate ?? videoTrack?.peakBitrate ?? null
+  // Frame rate comes off the video track itself, so it survives where the
+  // bitrate does not — which is exactly the channels that would otherwise show
+  // a resolution and nothing else. Rounded the way the web rounds it.
+  const fps = videoTrack?.frameRate ?? null
   const stream =
     [
       height ? `${height}p` : null,
+      fps
+        ? `${Math.abs(fps - Math.round(fps)) < 0.05 ? Math.round(fps) : Number(fps.toFixed(2))} fps`
+        : null,
       bps ? `${(bps / 1_000_000).toFixed(1)} Mbps` : null,
     ]
       .filter(Boolean)
