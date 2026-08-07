@@ -34,13 +34,13 @@ export default function SignInScreen() {
 
   return (
     <View
-      className="flex-1 justify-center gap-4 bg-background px-6"
+      className="bg-background flex-1 justify-center gap-4 px-6"
       style={{ paddingTop: insets.top }}
     >
-      <Text className="font-heading text-xl text-foreground">Sign in</Text>
+      <Text className="font-heading text-foreground text-xl">Sign in</Text>
 
       <View className="gap-2">
-        <Text className="text-sm text-muted-foreground">Email</Text>
+        <Text className="text-muted-foreground text-sm">Email</Text>
         <TextInput
           value={email}
           onChangeText={setEmail}
@@ -49,12 +49,12 @@ export default function SignInScreen() {
           keyboardType="email-address"
           placeholder="you@example.com"
           placeholderTextColor="#737373"
-          className="h-11 rounded-lg border border-border px-3 font-sans text-[15px] text-foreground"
+          className="border-border text-foreground h-11 rounded-lg border px-3 font-sans text-[15px]"
         />
       </View>
 
       <View className="gap-2">
-        <Text className="text-sm text-muted-foreground">Password</Text>
+        <Text className="text-muted-foreground text-sm">Password</Text>
         <TextInput
           value={password}
           onChangeText={setPassword}
@@ -62,17 +62,17 @@ export default function SignInScreen() {
           autoComplete="current-password"
           placeholder="At least 8 characters"
           placeholderTextColor="#737373"
-          className="h-11 rounded-lg border border-border px-3 font-sans text-[15px] text-foreground"
+          className="border-border text-foreground h-11 rounded-lg border px-3 font-sans text-[15px]"
         />
       </View>
 
       <PressableScale
         disabled={busy}
         onPress={submit}
-        className="mt-2 h-11 flex-row items-center justify-center gap-2 rounded-lg bg-primary"
+        className="bg-primary mt-2 h-11 flex-row items-center justify-center gap-2 rounded-lg"
       >
         {busy ? <ActivityIndicator size="small" /> : null}
-        <Text className="font-medium text-primary-foreground">Sign in</Text>
+        <Text className="text-primary-foreground font-medium">Sign in</Text>
       </PressableScale>
     </View>
   )

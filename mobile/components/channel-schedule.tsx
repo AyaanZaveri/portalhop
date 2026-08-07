@@ -180,7 +180,7 @@ export function ChannelSchedule({
                   {formatRange(startAt, stopAt)}
                 </Text>
 
-                <Text className="text-foreground text-[15px] font-medium">
+                <Text className="text-foreground font-rounded text-[15px]">
                   {programme.title}
                 </Text>
 

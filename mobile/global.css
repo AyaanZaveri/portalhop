@@ -19,6 +19,10 @@
   --font-semibold: Inter-SemiBold;
   --font-mono: JetBrainsMono-Regular;
   --font-mono-medium: JetBrainsMono-Medium;
+  /* The rounded face at text weight, for the things a channel is known by:
+     its name, what is on it, and the chips that filter them. Headings take the
+     heavier cut. */
+  --font-rounded: OpenRunde-Medium;
   --font-heading: OpenRunde-Semibold;
   --font-wordmark: OpenRunde-Bold;
 }

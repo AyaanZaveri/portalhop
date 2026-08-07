@@ -43,7 +43,11 @@ export const ChannelRow = memo(function ChannelRow({
     >
       <View
         className="size-11 items-center justify-center overflow-hidden border p-1"
-        style={{ borderRadius: 10, borderColor: colors.border, backgroundColor: "#18181b" }}
+        style={{
+          borderRadius: 10,
+          borderColor: colors.border,
+          backgroundColor: "#18181b",
+        }}
       >
         {logo ? (
           <Image
@@ -66,7 +70,7 @@ export const ChannelRow = memo(function ChannelRow({
       <View className="min-w-0 flex-1">
         <Text
           numberOfLines={1}
-          className="font-medium text-[15px] tracking-tight text-foreground"
+          className="font-rounded text-foreground text-[15px] tracking-tight"
           // RN adds font padding on Android and reserves leading above the
           // glyphs, which is what opened the gap under the channel name.
           style={{ lineHeight: 19, includeFontPadding: false }}
@@ -94,7 +98,7 @@ export const ChannelRow = memo(function ChannelRow({
             />
             <Text
               numberOfLines={1}
-              className="flex-1 text-xs text-muted-foreground"
+              className="text-muted-foreground flex-1 text-xs"
               style={{ lineHeight: 15, includeFontPadding: false }}
             >
               {channel.genre || "Uncategorized"}

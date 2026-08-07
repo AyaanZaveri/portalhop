@@ -96,7 +96,7 @@ export default function ChannelDetailScreen() {
           <View className="min-w-0 flex-1">
             <Text
               numberOfLines={1}
-              className="text-foreground text-[17px] font-medium tracking-tight"
+              className="text-foreground font-rounded text-[17px] tracking-tight"
               style={{ lineHeight: 21, includeFontPadding: false }}
             >
               {name || "Live stream"}

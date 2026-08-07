@@ -1,6 +1,9 @@
 import { forwardRef, useMemo, useState } from "react"
 import { Text, TextInput, View } from "react-native"
-import { BottomSheetFlatList, type BottomSheetModal } from "@gorhom/bottom-sheet"
+import {
+  BottomSheetFlatList,
+  type BottomSheetModal,
+} from "@gorhom/bottom-sheet"
 import { Check, Search } from "lucide-react-native"
 
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
@@ -42,7 +45,7 @@ export const CategoriesSheet = forwardRef<
             value={search}
             onChangeText={setSearch}
             placeholder="Find a category"
-            className="flex-1 font-sans text-[15px] text-foreground"
+            className="text-foreground flex-1 font-sans text-[15px]"
             placeholderTextColor={colors["muted-foreground"]}
             autoCorrect={false}
             textAlignVertical="center"
@@ -59,7 +62,7 @@ export const CategoriesSheet = forwardRef<
         keyExtractor={(entry) => `${entry.sourceId} ${entry.genre}`}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         ListEmptyComponent={
-          <Text className="py-6 text-center text-sm text-muted-foreground">
+          <Text className="text-muted-foreground py-6 text-center text-sm">
             No categories match.
           </Text>
         }
@@ -75,21 +78,21 @@ export const CategoriesSheet = forwardRef<
               onPress={() => onSelect(item)}
               className={
                 active
-                  ? "h-11 flex-row items-center gap-2 rounded-md bg-accent px-2"
+                  ? "bg-accent h-11 flex-row items-center gap-2 rounded-md px-2"
                   : "h-11 flex-row items-center gap-2 rounded-md px-2"
               }
             >
               <CategoryVisual category={item.genre} />
               <Text
                 numberOfLines={1}
-                className="flex-1 font-mono-medium text-[15px] tracking-tight text-foreground"
+                className="font-mono-medium text-foreground flex-1 text-[15px] tracking-tight"
               >
                 {item.genre}
               </Text>
               {active ? (
                 <Check size={16} color={colors.foreground} />
               ) : (
-                <Text className="font-mono text-xs text-muted-foreground">
+                <Text className="text-muted-foreground font-mono text-xs">
                   {item.count.toLocaleString()}
                 </Text>
               )}

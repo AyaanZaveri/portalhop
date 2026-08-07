@@ -12,7 +12,12 @@ import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
-import { ensureFeed, feedKeyFor, queryNowPlaying, type NowPlaying } from "@/lib/epg"
+import {
+  ensureFeed,
+  feedKeyFor,
+  queryNowPlaying,
+  type NowPlaying,
+} from "@/lib/epg"
 
 // Advances the progress bar and rolls a finished programme over to the next
 // one. Slow on purpose: a bar spanning half an hour gains nothing from ticking
@@ -95,7 +100,8 @@ export function EpgProvider({
     const epgBySource = new Map(
       (portals ?? []).map((portal) => [portal.id, portal]),
     )
-    return (channel: PortalChannelWithSource) => feedKeyFor(channel, epgBySource)
+    return (channel: PortalChannelWithSource) =>
+      feedKeyFor(channel, epgBySource)
   }, [portals])
 
   // Held in a ref as well so the effect can read the current rows without
@@ -109,7 +115,9 @@ export function EpgProvider({
   const visibleKey = useMemo(
     () =>
       visible
-        .map((channel) => (channel.xmltvId ? normalizeXmltvId(channel.xmltvId) : ""))
+        .map((channel) =>
+          channel.xmltvId ? normalizeXmltvId(channel.xmltvId) : "",
+        )
         .filter(Boolean)
         .sort()
         .join(","),

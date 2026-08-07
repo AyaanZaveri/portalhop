@@ -36,7 +36,7 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
     <>
       <Text
         numberOfLines={1}
-        className="text-xs text-foreground"
+        className="font-rounded text-foreground text-xs"
         // 0.8 opacity rather than a foreground/80 colour: it is the same result
         // against an opaque row, and it does not need the theme's oklch token
         // taken apart to apply an alpha to it. Matches the web's text-foreground/80.
@@ -60,7 +60,7 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
         }}
       >
         <Text
-          className="font-mono text-[10px] text-muted-foreground"
+          className="text-muted-foreground font-mono text-[10px]"
           // Mono keeps the digits an even width, so the bar between the two
           // times holds still as the clock advances rather than twitching on
           // every tick.
@@ -96,7 +96,7 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
         </View>
 
         <Text
-          className="font-mono text-[10px] text-muted-foreground"
+          className="text-muted-foreground font-mono text-[10px]"
           style={{
             lineHeight: 12,
             includeFontPadding: false,

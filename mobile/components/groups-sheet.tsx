@@ -1,6 +1,9 @@
 import { forwardRef } from "react"
 import { Text } from "react-native"
-import { BottomSheetFlatList, type BottomSheetModal } from "@gorhom/bottom-sheet"
+import {
+  BottomSheetFlatList,
+  type BottomSheetModal,
+} from "@gorhom/bottom-sheet"
 import { Check } from "lucide-react-native"
 
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
@@ -28,7 +31,7 @@ export const GroupsSheet = forwardRef<
         keyExtractor={(group) => String(group.id)}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         ListEmptyComponent={
-          <Text className="py-6 text-center text-sm text-muted-foreground">
+          <Text className="text-muted-foreground py-6 text-center text-sm">
             No groups yet. Create one on the web app.
           </Text>
         }
@@ -42,21 +45,21 @@ export const GroupsSheet = forwardRef<
               onPress={() => onSelect(item)}
               className={
                 active
-                  ? "h-11 flex-row items-center gap-2 rounded-md bg-accent px-2"
+                  ? "bg-accent h-11 flex-row items-center gap-2 rounded-md px-2"
                   : "h-11 flex-row items-center gap-2 rounded-md px-2"
               }
             >
               <GroupIcon icon={item.icon} size={16} color={iconPrimary} />
               <Text
                 numberOfLines={1}
-                className="flex-1 font-mono-medium text-[15px] tracking-tight text-foreground"
+                className="font-mono-medium text-foreground flex-1 text-[15px] tracking-tight"
               >
                 {item.name}
               </Text>
               {active ? (
                 <Check size={16} color={colors.foreground} />
               ) : (
-                <Text className="font-mono text-xs text-muted-foreground">
+                <Text className="text-muted-foreground font-mono text-xs">
                   {item.channelKeys.length.toLocaleString()}
                 </Text>
               )}

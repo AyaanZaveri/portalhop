@@ -21,7 +21,9 @@ export function ThemeToggle() {
       hitSlop={10}
       onPress={toggle}
       accessibilityRole="button"
-      accessibilityLabel={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      accessibilityLabel={
+        isDark ? "Switch to light theme" : "Switch to dark theme"
+      }
       className="size-9 items-center justify-center rounded-lg"
     >
       <Icon size={19} color={colors["muted-foreground"]} />

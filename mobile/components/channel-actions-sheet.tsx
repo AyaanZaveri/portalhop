@@ -78,7 +78,7 @@ export const ChannelActionsSheet = forwardRef<
               <View className="min-w-0 flex-1">
                 <Text
                   numberOfLines={1}
-                  className="text-foreground text-[15px] font-medium tracking-tight"
+                  className="text-foreground font-rounded text-[15px] tracking-tight"
                   style={{ lineHeight: 19, includeFontPadding: false }}
                 >
                   {channel.name || "Channel"}

@@ -138,6 +138,7 @@ export default function RootLayout() {
     // — so it sits against the body text without the optical mismatch an
     // unrelated display face brings. Vendored from the project's own release:
     // it is not on Google Fonts or npm.
+    "OpenRunde-Medium": require("../assets/fonts/OpenRunde-Medium.otf"),
     "OpenRunde-Semibold": require("../assets/fonts/OpenRunde-Semibold.otf"),
     "OpenRunde-Bold": require("../assets/fonts/OpenRunde-Bold.otf"),
   })

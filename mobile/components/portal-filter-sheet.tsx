@@ -54,7 +54,7 @@ export const PortalFilterSheet = forwardRef<
       <BottomSheetView className="gap-1 px-4 pt-2 pb-8">
         {/* No description: the rows say what they do, and a sentence explaining
             a list of portals is just something to read past. */}
-        <Text className="mb-3 font-heading text-[22px] tracking-tight text-foreground">
+        <Text className="font-heading text-foreground mb-3 text-[22px] tracking-tight">
           Portals
         </Text>
 
@@ -64,7 +64,7 @@ export const PortalFilterSheet = forwardRef<
           className="h-11 flex-row items-center gap-2 rounded-md px-2"
         >
           <LayoutGrid size={16} color={iconPrimary} />
-          <Text className="flex-1 font-mono-medium text-[15px] text-foreground">
+          <Text className="font-mono-medium text-foreground flex-1 text-[15px]">
             All Portals
           </Text>
           {selectedIds.size === 0 ? (
@@ -82,7 +82,7 @@ export const PortalFilterSheet = forwardRef<
             <Tv size={16} color={iconPrimary} />
             <Text
               numberOfLines={1}
-              className="flex-1 font-mono-medium text-[15px] text-foreground"
+              className="font-mono-medium text-foreground flex-1 text-[15px]"
             >
               {portal.name}
             </Text>

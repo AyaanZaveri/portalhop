@@ -1,6 +1,9 @@
 import { forwardRef } from "react"
 import { Text, View } from "react-native"
-import { BottomSheetFlatList, type BottomSheetModal } from "@gorhom/bottom-sheet"
+import {
+  BottomSheetFlatList,
+  type BottomSheetModal,
+} from "@gorhom/bottom-sheet"
 import * as Haptics from "expo-haptics"
 import { Check } from "lucide-react-native"
 
@@ -35,7 +38,7 @@ export const GroupMembershipSheet = forwardRef<
         keyExtractor={(group) => String(group.id)}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
         ListEmptyComponent={
-          <Text className="py-6 text-center text-sm text-muted-foreground">
+          <Text className="text-muted-foreground py-6 text-center text-sm">
             No groups yet. Create one on the web app.
           </Text>
         }
@@ -61,7 +64,7 @@ export const GroupMembershipSheet = forwardRef<
               <GroupIcon icon={item.icon} size={16} color={iconPrimary} />
               <Text
                 numberOfLines={1}
-                className="flex-1 text-[15px] tracking-tight text-foreground"
+                className="text-foreground flex-1 text-[15px] tracking-tight"
               >
                 {item.name}
               </Text>
