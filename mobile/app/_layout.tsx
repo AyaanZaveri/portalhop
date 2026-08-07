@@ -162,7 +162,7 @@ export default function RootLayout() {
               Only what should actually be blurred goes inside: the screens.
               Toasts stay out for the same reason as the sheets. */}
           <BottomSheetModalProvider>
-            <BlurTargetProvider>
+            <BlurTargetProvider backgroundColor={tokens.background}>
               <StatusBar style={isDark ? "light" : "dark"} />
               <Stack
                 screenOptions={{

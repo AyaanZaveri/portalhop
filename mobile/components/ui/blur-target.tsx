@@ -32,14 +32,29 @@ const BlurTargetContext = createContext<{ current: BlurTargetRef } | null>(null)
  * separate native window and could not reach this subtree at all —
  * expo/expo#44165.
  */
-export function BlurTargetProvider({ children }: { children: ReactNode }) {
+export function BlurTargetProvider({
+  backgroundColor,
+  children,
+}: {
+  /**
+   * The theme's background, painted on the target itself.
+   *
+   * Android clears each blur frame with the window background before drawing
+   * the sampled snapshot, and the window background is whatever the base theme
+   * gives it — pale, since nothing here sets it. Anywhere the sampled content
+   * is not fully opaque, that pale clear shows through as a wash over the blur.
+   * Painting the target opaque leaves the blur nothing to see past.
+   */
+  backgroundColor: string
+  children: ReactNode
+}) {
   const ref = useRef<BlurTargetRef>(null)
 
   if (!blurAvailable) return <>{children}</>
 
   return (
     <BlurTargetContext.Provider value={ref}>
-      <BlurTargetView ref={ref} style={{ flex: 1 }}>
+      <BlurTargetView ref={ref} style={{ flex: 1, backgroundColor }}>
         {children}
       </BlurTargetView>
     </BlurTargetContext.Provider>
