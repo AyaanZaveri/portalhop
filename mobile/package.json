@@ -6,7 +6,6 @@
     "@better-auth/expo": "1.6.19",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
-    "@expo-google-fonts/montserrat": "^0.4.2",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@lucide/lab": "^0.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",

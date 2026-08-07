@@ -19,7 +19,6 @@ import {
   JetBrainsMono_400Regular,
   JetBrainsMono_500Medium,
 } from "@expo-google-fonts/jetbrains-mono"
-import { Montserrat_700Bold } from "@expo-google-fonts/montserrat"
 import { useFonts } from "expo-font"
 import { Stack } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
@@ -135,7 +134,12 @@ export default function RootLayout() {
     "Inter-SemiBold": Inter_600SemiBold,
     "JetBrainsMono-Regular": JetBrainsMono_400Regular,
     "JetBrainsMono-Medium": JetBrainsMono_500Medium,
-    "Montserrat-Bold": Montserrat_700Bold,
+    // Open Runde is Inter with rounded terminals — same skeleton, same metrics
+    // — so it sits against the body text without the optical mismatch an
+    // unrelated display face brings. Vendored from the project's own release:
+    // it is not on Google Fonts or npm.
+    "OpenRunde-Semibold": require("../assets/fonts/OpenRunde-Semibold.otf"),
+    "OpenRunde-Bold": require("../assets/fonts/OpenRunde-Bold.otf"),
   })
 
   useEffect(() => {

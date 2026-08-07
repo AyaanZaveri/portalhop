@@ -19,8 +19,8 @@
   --font-semibold: Inter-SemiBold;
   --font-mono: JetBrainsMono-Regular;
   --font-mono-medium: JetBrainsMono-Medium;
-  --font-heading: Inter-Medium;
-  --font-wordmark: Montserrat-Bold;
+  --font-heading: OpenRunde-Semibold;
+  --font-wordmark: OpenRunde-Bold;
 }
 
 @layer theme {
