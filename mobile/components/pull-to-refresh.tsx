@@ -21,8 +21,14 @@ import { useTheme } from "@/lib/theme"
 
 /** How far the finger travels before letting go actually refreshes. */
 const THRESHOLD = 72
-/** Where the list rests while the refresh runs, so the spinner has room. */
-const REST = 56
+/**
+ * Where the list rests while the refresh runs.
+ *
+ * Only far enough to clear the indicator with a little air under it — the
+ * leftover is a gap between the spinner and the first row, and at 56 against a
+ * 20pt icon that gap read as a hole rather than as breathing room.
+ */
+const REST = 44
 /** Past this the list stops following the finger, so it cannot be dragged off screen. */
 const MAX = 120
 /** Below 1: the list trails the finger, which is what makes the pull feel weighted. */
@@ -182,7 +188,7 @@ export function PullToRefresh({
         style={[
           {
             position: "absolute",
-            top: 6,
+            top: 8,
             left: 0,
             right: 0,
             alignItems: "center",
@@ -194,7 +200,7 @@ export function PullToRefresh({
         {refreshing ? (
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
-          <RefreshCw size={18} color={colors["muted-foreground"]} />
+          <RefreshCw size={20} color={colors["muted-foreground"]} />
         )}
       </Animated.View>
 
