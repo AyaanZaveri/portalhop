@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, Pressable, Text, View } from "react-native"
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { useEvent } from "expo"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { useQuery } from "@tanstack/react-query"
@@ -132,6 +139,24 @@ export function ChannelPlayer({
     setControlsVisible((current) => !current)
   }, [])
 
+  /**
+   * The controls fade rather than blink.
+   *
+   * They were mounted and unmounted, so they arrived and left in a single
+   * frame — which reads as the screen glitching rather than as controls coming
+   * and going. Kept mounted now and faded, with pointer events dropped at the
+   * same time so an invisible bar cannot still take a tap.
+   *
+   * Slower out than in: showing them answers a tap and should feel immediate,
+   * while hiding them happens on a timer nobody asked for, and a slow fade is
+   * how that stays unobtrusive.
+   */
+  const controlsStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(controlsVisible ? 1 : 0, {
+      duration: controlsVisible ? 140 : 260,
+    }),
+  }))
+
   const togglePlayback = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     if (player.playing) player.pause()
@@ -259,126 +284,119 @@ export function ChannelPlayer({
               </View>
             ) : null}
 
-            {controlsVisible ? (
-              <>
-                {/* A scrim rather than a solid bar: the controls have to stay
-                    legible over whatever frame happens to be behind them. */}
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    bottom: 0,
-                    left: 0,
-                    backgroundColor: "rgba(0,0,0,0.35)",
-                  }}
-                />
+            <Animated.View
+              style={[StyleSheet.absoluteFill, controlsStyle]}
+              pointerEvents={controlsVisible ? "auto" : "none"}
+            >
+              {/* A scrim rather than a solid bar: the controls have to stay
+                  legible over whatever frame happens to be behind them. */}
+              <View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: "rgba(0,0,0,0.35)" },
+                ]}
+              />
 
-                {/* Hidden rather than removed while stalled, so the spinner has
+              {/* Hidden rather than removed while stalled, so the spinner has
                     the middle to itself and the layout does not jump. */}
-                {!stalled ? (
-                  <View className="flex-1 items-center justify-center">
-                    <PressableScale
-                      className="size-14 items-center justify-center rounded-full bg-white/20"
-                      onPress={togglePlayback}
-                    >
-                      {isPlaying ? (
-                        <Pause size={24} color="#fff" fill="#fff" />
-                      ) : (
-                        // Nudged right: a triangle's mass sits left of its
-                        // bounding box, so a centred play glyph reads as
-                        // off-centre.
-                        <Play
-                          size={24}
-                          color="#fff"
-                          fill="#fff"
-                          style={{ marginLeft: 3 }}
-                        />
-                      )}
-                    </PressableScale>
-                  </View>
-                ) : null}
-
-                <View className="absolute right-0 bottom-0 left-0 flex-row items-center gap-2 p-3">
-                  {/* Both badges take one fixed height rather than each being
-                      sized by its own padding and type. A mono face and a sans
-                      face at the same padding do not come out the same height,
-                      which is why these did not line up. */}
-                  <View className="h-6 flex-row items-center gap-1.5 rounded-md bg-black/50 px-2">
-                    <View className="size-1.5 rounded-full bg-red-500" />
-                    <Text
-                      className="text-[11px] font-medium tracking-wide text-white"
-                      style={{ includeFontPadding: false }}
-                    >
-                      LIVE
-                    </Text>
-                  </View>
-
-                  {/* What the stream is actually delivering, as the web shows
-                      it. Absent rather than guessed at when the track reports
-                      nothing useful. */}
-                  {stream ? (
-                    <View className="h-6 justify-center rounded-md bg-black/50 px-2">
-                      <Text
-                        className="font-mono text-[11px] text-white/80"
-                        style={{ includeFontPadding: false }}
-                      >
-                        {stream}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  <View className="flex-1" />
-
+              {!stalled ? (
+                <View className="flex-1 items-center justify-center">
                   <PressableScale
-                    preset="icon"
-                    hitSlop={8}
-                    className="size-9 items-center justify-center rounded-lg bg-black/50"
-                    onPress={() => {
-                      player.muted = !player.muted
-                      setControlsVisible(true)
-                    }}
+                    className="size-14 items-center justify-center rounded-full bg-white/20"
+                    onPress={togglePlayback}
                   >
-                    {muted ? (
-                      <VolumeX size={18} color="#fff" />
+                    {isPlaying ? (
+                      <Pause size={24} color="#fff" fill="#fff" />
                     ) : (
-                      <Volume2 size={18} color="#fff" />
-                    )}
-                  </PressableScale>
-
-                  <PressableScale
-                    preset="icon"
-                    hitSlop={8}
-                    className="size-9 items-center justify-center rounded-lg bg-black/50"
-                    onPress={() =>
-                      void viewRef.current?.startPictureInPicture()
-                    }
-                  >
-                    <PictureInPicture2 size={18} color="#fff" />
-                  </PressableScale>
-
-                  <PressableScale
-                    preset="icon"
-                    hitSlop={8}
-                    className="size-9 items-center justify-center rounded-lg bg-black/50"
-                    onPress={() => {
-                      void Haptics.impactAsync(
-                        Haptics.ImpactFeedbackStyle.Light,
-                      )
-                      onFullscreenChange(!fullscreen)
-                      setControlsVisible(true)
-                    }}
-                  >
-                    {fullscreen ? (
-                      <Minimize size={18} color="#fff" />
-                    ) : (
-                      <Maximize size={18} color="#fff" />
+                      // Nudged right: a triangle's mass sits left of its
+                      // bounding box, so a centred play glyph reads as
+                      // off-centre.
+                      <Play
+                        size={24}
+                        color="#fff"
+                        fill="#fff"
+                        style={{ marginLeft: 3 }}
+                      />
                     )}
                   </PressableScale>
                 </View>
-              </>
-            ) : null}
+              ) : null}
+
+              <View className="absolute right-0 bottom-0 left-0 flex-row items-center gap-2 p-3">
+                {/* Both badges take one fixed height rather than each being
+                      sized by its own padding and type. A mono face and a sans
+                      face at the same padding do not come out the same height,
+                      which is why these did not line up. */}
+                <View className="h-6 flex-row items-center gap-1.5 rounded-md bg-black/50 px-2">
+                  <View className="size-1.5 rounded-full bg-red-500" />
+                  <Text
+                    className="text-[11px] font-medium tracking-wide text-white"
+                    style={{ includeFontPadding: false }}
+                  >
+                    LIVE
+                  </Text>
+                </View>
+
+                {/* What the stream is actually delivering, as the web shows
+                      it. Absent rather than guessed at when the track reports
+                      nothing useful. */}
+                {stream ? (
+                  <View className="h-6 justify-center rounded-md bg-black/50 px-2">
+                    <Text
+                      className="font-mono text-[11px] text-white/80"
+                      style={{ includeFontPadding: false }}
+                    >
+                      {stream}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <View className="flex-1" />
+
+                <PressableScale
+                  preset="icon"
+                  hitSlop={8}
+                  className="size-9 items-center justify-center rounded-lg bg-black/50"
+                  onPress={() => {
+                    player.muted = !player.muted
+                    setControlsVisible(true)
+                  }}
+                >
+                  {muted ? (
+                    <VolumeX size={18} color="#fff" />
+                  ) : (
+                    <Volume2 size={18} color="#fff" />
+                  )}
+                </PressableScale>
+
+                <PressableScale
+                  preset="icon"
+                  hitSlop={8}
+                  className="size-9 items-center justify-center rounded-lg bg-black/50"
+                  onPress={() => void viewRef.current?.startPictureInPicture()}
+                >
+                  <PictureInPicture2 size={18} color="#fff" />
+                </PressableScale>
+
+                <PressableScale
+                  preset="icon"
+                  hitSlop={8}
+                  className="size-9 items-center justify-center rounded-lg bg-black/50"
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    onFullscreenChange(!fullscreen)
+                    setControlsVisible(true)
+                  }}
+                >
+                  {fullscreen ? (
+                    <Minimize size={18} color="#fff" />
+                  ) : (
+                    <Maximize size={18} color="#fff" />
+                  )}
+                </PressableScale>
+              </View>
+            </Animated.View>
           </View>
         )}
       </Pressable>
