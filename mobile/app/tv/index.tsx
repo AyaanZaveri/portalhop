@@ -89,14 +89,23 @@ export default function ChannelListScreen() {
   }, [])
 
   /**
-   * Pull to refresh.
+   * Pull to refresh: re-read everything, catalogues included.
    *
-   * Only the three small queries are invalidated, never the catalogues
-   * directly. A catalogue is keyed by its source's updatedAt, so re-reading the
-   * portal list is what discovers that a source changed — and then only the
-   * sources that actually did refetch. Invalidating them by hand would pull
-   * roughly 9MB down every time the user tugged the list, to arrive at the same
-   * answer.
+   * The catalogues used to be left out, on the reasoning that a source's
+   * updatedAt is what says its channels changed, so re-reading the portal list
+   * would discover it and nothing else needed pulling. That is true only while
+   * updatedAt is a reliable witness, and it left a refresh unable to fix the
+   * one thing people pull for.
+   *
+   * It also went wrong in a way that did not look like a stale catalogue at
+   * all: favourites are stored as channel keys and resolved against the
+   * catalogue, so a channel favourited elsewhere and missing from the cached
+   * copy is dropped on the floor. Favourites appeared not to sync while their
+   * ordering plainly did, because reordering only moves keys that are already
+   * present.
+   *
+   * A deliberate pull is worth a real download; it is the one moment the user
+   * has said they want current data over fast data.
    */
   const queryClient = useQueryClient()
 
@@ -106,6 +115,10 @@ export default function ChannelListScreen() {
         queryClient.invalidateQueries({ queryKey: ["portals"] }),
         queryClient.invalidateQueries({ queryKey: ["favorites"] }),
         queryClient.invalidateQueries({ queryKey: ["favorite-groups"] }),
+        // Every catalogue, by prefix. invalidateQueries refetches active
+        // queries whatever their staleTime, which is what gets past the
+        // Infinity these are cached under.
+        queryClient.invalidateQueries({ queryKey: ["portal"] }),
         // The guide too. It has its own store outside TanStack, so
         // invalidating queries left it alone — pulling the list did nothing
         // for a channel whose schedule was missing, which is the case most
@@ -218,6 +231,20 @@ export default function ChannelListScreen() {
   useEffect(() => {
     if (!canReorder && reordering) setReordering(false)
   }, [canReorder, reordering])
+
+  // Favourites are keys resolved against the catalogue, and a key with no
+  // channel behind it is dropped without a word — which is exactly how a stale
+  // catalogue disguises itself as favourites not syncing. Worth saying out
+  // loud in development rather than diagnosing from the symptom again.
+  useEffect(() => {
+    if (!__DEV__ || !favorites.keys.length || !byKey.size) return
+    const missing = favorites.keys.filter((key) => !byKey.has(key)).length
+    if (missing) {
+      console.warn(
+        `[portalhop] ${missing} of ${favorites.keys.length} favourites have no channel in the loaded catalogues — pull to refresh to re-read them`,
+      )
+    }
+  }, [favorites, byKey])
 
   // Derived from everything in the source, not from what the chip currently
   // shows — otherwise picking a category would empty the category list.
