@@ -6,7 +6,7 @@ import {
   normalizePortalRequest,
 } from "@/lib/stalker-client"
 import { fetchM3uChannels } from "@/lib/m3u-client"
-import type { SourceRequest } from "@/lib/source-types"
+import type { SourceRequest } from "@portalhop/shared/source-types"
 import { fetchXtreamChannels } from "@/lib/xtream-client"
 
 export async function POST(request: Request) {

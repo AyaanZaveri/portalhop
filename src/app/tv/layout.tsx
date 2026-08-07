@@ -4,7 +4,7 @@ import { Suspense, useState, type ReactNode } from "react"
 
 import { TvProvider } from "@/components/tv/tv-provider"
 import { TvShell } from "@/components/tv/tv-shell"
-import { browseFilterCookieName, parseBrowseFilter } from "@/lib/browse-filter"
+import { browseFilterCookieName, parseBrowseFilter } from "@portalhop/shared/browse-filter"
 
 // Read on the client rather than through `next/headers`: a statically exported
 // build has no request to read cookies from, and the packaged mobile app is

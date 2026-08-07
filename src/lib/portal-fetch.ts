@@ -5,7 +5,7 @@ import {
   normalizePortalRequest,
 } from "@/lib/stalker-client"
 import { fetchXtreamChannels } from "@/lib/xtream-client"
-import type { SourceResponse, SourceType } from "@/lib/source-types"
+import type { SourceResponse, SourceType } from "@portalhop/shared/source-types"
 
 export type PortalFetchInput = {
   sourceType: SourceType

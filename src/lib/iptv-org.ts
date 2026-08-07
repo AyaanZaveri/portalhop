@@ -1,6 +1,6 @@
 import { fetchM3uChannels } from "@/lib/m3u-client"
-import type { PortalChannel } from "@/lib/stalker-types"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import type { PortalChannel } from "@portalhop/shared/stalker-types"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 // A built-in, free playlist from the iptv-org project. It's the same public data
 // for everyone, so it lives outside the per-user portals model: fetched once and

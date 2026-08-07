@@ -19,7 +19,7 @@
 // Many keywords intentionally point at one flag (Urdu + Pakistan + Pakistani → pk).
 // Keep each keyword unique across FLAG_ALIASES; the last write would otherwise win.
 
-import { COUNTRY_NAME_CODES } from "@/lib/country-codes"
+import { COUNTRY_NAME_CODES } from "./country-codes"
 
 export type CategoryIcon =
   | "sports"

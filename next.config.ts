@@ -35,6 +35,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // @portalhop/shared ships TypeScript source rather than a build artifact, so
+  // it has to be transpiled here rather than consumed as compiled JS. Turbopack
+  // largely handles workspace sources already; this makes it explicit and keeps
+  // a webpack build working if one is ever needed.
+  transpilePackages: ["@portalhop/shared"],
   allowedDevOrigins: ["10.0.0.109"],
   ...(isMobileBuild ? mobileConfig : webConfig),
 };

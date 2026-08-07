@@ -1,6 +1,6 @@
 import { Readable } from "stream"
 import zlib from "zlib"
-import type { EpgProgramme } from "@/lib/stalker-types"
+import type { EpgProgramme } from "@portalhop/shared/stalker-types"
 
 export interface EpgChannel {
   id: string

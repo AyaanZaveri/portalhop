@@ -3,7 +3,7 @@ import {
   getEndpointCandidates,
   normalizePortalRequest,
 } from "@/lib/stalker-client"
-import type { PortalChannel, PortalRequest } from "@/lib/stalker-types"
+import type { PortalChannel, PortalRequest } from "@portalhop/shared/stalker-types"
 
 type StalkerEnvelope = {
   js?: unknown

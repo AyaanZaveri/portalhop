@@ -8,9 +8,9 @@ import {
   hasChannelIdentity,
   resolveStalkerChannelLink,
 } from "@/lib/stalker-link"
-import { readErrorDetails } from "@/lib/errors"
-import type { PortalRequest } from "@/lib/stalker-types"
-import type { SourceType } from "@/lib/source-types"
+import { readErrorDetails } from "@portalhop/shared/errors"
+import type { PortalRequest } from "@portalhop/shared/stalker-types"
+import type { SourceType } from "@portalhop/shared/source-types"
 import { requireUser } from "@/lib/session"
 
 type LinkRequest = PortalRequest & {

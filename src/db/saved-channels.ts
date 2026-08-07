@@ -2,9 +2,9 @@ import { and, eq, sql } from "drizzle-orm"
 
 import { getDb } from "@/db/client"
 import { savedChannels, savedSources } from "@/db/schema"
-import type { SourceType } from "@/lib/source-types"
-import type { PortalChannel } from "@/lib/stalker-types"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import type { SourceType } from "@portalhop/shared/source-types"
+import type { PortalChannel } from "@portalhop/shared/stalker-types"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 // Measured against the live database: 100 rows/statement spends most of a
 // refresh waiting on round-trips, and 500 is ~2.2x faster. Past 500 the gain

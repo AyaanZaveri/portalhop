@@ -21,9 +21,9 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { cn } from "@/lib/utils"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { apiFetch } from "@/lib/api-fetch"
 
 // Five results: a longer list is not how anyone recognises a channel, they

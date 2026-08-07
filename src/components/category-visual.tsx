@@ -21,7 +21,7 @@ import {
   circleFlagUrl,
   resolveCategoryVisual,
   type CategoryIcon,
-} from "@/lib/category-flags"
+} from "@portalhop/shared/category-flags"
 
 const CATEGORY_ICONS: Record<CategoryIcon, LucideIcon> = {
   sports: TrophyIcon,

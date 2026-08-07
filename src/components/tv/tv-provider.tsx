@@ -13,14 +13,14 @@ import {
 } from "react"
 import { toast } from "sonner"
 
-import type { PortalChannel, PortalResponse } from "@/lib/stalker-types"
-import type { SourceRequest } from "@/lib/source-types"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
+import type { SourceRequest } from "@portalhop/shared/source-types"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import {
   browseFilterCookieName,
   parseBrowseFilter,
   type BrowseFilter,
-} from "@/lib/browse-filter"
+} from "@portalhop/shared/browse-filter"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
@@ -44,7 +44,7 @@ import {
 } from "@/lib/tv-channels"
 import { apiFetch } from "@/lib/api-fetch"
 
-export type { BrowseFilter } from "@/lib/browse-filter"
+export type { BrowseFilter } from "@portalhop/shared/browse-filter"
 
 const browseFilterStoragePrefix = "portalhop-browse-filter:"
 

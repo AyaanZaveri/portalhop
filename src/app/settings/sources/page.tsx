@@ -50,10 +50,10 @@ import {
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { copyTextToClipboard } from "@/lib/clipboard"
-import type { SavedSourceRecord } from "@/lib/source-types"
+import type { SavedSourceRecord } from "@portalhop/shared/source-types"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { prunePortalChannelsCache } from "@/lib/portal-channels-cache"
 import {
   Tooltip,

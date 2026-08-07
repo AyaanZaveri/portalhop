@@ -21,10 +21,10 @@ import {
   readEpgSourceId,
   readSourceType,
   stringValue,
-} from "@/lib/portal-form-utils"
+} from "@portalhop/shared/portal-form-utils"
 import { requireUser } from "@/lib/session"
 import { getUserEpgChannelLogos } from "@/lib/user-epg-store"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 export const runtime = "nodejs"
 

@@ -6,7 +6,7 @@ import {
   getCachedEpgWindow,
   setCachedEpgWindow,
 } from "@/lib/portal-channels-cache"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { apiFetch } from "@/lib/api-fetch"
 
 export type NowPlaying = {

@@ -16,7 +16,7 @@ import { ShimmeringText } from "@/components/ui/shimmering-text"
 import { Switch } from "@/components/ui/switch"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import type { EpgManifest } from "@/lib/epg-store"
-import { EPG_SOURCES } from "@/lib/epg-sources"
+import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
 import { apiFetch } from "@/lib/api-fetch"
 
 const WSRV_LOGO_LIGHT = "/proxy/wsrv-light.svg"

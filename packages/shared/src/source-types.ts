@@ -1,4 +1,4 @@
-import type { PortalChannel, PortalRequest } from "@/lib/stalker-types"
+import type { PortalChannel, PortalRequest } from "./stalker-types"
 
 export type SourceType = "stalker" | "xtream" | "m3u"
 export type EpgMode = "none" | "portal" | "iptv-org" | "custom"

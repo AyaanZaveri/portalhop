@@ -1,5 +1,5 @@
-import type { PortalChannel } from "@/lib/stalker-types"
-import type { SourceResponse } from "@/lib/source-types"
+import type { PortalChannel } from "@portalhop/shared/stalker-types"
+import type { SourceResponse } from "@portalhop/shared/source-types"
 
 type M3uEntry = {
   attributes: Record<string, string>

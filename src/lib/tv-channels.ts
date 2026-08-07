@@ -1,7 +1,19 @@
-import type { PortalChannel, PortalResponse } from "@/lib/stalker-types"
-import type { SavedSourceRecord, SourceRequest } from "@/lib/source-types"
-import { normalizeXmltvId } from "@/lib/xmltv-id"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
+import type { SavedSourceRecord, SourceRequest } from "@portalhop/shared/source-types"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import {
+  buildChannelIndex,
+  channelSlug,
+  getChannelKey,
+  getLegacyChannelKey,
+} from "@portalhop/shared/channel-keys"
+
+// Channel identity lives in the shared package so the Expo app computes the
+// same favourite keys and deep links. Re-exported here so existing call sites
+// keep importing from where they always have.
+export { buildChannelIndex, channelSlug, getChannelKey, getLegacyChannelKey }
+
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {
   getCachedPortalChannels,
   setCachedPortalChannels,
@@ -259,36 +271,7 @@ export function snapToCommonFrameRate(frameRate: number) {
   return smallestDiff / closest < 0.04 ? closest : frameRate
 }
 
-export function getChannelKey(channel: PortalChannelWithSource) {
-  // Saved channels retain this row ID across portal refreshes. Keeping the
-  // favorite key to these two durable values avoids mutable provider metadata
-  // (number, name, stream URL) making a favorite disappear.
-  if (
-    typeof channel.portalSource?.id === "number" &&
-    typeof channel.savedChannelId === "number"
-  ) {
-    return JSON.stringify([channel.portalSource.id, channel.savedChannelId])
-  }
 
-  // Channel IDs from older saved M3U sources can be XMLTV `tvg-id` values,
-  // which are not necessarily unique. Include the stream URL and playlist
-  // number so selection, favourites, and player state identify the actual
-  // stream rather than its guide metadata.
-  return JSON.stringify([
-    channel.portalSource?.id ?? "manual",
-    channel.savedChannelId ?? null,
-    channel.id,
-    channel.number,
-    channel.cmd,
-  ])
-}
-
-export function getLegacyChannelKey(channel: PortalChannelWithSource) {
-  return [
-    channel.portalSource?.id ?? "manual",
-    channel.id || channel.number || channel.name,
-  ].join(":")
-}
 
 export function getPortalSource(portal: SavedPortalRecord): PortalSource {
   if (portal.sourceType === "xtream") {
@@ -464,68 +447,7 @@ export function uniqueGenres(channels: PortalChannel[]) {
 
 // --- URL identity -----------------------------------------------------------
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-}
 
-// Small deterministic 32-bit FNV-1a hash rendered as base36. Not cryptographic;
-// just needs to be stable and URL-safe.
-function shortHash(input: string) {
-  let hash = 0x811c9dc5
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  return (hash >>> 0).toString(36)
-}
 
-// A channel's stable-ish identity within a user's list: the saved-channel row
-// PK when available (portals), otherwise the normalized xmltv id + number +
-// stream command (mirrors getChannelKey's uniqueness for iptv-org / m3u).
-function channelIdentity(channel: PortalChannelWithSource) {
-  if (channel.savedChannelId != null) {
-    return `s${channel.savedChannelId}`
-  }
-  return [
-    normalizeXmltvId(channel.xmltvId) || channel.id,
-    channel.number,
-    channel.cmd,
-  ].join("|")
-}
 
-// URL id for a channel: a readable name slug plus a short hash tied to the
-// user, the portal, and the channel identity (not category), so it is unique
-// across portals/users and scoped per user.
-export function channelSlug(
-  channel: PortalChannelWithSource,
-  userId: string | null,
-) {
-  const name = slugify(channel.name || channel.number || "channel") || "channel"
-  const hash = shortHash(
-    [
-      userId ?? "anon",
-      channel.portalSource?.id ?? "manual",
-      channelIdentity(channel),
-    ].join("|"),
-  )
-  return `${name}-${hash}`
-}
 
-// Builds a lookup from URL id -> channel for O(1) resolution of /tv/[channelId].
-export function buildChannelIndex(
-  channels: PortalChannelWithSource[],
-  userId: string | null,
-) {
-  const index = new Map<string, PortalChannelWithSource>()
-  for (const channel of channels) {
-    const id = channelSlug(channel, userId)
-    if (!index.has(id)) {
-      index.set(id, channel)
-    }
-  }
-  return index
-}

@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Portal Hop",
+    "slug": "portalhop",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "scheme": "portalhop",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7FEE7",
+      "dark": {
+        "image": "./assets/splash-icon-dark.png",
+        "backgroundColor": "#0d0d0d"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.portalhop.mobile"
+    },
+    "android": {
+      "package": "app.portalhop.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "backgroundColor": "#7CCF00"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F7FEE7",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "dark": {
+            "backgroundColor": "#0d0d0d",
+            "image": "./assets/splash-icon-dark.png"
+          }
+        }
+      ],
+      "expo-web-browser",
+      "expo-sqlite",
+      "expo-video",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "https://portalhop.vercel.app",
+      "router": {},
+      "eas": {
+        "projectId": "66c35a72-c6d0-4e4a-9582-955aaae05fab"
+      }
+    },
+    "owner": "ayaanzaveri"
+  }
+}

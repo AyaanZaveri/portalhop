@@ -26,7 +26,7 @@ import {
   MediaPlayerVolumeIndicator,
 } from "@/components/ui/media-player"
 import { cn } from "@/lib/utils"
-import { proxyImageUrl } from "@/lib/image-proxy"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { TV_MOBILE_LAYOUT_QUERY } from "@/hooks/use-media-query"
 import {
   canResolveChannel,

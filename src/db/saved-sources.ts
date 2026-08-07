@@ -6,7 +6,7 @@ import {
   savedStalkerSources,
   savedXtreamSources,
 } from "@/db/schema"
-import type { SavedSourceRecord, SourceType } from "@/lib/source-types"
+import type { SavedSourceRecord, SourceType } from "@portalhop/shared/source-types"
 
 type Db = ReturnType<typeof import("@/db/client").getDb>
 
