@@ -205,6 +205,20 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # The per-run artifacts carry the commit in their name so a downloaded
+      # file stays identifiable, but a release asset is replaced only by one of
+      # the same name — with the commit in it, every push added two more APKs
+      # to a release that is supposed to hold the latest. The commit is in the
+      # release body, which is where it belongs for a rolling tag.
+      - name: Use stable asset names
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          for variant in development production; do
+            mv portalhop-"$variant"-*.apk portalhop-"$variant".apk
+          done
+          ls -la
+
       - name: Publish to the rolling mobile release
         uses: softprops/action-gh-release@v2
         with:
