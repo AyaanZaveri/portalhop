@@ -21,7 +21,8 @@
       "package": "app.portalhop.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundColor": "#0d0d0d"
+        "backgroundImage": "./assets/android-icon-background.png",
+        "backgroundColor": "#7CCF00"
       },
       "predictiveBackGestureEnabled": true
     },
