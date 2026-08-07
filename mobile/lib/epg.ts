@@ -38,8 +38,11 @@ export function feedKeyFor(
   if (source?.epgMode === "custom" && source.epgSourceId) {
     return `source:${source.epgSourceId}`
   }
-  if (source?.epgMode === "none") return null
 
+  // Every other mode falls through to the country file, including "none" and
+  // "portal". That is what the web does — it only ever special-cases a custom
+  // source — and skipping "none" here was silently costing those sources the
+  // guide the web shows them.
   const country = normalizeXmltvId(channel.xmltvId)
     .toLowerCase()
     .match(/\.([a-z]{2})$/)?.[1]
@@ -56,7 +59,8 @@ export function feedKeyFor(
  * channels and 46,316 slots — and storing the ones no portal carries would be
  * most of the rows, for schedules nothing can ever display.
  */
-async function ingestFeed(key: string, wanted: Set<string>) {
+/** Returns how many slots were stored, or -1 when nothing was attempted. */
+async function ingestFeed(key: string, wanted: Set<string>): Promise<number> {
   const handle = await db
 
   const stored = await handle.getFirstAsync<{ valid_to: number }>(
@@ -65,16 +69,18 @@ async function ingestFeed(key: string, wanted: Set<string>) {
   )
   // A window is fetched hours ahead of the clock, so it stays usable until it
   // runs out rather than for a fixed interval after the download.
-  if (stored && stored.valid_to > Date.now()) return
+  if (stored && stored.valid_to > Date.now()) return -1
 
   const [kind, value] = key.split(":")
   const query = kind === "source" ? `sourceId=${value}` : `country=${value}`
 
   const response = await apiFetch(`/api/epg/now?${query}`)
-  if (!response.ok) return
+  if (!response.ok) return -1
 
   const data = (await response.json()) as FeedResponse
-  if (!data?.channels) return
+  if (!data?.channels) return -1
+
+  let inserted = 0
 
   await handle.withTransactionAsync(async () => {
     await handle.runAsync("DELETE FROM epg_slot WHERE feed = ?", key)
@@ -108,29 +114,69 @@ async function ingestFeed(key: string, wanted: Set<string>) {
       for (const [startAt, stopAt, title] of slots) {
         params.push(key, id, startAt, stopAt, title)
         pending++
+        inserted++
         if (pending >= BATCH) await flush()
       }
     }
 
     await flush()
 
-    await handle.runAsync(
-      "INSERT OR REPLACE INTO epg_feed (key, valid_to) VALUES (?, ?)",
-      key,
-      data.to,
-    )
+    if (__DEV__) {
+      const feedIds = Object.keys(data.channels)
+      console.log(
+        `[portalhop] epg ${key}: feed had ${feedIds.length} channels, ` +
+          `${wanted.size} wanted, ${inserted} slots stored`,
+      )
+      // Nothing matched, so the two sides are naming channels differently.
+      // Printing a few of each is what tells them apart — a guide id that
+      // needs normalising reads quite unlike one that is simply absent.
+      if (!inserted && feedIds.length && wanted.size) {
+        console.log(
+          `[portalhop] epg ${key} matched nothing.\n` +
+            `  feed ids:   ${feedIds.slice(0, 5).map(normalizeXmltvId).join(", ")}\n` +
+            `  wanted ids: ${[...wanted].slice(0, 5).join(", ")}`,
+        )
+      }
+    }
+
+    // Only recorded when something was actually stored. Marking an empty
+    // ingest as current would make it permanent: the feed would read as
+    // covering its window, never be retried, and those channels would show no
+    // guide until the window expired hours later.
+    if (inserted > 0) {
+      await handle.runAsync(
+        "INSERT OR REPLACE INTO epg_feed (key, valid_to) VALUES (?, ?)",
+        key,
+        data.to,
+      )
+    }
   })
+
+  return inserted
 }
 
 // One download per feed even when several screens ask at once. Cleared on
 // failure so a feed that was offline is retried rather than written off.
 const inFlight = new Map<string, Promise<void>>()
 
+// Feeds that downloaded fine but matched none of the user's channels. Since
+// nothing was stored, they are no longer marked as covering their window, so
+// without this every scroll would pull the same megabytes down again to reach
+// the same answer. Held in memory only — a relaunch retries.
+const matchedNothing = new Set<string>()
+
 export function ensureFeed(key: string, wanted: Set<string>) {
+  if (matchedNothing.has(key)) return Promise.resolve()
+
   const existing = inFlight.get(key)
   if (existing) return existing
 
-  const task = ingestFeed(key, wanted).finally(() => inFlight.delete(key))
+  const task = ingestFeed(key, wanted)
+    .then((stored) => {
+      if (stored === 0) matchedNothing.add(key)
+    })
+    .finally(() => inFlight.delete(key))
+
   inFlight.set(key, task)
   return task
 }

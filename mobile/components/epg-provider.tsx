@@ -74,6 +74,20 @@ export function EpgProvider({
       grouped.set(key, ids)
     }
 
+    if (__DEV__ && channels.length) {
+      const custom = (portals ?? []).filter((p) => p.epgMode === "custom")
+      console.log(
+        `[portalhop] epg feeds: ` +
+          [...grouped]
+            .map(([key, ids]) => `${key}=${ids.size}`)
+            .sort()
+            .join(" ") +
+          ` | custom sources: ${
+            custom.map((p) => `${p.name}→${p.epgSourceId}`).join(", ") || "none"
+          }`,
+      )
+    }
+
     return grouped
   }, [channels, portals])
 
