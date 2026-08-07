@@ -4,7 +4,15 @@ import { useEvent } from "expo"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { useQuery } from "@tanstack/react-query"
 import * as Haptics from "expo-haptics"
-import { Maximize, Pause, Play, RotateCw, Volume2, VolumeX } from "lucide-react-native"
+import {
+  Maximize,
+  Pause,
+  PictureInPicture2,
+  Play,
+  RotateCw,
+  Volume2,
+  VolumeX,
+} from "lucide-react-native"
 
 import { resolveChannelLink } from "@/lib/stream"
 import { PressableScale } from "@/components/ui/pressable-scale"
@@ -42,7 +50,8 @@ export function ChannelPlayer({
     staleTime: 0,
     gcTime: 0,
     retry: false,
-    queryFn: ({ signal }) => resolveChannelLink(sourceId!, savedChannelId!, signal),
+    queryFn: ({ signal }) =>
+      resolveChannelLink(sourceId!, savedChannelId!, signal),
   })
 
   const player = useVideoPlayer(link.data ?? null, (instance) => {
@@ -131,6 +140,9 @@ export function ChannelPlayer({
         nativeControls={false}
         contentFit="contain"
         fullscreenOptions={FULLSCREEN}
+        // The manifest flag that makes this possible on Android comes from the
+        // expo-video config plugin, so it needs a build rather than a reload.
+        allowsPictureInPicture
         onFirstFrameRender={readStreamInfo}
         // Leaves the frame-rate strategy at ExoPlayer's default. Matching the
         // display to the video is what removes judder from 24fps film and
@@ -253,6 +265,17 @@ export function ChannelPlayer({
                     ) : (
                       <Volume2 size={18} color="#fff" />
                     )}
+                  </PressableScale>
+
+                  <PressableScale
+                    preset="icon"
+                    hitSlop={8}
+                    className="size-9 items-center justify-center rounded-lg bg-black/50"
+                    onPress={() =>
+                      void viewRef.current?.startPictureInPicture()
+                    }
+                  >
+                    <PictureInPicture2 size={18} color="#fff" />
                   </PressableScale>
 
                   <PressableScale

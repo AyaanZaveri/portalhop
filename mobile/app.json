@@ -48,7 +48,12 @@
       ],
       "expo-web-browser",
       "expo-sqlite",
-      "expo-video",
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
       [
         "expo-build-properties",
         {
