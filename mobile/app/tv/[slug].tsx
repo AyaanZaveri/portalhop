@@ -50,7 +50,7 @@ export default function ChannelDetailScreen() {
       {/* Logo, name, category and source — the same block the web's channel
           header carries, and the same logo treatment as a list row so a
           channel looks like itself on both screens. */}
-      <View className="flex-row items-center gap-3 px-3 pt-2 pb-3">
+      <View className="flex-row items-center gap-3 px-3 pt-2 pb-5">
         <PressableScale
           preset="icon"
           hitSlop={8}
