@@ -63,7 +63,7 @@ export const ChannelRow = memo(function ChannelRow({
       <View className="min-w-0 flex-1">
         <Text
           numberOfLines={1}
-          className="font-mono-medium text-[15px] tracking-tight text-foreground"
+          className="font-medium text-[15px] tracking-tight text-foreground"
           // RN adds font padding on Android and reserves leading above the
           // glyphs, which is what opened the gap under the channel name.
           style={{ lineHeight: 19, includeFontPadding: false }}

@@ -37,7 +37,15 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
       <Text
         numberOfLines={1}
         className="text-xs text-foreground"
-        style={{ lineHeight: 15, includeFontPadding: false, marginTop: 2 }}
+        // 0.8 opacity rather than a foreground/80 colour: it is the same result
+        // against an opaque row, and it does not need the theme's oklch token
+        // taken apart to apply an alpha to it. Matches the web's text-foreground/80.
+        style={{
+          lineHeight: 15,
+          includeFontPadding: false,
+          marginTop: 2,
+          opacity: 0.8,
+        }}
       >
         {programme.title}
       </Text>
@@ -52,9 +60,10 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
         }}
       >
         <Text
-          className="text-[10px] text-muted-foreground"
-          // Tabular figures so the times hold their width as the clock moves;
-          // proportional digits make the bar twitch on every tick.
+          className="font-mono text-[10px] text-muted-foreground"
+          // Mono keeps the digits an even width, so the bar between the two
+          // times holds still as the clock advances rather than twitching on
+          // every tick.
           style={{
             lineHeight: 12,
             includeFontPadding: false,
@@ -87,7 +96,7 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
         </View>
 
         <Text
-          className="text-[10px] text-muted-foreground"
+          className="font-mono text-[10px] text-muted-foreground"
           style={{
             lineHeight: 12,
             includeFontPadding: false,
