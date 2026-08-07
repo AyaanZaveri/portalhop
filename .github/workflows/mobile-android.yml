@@ -1,0 +1,211 @@
+name: Mobile Android APK
+
+# Builds the Expo app in mobile/ into two installable APKs and attaches both to
+# the run, so a device build needs no local Android toolchain.
+#
+#   development — the debug variant, which because expo-dev-client is installed
+#                 is a dev client: it has the native modules compiled in and
+#                 loads JavaScript from Metro over the network. This is what to
+#                 install to work on the app against a real device.
+#   production  — the release variant, with the JavaScript bundle minified and
+#                 embedded and React's development checks stripped. This is the
+#                 build to judge performance by; a debug build is several times
+#                 slower by design and says nothing about how the app really
+#                 runs.
+on:
+  push:
+    # expo-mobile as well as master: the Expo app lives there until it merges,
+    # and a workflow that only runs post-merge cannot be tested before merging.
+    branches: [master, expo-mobile]
+    # The web app shares this repository, and its changes cannot affect an APK.
+    paths:
+      - "mobile/**"
+      - "packages/shared/**"
+      - ".github/workflows/mobile-android.yml"
+  workflow_dispatch:
+    inputs:
+      variant:
+        type: choice
+        description: Which APK to build
+        options: [both, development, production]
+        default: both
+
+# A push and a manual run landing together would otherwise compete for runners
+# and one would be cancelled seemingly at random. The newer commit is the one
+# worth building.
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Typechecking once up front rather than inside the matrix: it is the same
+  # answer for both variants, and finding out about a type error after two full
+  # Gradle builds is thirty wasted minutes.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # bun, not npm: bun.lock is the lockfile maintained here, and npm would
+      # resolve a different dependency tree from the one that is tested.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: mobile
+        run: bunx tsc --noEmit
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Independent builds. One variant failing should still leave the other
+      # downloadable rather than cancelling it mid-compile.
+      fail-fast: false
+      matrix:
+        # Expanded from the dispatch input so an unwanted variant is never
+        # started, rather than started and skipped. `inputs` is empty on push,
+        # which falls through to both.
+        variant: ${{ fromJSON(inputs.variant == 'development' && '["development"]' || inputs.variant == 'production' && '["production"]' || '["development","production"]') }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+
+      # Expo SDK 57 pins Node 22.13.x, and the CLI runs on Node even though the
+      # install is bun's.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Java 17 is what EAS's own SDK 57 Android image uses. The runner's
+      # default JDK is newer than the Android Gradle plugin supports.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v4
+
+      # Matches the compileSdkVersion/targetSdkVersion/buildToolsVersion Expo
+      # publishes for SDK 57. Gradle can fetch these itself, but doing it here
+      # keeps the version explicit rather than whatever it settles on.
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      # Caches ~/.gradle across runs, which is most of the wall clock on a
+      # second build.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # A release build unpacks the NDK and writes a lot of intermediates; the
+      # runner's default free space is not generous.
+      - name: Free runner disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+                      /usr/local/share/chromium /usr/local/share/powershell \
+                      /opt/microsoft /usr/local/lib/android/sdk/ndk
+          df -h /
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: bun install --frozen-lockfile
+
+      # mobile/android is generated, not committed, so it is built here from
+      # app.json — the same continuous-native-generation flow EAS uses. Keeping
+      # it out of the repository means a config change cannot silently disagree
+      # with a checked-in native project.
+      #
+      # --no-install because bun has already installed, and prebuild would
+      # otherwise run a package manager of its own choosing over the top.
+      - name: Generate the native project
+        working-directory: mobile
+        run: bunx expo prebuild --platform android --no-install
+        env:
+          EXPO_NO_TELEMETRY: "1"
+
+      # Both variants are signed with the debug keystore Expo's template ships,
+      # which is Android's standard well-known one. That is deliberate: it is
+      # identical on every run, so a new APK installs over the previous one
+      # instead of being rejected for a signature mismatch. It is not suitable
+      # for Play Store distribution, which needs a private keystore that must
+      # never be committed.
+      - name: Assemble the APK
+        working-directory: mobile/android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
+        run: >-
+          ./gradlew --build-cache
+          ${{ matrix.variant == 'production' && ':app:assembleRelease' || ':app:assembleDebug' }}
+
+      # Named after the variant and commit so a downloaded file is identifiable
+      # once it is sitting in a phone's Downloads folder.
+      - name: Name the APK
+        id: apk
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.variant }}" = "production" ]; then
+            src=mobile/android/app/build/outputs/apk/release/app-release.apk
+          else
+            src=mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          fi
+          mkdir -p dist
+          dest="dist/portalhop-${{ matrix.variant }}-${GITHUB_SHA::7}.apk"
+          mv "$src" "$dest"
+          echo "path=$dest" >> "$GITHUB_OUTPUT"
+
+      # Kept for per-run history. GitHub always serves artifacts as a zip, which
+      # is why the release job below exists.
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: portalhop-${{ matrix.variant }}-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # Separate from the matrix on purpose: two concurrent jobs publishing to one
+  # tag race each other, and the loser's APK goes missing from the release.
+  release:
+    needs: build
+    # Only for the branch actually being installed from, and never for a run
+    # whose builds failed.
+    if: github.ref == 'refs/heads/expo-mobile' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    # To attach the APKs to a release, so each downloads as the file itself and
+    # can be tapped and installed straight from a phone with no unzipping.
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to the rolling mobile release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-latest
+          name: Latest mobile build
+          body: >
+            Expo APKs built from ${{ github.sha }}. Replaced on every push.
+            The production APK is the one to install for normal use; the
+            development APK is a dev client and needs Metro running to load
+            any JavaScript.
+          prerelease: true
+          make_latest: false
+          files: dist/*.apk
