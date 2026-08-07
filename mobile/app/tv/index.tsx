@@ -183,6 +183,11 @@ export default function ChannelListScreen() {
         // What /api/channel-link resolves a stream from, so the portal's
         // credentials and stream command never leave the server.
         savedChannelId: String(channel.savedChannelId ?? ""),
+        // For the header, so it can draw the channel before any request
+        // resolves rather than popping in a logo a moment later.
+        logo: channel.logoUrl || channel.logo || "",
+        genre: channel.genre || "",
+        portalName: channel.portalSource?.name ?? "",
       },
     })
   }, [])
