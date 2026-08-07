@@ -124,9 +124,6 @@ export function usePortalChannels(portals: SavedSourceRecord[]) {
      * source that errors unblocks the rest rather than holding them.
      */
     isPending: results.some((result) => result.isPending),
-    // For the background indicator: data is already on screen, and a refresh is
-    // in flight behind it.
-    isFetching: results.some((result) => result.isFetching),
     error: results.find((r) => r.error)?.error ?? null,
   }
 }

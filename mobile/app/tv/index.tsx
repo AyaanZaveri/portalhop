@@ -169,7 +169,6 @@ export default function ChannelListScreen() {
     channels: withSource,
     byKey,
     isPending: channelsPending,
-    isFetching: channelsFetching,
     error: channelsError,
   } = usePortalChannels(activePortals)
 
@@ -411,15 +410,6 @@ export default function ChannelListScreen() {
             >
               Channels
             </Text>
-            {/* Only while the list already has something to show: during the
-              first load the list itself is a spinner, and two at once just
-              reads as a stutter. */}
-            {channelsFetching && !channelsPending ? (
-              <ActivityIndicator
-                size="small"
-                color={colors["muted-foreground"]}
-              />
-            ) : null}
             <View className="flex-1" />
             <ThemeToggle />
           </View>
