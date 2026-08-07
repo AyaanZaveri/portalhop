@@ -132,3 +132,74 @@ export function useToggleGroupMembership() {
     },
   })
 }
+
+/**
+ * Saves a manual order, for favourites or for one group.
+ *
+ * The same two endpoints the web patches, and the same shape: an ordered array
+ * of channel keys, which the server turns back into `position` values. Written
+ * optimistically because the list is already showing the dragged order — a
+ * refetch that arrived first would visibly undo the drag.
+ */
+export function useReorderChannels() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      channelKeys,
+    }: {
+      /** Omitted for the plain favourites list. */
+      groupId?: number
+      channelKeys: string[]
+    }) => {
+      const response = await apiFetch(
+        groupId
+          ? `/api/favorite-groups/${groupId}/order`
+          : "/api/favorites/order",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channelKeys }),
+        },
+      )
+
+      if (!response.ok) throw new Error("Could not save the new order.")
+    },
+
+    onMutate: async ({ groupId, channelKeys }) => {
+      const key = groupId ? ["favorite-groups"] : ["favorites"]
+      await queryClient.cancelQueries({ queryKey: key })
+      const previous = queryClient.getQueryData(key)
+
+      if (groupId) {
+        queryClient.setQueryData<{ groups: FavoriteGroup[] }>(
+          ["favorite-groups"],
+          (current) => ({
+            groups: (current?.groups ?? []).map((group) =>
+              group.id === groupId ? { ...group, channelKeys } : group,
+            ),
+          }),
+        )
+      } else {
+        queryClient.setQueryData<{ favorites: string[] }>(["favorites"], {
+          favorites: channelKeys,
+        })
+      }
+
+      return { previous, key }
+    },
+
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.key, context.previous)
+      }
+    },
+
+    onSettled: (_data, _error, { groupId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: groupId ? ["favorite-groups"] : ["favorites"],
+      })
+    },
+  })
+}

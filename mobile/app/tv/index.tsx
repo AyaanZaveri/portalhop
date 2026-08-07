@@ -14,6 +14,7 @@ import {
   Shapes,
   Star,
   Tv,
+  ArrowUpDown,
 } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -47,6 +48,7 @@ import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
+import { ChannelReorderList } from "@/components/channel-reorder-list"
 import { invalidateFeeds } from "@/lib/epg"
 import { ChannelActionsSheet } from "@/components/channel-actions-sheet"
 import { GroupMembershipSheet } from "@/components/group-membership-sheet"
@@ -120,6 +122,7 @@ export default function ChannelListScreen() {
   const membershipSheet = useRef<BottomSheetModal>(null)
   const [actionChannel, setActionChannel] =
     useState<PortalChannelWithSource | null>(null)
+  const [reordering, setReordering] = useState(false)
   const categoriesSheet = useRef<BottomSheetModal>(null)
   const groupsSheet = useRef<BottomSheetModal>(null)
   const [filter, setFilterState] = useState<BrowseFilter>({ type: "all" })
@@ -202,6 +205,17 @@ export default function ChannelListScreen() {
     portalsError,
     channelsError,
   ])
+
+  // Only a manually ordered view can be reordered, which is favourites and
+  // groups — a category is the portal's order, and there is nowhere to save a
+  // rearrangement of it. Leaving one of those views has to drop the mode, or
+  // coming back to a category would land in a mode it cannot express.
+  const canReorder =
+    filter.type === "favorites" || filter.type === "favoriteGroup"
+
+  useEffect(() => {
+    if (!canReorder && reordering) setReordering(false)
+  }, [canReorder, reordering])
 
   // Derived from everything in the source, not from what the chip currently
   // shows — otherwise picking a category would empty the category list.
@@ -444,16 +458,43 @@ export default function ChannelListScreen() {
 
           {/* Which category or group is showing is otherwise invisible once the
             sheet closes — the chip only says that one is active. */}
-          {filter.type === "category" || filter.type === "favoriteGroup" ? (
-            <Text
-              numberOfLines={1}
-              className="font-mono-medium text-foreground text-sm tracking-tight"
-            >
-              {filter.type === "category"
-                ? filter.genre
-                : (groups?.find((g) => g.id === filter.groupId)?.name ??
-                  "Group")}
-            </Text>
+          {/* The active view's name on the left, and the reorder toggle on the
+              right where one is possible — the same pairing the web puts above
+              an orderable list. */}
+          {filter.type === "category" ||
+          filter.type === "favoriteGroup" ||
+          canReorder ? (
+            <View className="h-6 flex-row items-center gap-2">
+              <Text
+                numberOfLines={1}
+                className="font-mono-medium text-foreground flex-1 text-sm tracking-tight"
+              >
+                {filter.type === "category"
+                  ? filter.genre
+                  : filter.type === "favoriteGroup"
+                    ? (groups?.find((g) => g.id === filter.groupId)?.name ??
+                      "Group")
+                    : "Favorites"}
+              </Text>
+
+              {canReorder ? (
+                <PressableScale
+                  preset="icon"
+                  hitSlop={10}
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    setReordering((current) => !current)
+                  }}
+                >
+                  <ArrowUpDown
+                    size={17}
+                    color={
+                      reordering ? colors.primary : colors["muted-foreground"]
+                    }
+                  />
+                </PressableScale>
+              ) : null}
+            </View>
           ) : null}
         </View>
 
@@ -484,6 +525,17 @@ export default function ChannelListScreen() {
                   : "No sources yet — add one on the web app."}
             </Text>
           </View>
+        ) : reordering ? (
+          // Reordering replaces the list rather than layering onto it: pull to
+          // refresh would fight the drag, and the guide strips and press
+          // targets are noise in a mode whose only action is moving a row.
+          <ChannelReorderList
+            channels={visible}
+            groupId={
+              filter.type === "favoriteGroup" ? filter.groupId : undefined
+            }
+            bottomInset={insets.bottom}
+          />
         ) : (
           <PullToRefresh onRefresh={refresh}>
             {({ onScroll }) => (
