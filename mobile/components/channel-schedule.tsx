@@ -59,7 +59,8 @@ export function ChannelSchedule({
         error?: string
       }
 
-      if (!response.ok) throw new Error(data.error || "Could not load the guide.")
+      if (!response.ok)
+        throw new Error(data.error || "Could not load the guide.")
       return data.programmes ?? []
     },
   })
@@ -89,7 +90,7 @@ export function ChannelSchedule({
 
   if (query.error) {
     return (
-      <Text className="px-4 py-8 text-center text-sm text-muted-foreground">
+      <Text className="text-muted-foreground px-4 py-8 text-center text-sm">
         {query.error.message}
       </Text>
     )
@@ -97,7 +98,7 @@ export function ChannelSchedule({
 
   if (!days.length) {
     return (
-      <Text className="px-4 py-8 text-center text-sm text-muted-foreground">
+      <Text className="text-muted-foreground px-4 py-8 text-center text-sm">
         No guide data for this channel.
       </Text>
     )
@@ -109,7 +110,7 @@ export function ChannelSchedule({
     <View className="gap-5 px-4">
       {days.map(([day, programmes]) => (
         <View key={day} className="gap-2">
-          <Text className="text-xs text-muted-foreground">
+          <Text className="text-muted-foreground text-xs">
             {new Date(day).toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",
@@ -122,19 +123,27 @@ export function ChannelSchedule({
             const stopAt = new Date(programme.stopAt).getTime()
             const isNow = startAt <= now && stopAt > now
 
-            // No outline on the current programme — the web has none either,
-            // and the progress bar already marks it.
+            // No outline on the current programme. The web has none either,
+            // and the fill behind it is what marks it now.
             return (
               <View
                 key={programme.id}
                 className="gap-1.5 overflow-hidden rounded-xl p-3"
               >
-                {/* The web's bg-muted/20. A fill layer rather than a colour on
-                    the card itself: the alpha cannot be applied to the theme's
-                    oklch token without taking it apart, and putting opacity on
-                    the card would fade its text with it. `card` was the obvious
-                    token and the wrong one — it is white in light mode, so the
-                    cards were invisible against the page. */}
+                {/* A fill layer rather than a colour on the card itself: the
+                    alpha cannot be applied to the theme's oklch token without
+                    taking it apart, and putting opacity on the card would fade
+                    its text with it.
+
+                    What is on now is tinted with the primary instead of muted,
+                    and the elapsed share of it is tinted again on top. The card
+                    already is a span of time, so filling it says how far
+                    through that span the clock is — which a separate bar was
+                    saying a second time, in less space, less clearly.
+
+                    Both tints are kept faint on purpose: the text sits over
+                    them and has to stay as readable on the elapsed side as on
+                    the remaining one. */}
                 <View
                   pointerEvents="none"
                   style={{
@@ -143,49 +152,44 @@ export function ChannelSchedule({
                     right: 0,
                     bottom: 0,
                     left: 0,
-                    backgroundColor: colors.muted,
-                    opacity: 0.2,
+                    backgroundColor: isNow ? colors.primary : colors.muted,
+                    opacity: isNow ? 0.12 : 0.2,
                   }}
                 />
-                <Text className="font-mono text-[11px] text-muted-foreground">
+
+                {isNow ? (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      left: 0,
+                      width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
+                      backgroundColor: colors.primary,
+                      opacity: 0.16,
+                    }}
+                  />
+                ) : null}
+                {/* A step up across the card. At 14 and 12 this read as fine
+                    print next to the rest of the app, and a guide is meant to
+                    be skimmed. */}
+                <Text className="text-muted-foreground font-mono text-xs">
                   {formatRange(startAt, stopAt)}
                 </Text>
 
-                <Text className="text-sm font-medium text-foreground">
+                <Text className="text-foreground text-[15px] font-medium">
                   {programme.title}
                 </Text>
 
                 {programme.description ? (
                   <Text
                     numberOfLines={3}
-                    className="text-xs text-muted-foreground"
-                    style={{ lineHeight: 16 }}
+                    className="text-muted-foreground text-[13px]"
+                    style={{ lineHeight: 18 }}
                   >
                     {programme.description}
                   </Text>
-                ) : null}
-
-                {isNow ? (
-                  <View
-                    style={{
-                      height: 5,
-                      borderRadius: 999,
-                      overflow: "hidden",
-                      marginTop: 2,
-                      // The web's track is bg-muted, which reads against the
-                      // card's lighter fill where the border token would not.
-                      backgroundColor: colors.muted,
-                    }}
-                  >
-                    <View
-                      style={{
-                        height: "100%",
-                        borderRadius: 999,
-                        width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
-                        backgroundColor: colors.primary,
-                      }}
-                    />
-                  </View>
                 ) : null}
               </View>
             )
