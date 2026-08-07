@@ -1,11 +1,21 @@
 import { createContext, useContext, useRef, type ReactNode } from "react"
+import { requireOptionalNativeModule } from "expo"
 import { BlurTargetView } from "expo-blur"
 
 type BlurTargetRef = React.ComponentRef<typeof BlurTargetView> | null
 
-const BlurTargetContext = createContext<{
-  current: BlurTargetRef
-} | null>(null)
+/**
+ * Whether the running binary actually contains expo-blur.
+ *
+ * JavaScript reaches a development build over the network while its native code
+ * does not, so an install from before a native module was added will happily
+ * run code that references a view it has never heard of. Here that view wraps
+ * the whole app, so without this check a stale build does not lose its blur —
+ * it fails to render anything at all.
+ */
+export const blurAvailable = requireOptionalNativeModule("ExpoBlur") !== null
+
+const BlurTargetContext = createContext<{ current: BlurTargetRef } | null>(null)
 
 /**
  * What Android blurs.
@@ -24,6 +34,8 @@ const BlurTargetContext = createContext<{
  */
 export function BlurTargetProvider({ children }: { children: ReactNode }) {
   const ref = useRef<BlurTargetRef>(null)
+
+  if (!blurAvailable) return <>{children}</>
 
   return (
     <BlurTargetContext.Provider value={ref}>

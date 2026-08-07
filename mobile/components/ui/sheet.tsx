@@ -11,7 +11,7 @@ import {
 } from "@gorhom/bottom-sheet"
 
 import { useTheme } from "@/lib/theme"
-import { useBlurTarget } from "@/components/ui/blur-target"
+import { blurAvailable, useBlurTarget } from "@/components/ui/blur-target"
 
 /**
  * The app's one sheet shell, so every drawer shares a backdrop, a handle and a
@@ -39,9 +39,10 @@ export const Sheet = forwardRef<
         {...props}
         appearsOnIndex={0}
         disappearsOnIndex={-1}
-        // Lighter than it was: the blur is doing most of the separating now,
-        // and the two stacked read as a blackout.
-        opacity={0.2}
+        // Lighter where the blur is doing most of the separating; the two
+        // stacked read as a blackout. Without blur the scrim is all there is,
+        // so it goes back to carrying the separation on its own.
+        opacity={blurAvailable ? 0.2 : 0.4}
       >
         {/* Nested in the backdrop rather than replacing it, so tap-to-close
             and the fade in and out still come from gorhom.
@@ -54,13 +55,15 @@ export const Sheet = forwardRef<
             12 and above, and nothing at all below it, where the only
             alternative is RenderScript and it is too slow to be worth having.
             The scrim underneath means those devices still get separation. */}
-        <BlurView
-          intensity={theme === "dark" ? 32 : 24}
-          tint={theme === "dark" ? "dark" : "light"}
-          experimentalBlurMethod="dimezisBlurViewSdk31Plus"
-          blurTarget={blurTarget ?? undefined}
-          style={StyleSheet.absoluteFill}
-        />
+        {blurAvailable ? (
+          <BlurView
+            intensity={theme === "dark" ? 32 : 24}
+            tint={theme === "dark" ? "dark" : "light"}
+            experimentalBlurMethod="dimezisBlurViewSdk31Plus"
+            blurTarget={blurTarget ?? undefined}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
       </BottomSheetBackdrop>
     ),
     [theme, blurTarget],
