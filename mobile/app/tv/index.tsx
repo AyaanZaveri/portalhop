@@ -41,6 +41,7 @@ import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
+import { invalidateFeeds } from "@/lib/epg"
 import { EpgProvider } from "@/components/epg-provider"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
@@ -93,6 +94,11 @@ export default function ChannelListScreen() {
         queryClient.invalidateQueries({ queryKey: ["portals"] }),
         queryClient.invalidateQueries({ queryKey: ["favorites"] }),
         queryClient.invalidateQueries({ queryKey: ["favorite-groups"] }),
+        // The guide too. It has its own store outside TanStack, so
+        // invalidating queries left it alone — pulling the list did nothing
+        // for a channel whose schedule was missing, which is the case most
+        // likely to make someone pull in the first place.
+        invalidateFeeds(),
       ]),
     [queryClient],
   )

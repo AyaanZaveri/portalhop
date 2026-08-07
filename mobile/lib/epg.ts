@@ -63,13 +63,23 @@ export function feedKeyFor(
 async function ingestFeed(key: string, wanted: Set<string>): Promise<number> {
   const handle = await db
 
-  const stored = await handle.getFirstAsync<{ valid_to: number }>(
-    "SELECT valid_to FROM epg_feed WHERE key = ?",
-    key,
-  )
+  const stored = await handle.getFirstAsync<{
+    valid_to: number
+    wanted_count: number
+  }>("SELECT valid_to, wanted_count FROM epg_feed WHERE key = ?", key)
+
   // A window is fetched hours ahead of the clock, so it stays usable until it
-  // runs out rather than for a fixed interval after the download.
-  if (stored && stored.valid_to > Date.now()) return -1
+  // runs out rather than for a fixed interval after the download — but only for
+  // the channels it was filtered against. A larger set means channels have
+  // joined the catalogue since, and their slots were dropped on the way in, so
+  // the feed has to be read again for them.
+  if (
+    stored &&
+    stored.valid_to > Date.now() &&
+    stored.wanted_count >= wanted.size
+  ) {
+    return -1
+  }
 
   const [kind, value] = key.split(":")
   const query = kind === "source" ? `sourceId=${value}` : `country=${value}`
@@ -145,9 +155,10 @@ async function ingestFeed(key: string, wanted: Set<string>): Promise<number> {
     // guide until the window expired hours later.
     if (inserted > 0) {
       await handle.runAsync(
-        "INSERT OR REPLACE INTO epg_feed (key, valid_to) VALUES (?, ?)",
+        "INSERT OR REPLACE INTO epg_feed (key, valid_to, wanted_count) VALUES (?, ?, ?)",
         key,
         data.to,
+        wanted.size,
       )
     }
   })
@@ -245,6 +256,19 @@ export async function querySchedule(
     startAt: row.start_at,
     stopAt: row.stop_at,
   }))
+}
+
+/**
+ * Forgets which feeds are current, so the next scroll downloads them again.
+ *
+ * What pull to refresh reaches for. The stored slots are deliberately left in
+ * place: they are still the best answer until the replacement arrives, and
+ * clearing them would blank every row for as long as the download takes.
+ */
+export async function invalidateFeeds() {
+  matchedNothing.clear()
+  const handle = await db
+  await handle.runAsync("DELETE FROM epg_feed")
 }
 
 /** Drops rows whose programmes have finished, so the table tracks the window rather than growing. */

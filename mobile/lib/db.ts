@@ -45,6 +45,45 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
         valid_to INTEGER NOT NULL
       );
     `)
+
+    // The guide tables are a cache, so a shape change is thrown away rather
+    // than migrated. Only these — the query cache alongside them is keyed by
+    // its own buster and is not worth re-downloading for this.
+    const row = await handle.getFirstAsync<{ user_version: number }>(
+      "PRAGMA user_version",
+    )
+
+    if ((row?.user_version ?? 0) < 2) {
+      await handle.execAsync(`
+        DROP TABLE IF EXISTS epg_slot;
+        DROP TABLE IF EXISTS epg_feed;
+
+        CREATE TABLE epg_slot (
+          feed TEXT NOT NULL,
+          xmltv_id TEXT NOT NULL,
+          start_at INTEGER NOT NULL,
+          stop_at INTEGER NOT NULL,
+          title TEXT NOT NULL
+        );
+        CREATE INDEX epg_slot_lookup ON epg_slot (xmltv_id, stop_at);
+        CREATE INDEX epg_slot_feed ON epg_slot (feed);
+
+        CREATE TABLE epg_feed (
+          key TEXT PRIMARY KEY NOT NULL,
+          valid_to INTEGER NOT NULL,
+          -- How many of the user's channels this feed was filtered against.
+          -- A stored feed covers its window, so without this a channel that
+          -- joined the catalogue afterwards -- a newly favourited one, a
+          -- re-synced source, a portal switched back on -- found the feed
+          -- already current and got no guide until the window ran out hours
+          -- later.
+          wanted_count INTEGER NOT NULL DEFAULT 0
+        );
+
+        PRAGMA user_version = 2;
+      `)
+    }
+
     return handle
   },
 )
