@@ -17,7 +17,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { channelSlug } from "@/lib/channel-keys"
-import { usePortalChannels, usePortals, type PortalChannelWithSource } from "@/lib/channels"
+import {
+  usePortalChannels,
+  usePortals,
+  type PortalChannelWithSource,
+} from "@/lib/channels"
 import {
   applyBrowseFilter,
   useCategories,
@@ -28,10 +32,7 @@ import {
 } from "@/lib/filters"
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 import { useSession } from "@/lib/auth"
-import {
-  loadSelectedPortalIds,
-  saveSelectedPortalIds,
-} from "@/lib/preferences"
+import { loadSelectedPortalIds, saveSelectedPortalIds } from "@/lib/preferences"
 import { useTheme } from "@/lib/theme"
 import { CategoriesSheet } from "@/components/categories-sheet"
 import { GroupsSheet } from "@/components/groups-sheet"
@@ -41,6 +42,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
 import { EpgProvider } from "@/components/epg-provider"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 
 // Module scope so FlashList sees the same function and object every render.
 const channelKey = (channel: PortalChannelWithSource) => channel.key
@@ -84,20 +86,16 @@ export default function ChannelListScreen() {
    * answer.
    */
   const queryClient = useQueryClient()
-  const [refreshing, setRefreshing] = useState(false)
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true)
-    try {
-      await Promise.all([
+  const refresh = useCallback(
+    () =>
+      Promise.all([
         queryClient.invalidateQueries({ queryKey: ["portals"] }),
         queryClient.invalidateQueries({ queryKey: ["favorites"] }),
         queryClient.invalidateQueries({ queryKey: ["favorite-groups"] }),
-      ])
-    } finally {
-      setRefreshing(false)
-    }
-  }, [queryClient])
+      ]),
+    [queryClient],
+  )
 
   const changeSelectedPortals = useCallback((ids: Set<number>) => {
     setSelectedPortalIds(ids)
@@ -138,14 +136,27 @@ export default function ChannelListScreen() {
         (portalsError ? ` portalsError=${portalsError.message}` : "") +
         (channelsError ? ` channelsError=${channelsError.message}` : ""),
     )
-  }, [signedIn, portals, activePortals, withSource, portalsError, channelsError])
+  }, [
+    signedIn,
+    portals,
+    activePortals,
+    withSource,
+    portalsError,
+    channelsError,
+  ])
 
   // Derived from everything in the source, not from what the chip currently
   // shows — otherwise picking a category would empty the category list.
   const categories = useCategories(withSource)
 
   const visible = useMemo(() => {
-    const filtered = applyBrowseFilter(withSource, byKey, filter, favorites, groups)
+    const filtered = applyBrowseFilter(
+      withSource,
+      byKey,
+      filter,
+      favorites,
+      groups,
+    )
     const q = query.trim().toLowerCase()
     if (!q) return filtered
     return filtered.filter((channel) => channel.searchName.includes(q))
@@ -195,7 +206,11 @@ export default function ChannelListScreen() {
   const [visibleRows, setVisibleRows] = useState<PortalChannelWithSource[]>([])
 
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: Array<{ item: PortalChannelWithSource }> }) => {
+    ({
+      viewableItems,
+    }: {
+      viewableItems: Array<{ item: PortalChannelWithSource }>
+    }) => {
       setVisibleRows(viewableItems.map((entry) => entry.item))
     },
   ).current
@@ -234,7 +249,7 @@ export default function ChannelListScreen() {
 
   if (sessionPending) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
+      <View className="bg-background flex-1 items-center justify-center">
         <ActivityIndicator />
       </View>
     )
@@ -243,20 +258,20 @@ export default function ChannelListScreen() {
   if (!signedIn) {
     return (
       <View
-        className="flex-1 items-center justify-center gap-4 bg-background px-8"
+        className="bg-background flex-1 items-center justify-center gap-4 px-8"
         style={{ paddingTop: insets.top }}
       >
-        <Text className="font-heading text-lg text-foreground">
+        <Text className="font-heading text-foreground text-lg">
           Sign in to Portal Hop
         </Text>
-        <Text className="text-center text-sm text-muted-foreground">
+        <Text className="text-muted-foreground text-center text-sm">
           Your sources and favourites live on your account.
         </Text>
         <PressableScale
-          className="mt-2 h-11 w-full items-center justify-center rounded-lg bg-primary"
+          className="bg-primary mt-2 h-11 w-full items-center justify-center rounded-lg"
           onPress={() => router.push("/sign-in")}
         >
-          <Text className="font-medium text-primary-foreground">Sign in</Text>
+          <Text className="text-primary-foreground font-medium">Sign in</Text>
         </PressableScale>
       </View>
     )
@@ -264,182 +279,193 @@ export default function ChannelListScreen() {
 
   return (
     <EpgProvider channels={withSource} portals={portals} visible={visibleRows}>
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* The wordmark is gone: a native app does not need to tell you which app
+      <View className="bg-background flex-1" style={{ paddingTop: insets.top }}>
+        {/* The wordmark is gone: a native app does not need to tell you which app
           you just opened, and the space is better spent on content. The bunny
           stays as a small brand mark. */}
-      <View className="gap-3 px-4 pt-1 pb-2">
-        <View className="h-10 flex-row items-center gap-2">
-          <Rabbit size={22} color={iconPrimary} />
-          <Text
-            className="font-heading text-[22px] tracking-tight text-foreground"
-            style={{ includeFontPadding: false }}
-          >
-            Channels
-          </Text>
-          {/* Only while the list already has something to show: during the
+        <View className="gap-3 px-4 pt-1 pb-2">
+          <View className="h-10 flex-row items-center gap-2">
+            <Rabbit size={22} color={iconPrimary} />
+            <Text
+              className="font-heading text-foreground text-[22px] tracking-tight"
+              style={{ includeFontPadding: false }}
+            >
+              Channels
+            </Text>
+            {/* Only while the list already has something to show: during the
               first load the list itself is a spinner, and two at once just
               reads as a stutter. */}
-          {channelsFetching && !channelsPending ? (
-            <ActivityIndicator size="small" color={colors["muted-foreground"]} />
-          ) : null}
-          <View className="flex-1" />
-          <ThemeToggle />
-        </View>
+            {channelsFetching && !channelsPending ? (
+              <ActivityIndicator
+                size="small"
+                color={colors["muted-foreground"]}
+              />
+            ) : null}
+            <View className="flex-1" />
+            <ThemeToggle />
+          </View>
 
-        <View
-          className="h-11 flex-row items-center gap-2 rounded-lg border px-3"
-          style={{ borderColor: colors.border }}
-        >
-          {/* lucide's icons take a colour prop rather than a class. Wrapping
+          <View
+            className="h-11 flex-row items-center gap-2 rounded-lg border px-3"
+            style={{ borderColor: colors.border }}
+          >
+            {/* lucide's icons take a colour prop rather than a class. Wrapping
               them with Uniwind's withUniwind would allow className here; worth
               doing once there are more than a handful. */}
-          <Search size={17} color={colors["muted-foreground"]} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder={`Search ${visible.length.toLocaleString()} channels`}
-            className="flex-1 font-sans text-[15px] text-foreground"
-            placeholderTextColor={colors["muted-foreground"]}
-            autoCorrect={false}
-            // Android vertically centres text in a TextInput only when told to,
-            // and its default font padding pushes the baseline up besides.
-            textAlignVertical="center"
-            style={{ paddingVertical: 0, includeFontPadding: false }}
-          />
-          {portals && portals.length > 1 ? (
-            <PressableScale
-              preset="icon"
-              hitSlop={10}
-              onPress={() => filterSheet.current?.present()}
+            <Search size={17} color={colors["muted-foreground"]} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder={`Search ${visible.length.toLocaleString()} channels`}
+              className="text-foreground flex-1 font-sans text-[15px]"
+              placeholderTextColor={colors["muted-foreground"]}
+              autoCorrect={false}
+              // Android vertically centres text in a TextInput only when told to,
+              // and its default font padding pushes the baseline up besides.
+              textAlignVertical="center"
+              style={{ paddingVertical: 0, includeFontPadding: false }}
+            />
+            {portals && portals.length > 1 ? (
+              <PressableScale
+                preset="icon"
+                hitSlop={10}
+                onPress={() => filterSheet.current?.present()}
+              >
+                <ListFilter size={18} color={colors["muted-foreground"]} />
+              </PressableScale>
+            ) : null}
+          </View>
+
+          {/* The same four the web has. Categories and Groups open sheets rather
+            than filtering directly, since each needs a list to pick from. */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Chip
+              label="Favorites"
+              icon={Star}
+              active={filter.type === "favorites"}
+              onPress={() => setFilter({ type: "favorites" })}
+            />
+            <Chip
+              label="All"
+              icon={LayoutGrid}
+              active={filter.type === "all"}
+              onPress={() => setFilter({ type: "all" })}
+            />
+            <Chip
+              label="Categories"
+              icon={Shapes}
+              active={filter.type === "category"}
+              onPress={() => categoriesSheet.current?.present()}
+            />
+            <Chip
+              label="Groups"
+              icon={FolderHeart}
+              iconOnly
+              active={filter.type === "favoriteGroup"}
+              onPress={() => groupsSheet.current?.present()}
+            />
+          </View>
+
+          {/* Which category or group is showing is otherwise invisible once the
+            sheet closes — the chip only says that one is active. */}
+          {filter.type === "category" || filter.type === "favoriteGroup" ? (
+            <Text
+              numberOfLines={1}
+              className="font-mono-medium text-foreground text-sm tracking-tight"
             >
-              <ListFilter size={18} color={colors["muted-foreground"]} />
-            </PressableScale>
+              {filter.type === "category"
+                ? filter.genre
+                : (groups?.find((g) => g.id === filter.groupId)?.name ??
+                  "Group")}
+            </Text>
           ) : null}
         </View>
 
-        {/* The same four the web has. Categories and Groups open sheets rather
-            than filtering directly, since each needs a list to pick from. */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Chip
-            label="Favorites"
-            icon={Star}
-            active={filter.type === "favorites"}
-            onPress={() => setFilter({ type: "favorites" })}
-          />
-          <Chip
-            label="All"
-            icon={LayoutGrid}
-            active={filter.type === "all"}
-            onPress={() => setFilter({ type: "all" })}
-          />
-          <Chip
-            label="Categories"
-            icon={Shapes}
-            active={filter.type === "category"}
-            onPress={() => categoriesSheet.current?.present()}
-          />
-          <Chip
-            label="Groups"
-            icon={FolderHeart}
-            iconOnly
-            active={filter.type === "favoriteGroup"}
-            onPress={() => groupsSheet.current?.present()}
-          />
-        </View>
-
-        {/* Which category or group is showing is otherwise invisible once the
-            sheet closes — the chip only says that one is active. */}
-        {filter.type === "category" || filter.type === "favoriteGroup" ? (
-          <Text
-            numberOfLines={1}
-            className="font-mono-medium text-sm tracking-tight text-foreground"
-          >
-            {filter.type === "category"
-              ? filter.genre
-              : (groups?.find((g) => g.id === filter.groupId)?.name ?? "Group")}
-          </Text>
-        ) : null}
-      </View>
-
-      {/* Surfaced rather than swallowed: an empty list and a failed request
+        {/* Surfaced rather than swallowed: an empty list and a failed request
           look identical otherwise, which is exactly the case worth telling
           apart while the data layer is new. */}
-      {portalsError || channelsError ? (
-        <View className="flex-1 items-center justify-center gap-2 px-8">
-          <Text className="text-center font-medium text-destructive">
-            Couldn&apos;t load channels
-          </Text>
-          <Text className="text-center text-xs text-muted-foreground">
-            {(portalsError ?? channelsError)?.message}
-          </Text>
-        </View>
-      ) : channelsPending ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator />
-        </View>
-      ) : visible.length === 0 ? (
-        <View className="flex-1 items-center justify-center gap-2 px-8">
-          <Tv size={28} color={colors["muted-foreground"]} />
-          <Text className="text-center text-sm text-muted-foreground">
-            {query
-              ? "No channels match."
-              : portals?.length
-                ? "No channels in the selected sources."
-                : "No sources yet — add one on the web app."}
-          </Text>
-        </View>
-      ) : (
-        <FlashList
-          data={visible}
-          keyExtractor={channelKey}
-          renderItem={renderChannel}
-          contentContainerStyle={listPadding}
-          refreshing={refreshing}
-          onRefresh={refresh}
-          ref={listRef}
-          // On by default in v2, and its own known-issues page names this case:
-          // it anchors the rows that were on screen when the data changes, so
-          // catalogues arriving during load left the list pinned below a gap of
-          // empty space. Worth having in a chat, where content grows upward —
-          // here every change is a new list that should start at the top.
-          maintainVisibleContentPosition={MAINTAIN_POSITION}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
+        {portalsError || channelsError ? (
+          <View className="flex-1 items-center justify-center gap-2 px-8">
+            <Text className="text-destructive text-center font-medium">
+              Couldn&apos;t load channels
+            </Text>
+            <Text className="text-muted-foreground text-center text-xs">
+              {(portalsError ?? channelsError)?.message}
+            </Text>
+          </View>
+        ) : channelsPending ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator />
+          </View>
+        ) : visible.length === 0 ? (
+          <View className="flex-1 items-center justify-center gap-2 px-8">
+            <Tv size={28} color={colors["muted-foreground"]} />
+            <Text className="text-muted-foreground text-center text-sm">
+              {query
+                ? "No channels match."
+                : portals?.length
+                  ? "No channels in the selected sources."
+                  : "No sources yet — add one on the web app."}
+            </Text>
+          </View>
+        ) : (
+          <PullToRefresh onRefresh={refresh}>
+            {({ onScroll }) => (
+              <FlashList
+                data={visible}
+                keyExtractor={channelKey}
+                renderItem={renderChannel}
+                contentContainerStyle={listPadding}
+                onScroll={onScroll}
+              // Without this iOS reports scroll about once a second, which is
+              // long enough for the gesture to still believe the list is at
+              // the top after it has been scrolled away.
+              scrollEventThrottle={16}
+                ref={listRef}
+                // On by default in v2, and its own known-issues page names this case:
+                // it anchors the rows that were on screen when the data changes, so
+                // catalogues arriving during load left the list pinned below a gap of
+                // empty space. Worth having in a chat, where content grows upward —
+                // here every change is a new list that should start at the top.
+                maintainVisibleContentPosition={MAINTAIN_POSITION}
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
+              />
+            )}
+          </PullToRefresh>
+        )}
+
+        <PortalFilterSheet
+          ref={filterSheet}
+          portals={portals ?? []}
+          selectedIds={selectedPortalIds}
+          onChange={changeSelectedPortals}
         />
-      )}
 
-      <PortalFilterSheet
-        ref={filterSheet}
-        portals={portals ?? []}
-        selectedIds={selectedPortalIds}
-        onChange={changeSelectedPortals}
-      />
+        <CategoriesSheet
+          ref={categoriesSheet}
+          categories={categories}
+          filter={filter}
+          onSelect={(category: CategoryEntry) => {
+            setFilter({
+              type: "category",
+              genre: category.genre,
+              sourceId: category.sourceId,
+            })
+            categoriesSheet.current?.dismiss()
+          }}
+        />
 
-      <CategoriesSheet
-        ref={categoriesSheet}
-        categories={categories}
-        filter={filter}
-        onSelect={(category: CategoryEntry) => {
-          setFilter({
-            type: "category",
-            genre: category.genre,
-            sourceId: category.sourceId,
-          })
-          categoriesSheet.current?.dismiss()
-        }}
-      />
-
-      <GroupsSheet
-        ref={groupsSheet}
-        groups={groups ?? []}
-        filter={filter}
-        onSelect={(group: FavoriteGroup) => {
-          setFilter({ type: "favoriteGroup", groupId: group.id })
-          groupsSheet.current?.dismiss()
-        }}
-      />
-    </View>
+        <GroupsSheet
+          ref={groupsSheet}
+          groups={groups ?? []}
+          filter={filter}
+          onSelect={(group: FavoriteGroup) => {
+            setFilter({ type: "favoriteGroup", groupId: group.id })
+            groupsSheet.current?.dismiss()
+          }}
+        />
+      </View>
     </EpgProvider>
   )
 }
