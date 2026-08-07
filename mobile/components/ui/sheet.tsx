@@ -1,11 +1,24 @@
-import { forwardRef, useCallback, type ReactNode } from "react"
-import { StyleSheet, Text } from "react-native"
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react"
+import { Pressable, StyleSheet, Text, type View } from "react-native"
 import { BlurView } from "expo-blur"
 import { useUniwind } from "uniwind"
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedStyle,
+} from "react-native-reanimated"
 import {
-  BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetView,
+  useBottomSheet,
   type BottomSheetBackdropProps,
   type BottomSheetModalProps,
 } from "@gorhom/bottom-sheet"
@@ -34,60 +47,13 @@ export const Sheet = forwardRef<
   const blurTarget = useBlurTarget()
 
   const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => {
-      if (__DEV__) {
-        // The two things that silently turn the blur into a no-op. expo-blur
-        // resolves the target once, in componentDidMount, and its update check
-        // compares a stable ref against itself so it never resolves again — so
-        // a target that is null at that moment stays null, with no warning and
-        // no blur.
-        console.log(
-          `[portalhop] blur available=${blurAvailable} target=${
-            blurTarget?.current ? "resolved" : "null"
-          }`,
-        )
-      }
-
-      return (
-        <BottomSheetBackdrop
-          {...props}
-          appearsOnIndex={0}
-          disappearsOnIndex={-1}
-          // Lighter where the blur is doing most of the separating; the two
-          // stacked read as a blackout. Without blur the scrim is all there is,
-          // so it goes back to carrying the separation on its own.
-          opacity={blurAvailable ? 0.2 : 0.4}
-        >
-          {/* Nested in the backdrop rather than replacing it, so tap-to-close
-            and the fade in and out still come from gorhom.
-
-            The intensity is fixed and the backdrop's own opacity animates —
-            animating blur radius per frame is the expensive way to do this and
-            the one that stutters.
-
-            dimezisBlurViewSdk31Plus: real blur through Android's RenderNode on
-            12 and above, and nothing at all below it, where the only
-            alternative is RenderScript and it is too slow to be worth having.
-            The scrim underneath means those devices still get separation. */}
-          {blurAvailable ? (
-            <BlurView
-              intensity={theme === "dark" ? 60 : 50}
-              tint={theme === "dark" ? "dark" : "light"}
-              // Android divides intensity by this before blurring, to bring its
-              // perceived strength in line with iOS. At the default of 4 an
-              // intensity of 32 blurs at an effective 8, which on a dark list is
-              // indistinguishable from no blur at all.
-              blurReductionFactor={2}
-              // blurMethod, not experimentalBlurMethod — the latter is the
-              // deprecated alias in SDK 57.
-              blurMethod="dimezisBlurViewSdk31Plus"
-              blurTarget={blurTarget ?? undefined}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : null}
-        </BottomSheetBackdrop>
-      )
-    },
+    (props: BottomSheetBackdropProps) => (
+      <BlurBackdrop
+        {...props}
+        blurTarget={blurTarget}
+        dark={theme === "dark"}
+      />
+    ),
     [theme, blurTarget],
   )
 
@@ -131,3 +97,81 @@ export const Sheet = forwardRef<
     </BottomSheetModal>
   )
 })
+
+/**
+ * The sheet backdrop: a blur that is simply present or absent, under a scrim
+ * that fades.
+ *
+ * Nesting the BlurView inside gorhom's own backdrop put it under a parent whose
+ * opacity is animated, and an animated opacity makes Android render that parent
+ * into a hardware layer. Dimezis BlurView captures its target at draw time, and
+ * that capture does not survive being composited through such a layer — the
+ * blur resolved its target correctly and then drew nothing, silently.
+ *
+ * So nothing animates the blur itself. It is mounted while the sheet is open
+ * and unmounted when it is not, which costs the fade on the way in and is the
+ * price of it working at all. The scrim over it still fades, and carries the
+ * transition.
+ */
+function BlurBackdrop({
+  animatedIndex,
+  style,
+  blurTarget,
+  dark,
+}: BottomSheetBackdropProps & {
+  blurTarget: { current: View | null } | null
+  dark: boolean
+}) {
+  const { close } = useBottomSheet()
+  const [open, setOpen] = useState(false)
+
+  // Mount and unmount rather than fade, for the reason above.
+  useAnimatedReaction(
+    () => animatedIndex.value > -1,
+    (isOpen, was) => {
+      if (isOpen !== was) runOnJS(setOpen)(isOpen)
+    },
+  )
+
+  useEffect(() => {
+    if (__DEV__ && open) {
+      console.log(
+        `[portalhop] blur mounted, target=${blurTarget?.current ? "resolved" : "null"}`,
+      )
+    }
+  }, [open, blurTarget])
+
+  const scrimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      animatedIndex.value,
+      [-1, 0],
+      [0, blurAvailable ? 0.2 : 0.4],
+      Extrapolation.CLAMP,
+    ),
+  }))
+
+  return (
+    <Pressable style={style} onPress={() => close()}>
+      {open && blurAvailable ? (
+        <BlurView
+          intensity={dark ? 60 : 50}
+          tint={dark ? "dark" : "light"}
+          // Android divides intensity by this before blurring, to bring its
+          // perceived strength in line with iOS.
+          blurReductionFactor={2}
+          blurMethod="dimezisBlurViewSdk31Plus"
+          blurTarget={blurTarget ?? undefined}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: "#000" },
+          scrimStyle,
+        ]}
+      />
+    </Pressable>
+  )
+}
