@@ -1,6 +1,6 @@
 import { ScrollView, Text, View } from "react-native"
 import { router, useLocalSearchParams } from "expo-router"
-import { ChevronLeft } from "lucide-react-native"
+import { ChevronLeft, Tv } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme } from "@/lib/theme"
@@ -60,9 +60,13 @@ export default function ChannelDetailScreen() {
           <Text className="text-sm text-muted-foreground">Player goes here</Text>
         </View>
 
-        <Text className="px-4 pt-6 pb-3 font-heading text-sm text-foreground">
-          Programme Guide
-        </Text>
+        {/* Icon and weight follow the web's guide heading. */}
+        <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
+          <Tv size={16} color={colors["muted-foreground"]} />
+          <Text className="font-heading text-base text-foreground">
+            Programme Guide
+          </Text>
+        </View>
 
         <ChannelSchedule
           portal={portal}

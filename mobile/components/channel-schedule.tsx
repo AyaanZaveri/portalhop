@@ -125,9 +125,8 @@ export function ChannelSchedule({
             return (
               <View
                 key={programme.id}
-                className="gap-1.5 rounded-xl p-3"
+                className="gap-1.5 overflow-hidden rounded-xl p-3"
                 style={{
-                  backgroundColor: colors.card,
                   // Only what is on now is outlined. A border on every card
                   // turns the list into a grid and buries the one row that
                   // answers "what is on".
@@ -135,6 +134,24 @@ export function ChannelSchedule({
                   borderColor: isNow ? colors.primary : "transparent",
                 }}
               >
+                {/* The web's bg-muted/20. A fill layer rather than a colour on
+                    the card itself: the alpha cannot be applied to the theme's
+                    oklch token without taking it apart, and putting opacity on
+                    the card would fade its text with it. `card` was the obvious
+                    token and the wrong one — it is white in light mode, so the
+                    cards were invisible against the page. */}
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    left: 0,
+                    backgroundColor: colors.muted,
+                    opacity: 0.2,
+                  }}
+                />
                 <Text className="font-mono text-[11px] text-muted-foreground">
                   {formatRange(startAt, stopAt)}
                 </Text>
@@ -160,7 +177,9 @@ export function ChannelSchedule({
                       borderRadius: 999,
                       overflow: "hidden",
                       marginTop: 2,
-                      backgroundColor: colors.border,
+                      // The web's track is bg-muted, which reads against the
+                      // card's lighter fill where the border token would not.
+                      backgroundColor: colors.muted,
                     }}
                   >
                     <View
