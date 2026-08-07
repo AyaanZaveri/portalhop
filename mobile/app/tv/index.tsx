@@ -40,6 +40,7 @@ import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { ChannelRow } from "@/components/channel-row"
+import { EpgProvider } from "@/components/epg-provider"
 
 // Module scope so FlashList sees the same function and object every render.
 const channelKey = (channel: PortalChannelWithSource) => channel.key
@@ -150,8 +151,18 @@ export default function ChannelListScreen() {
     return filtered.filter((channel) => channel.searchName.includes(q))
   }, [withSource, byKey, filter, favorites, groups, query])
 
+  // The guide id and name ride along as params rather than being looked up
+  // again on the other side: resolving a slug back to a channel would mean
+  // rebuilding the merged catalogue on a screen that needs one row from it.
   const openChannel = useCallback((channel: PortalChannelWithSource) => {
-    router.push(`/tv/${encodeURIComponent(channelSlug(channel))}`)
+    router.push({
+      pathname: "/tv/[slug]",
+      params: {
+        slug: channelSlug(channel),
+        xmltvId: channel.xmltvId ?? "",
+        name: channel.name ?? "",
+      },
+    })
   }, [])
 
   // Every prop below is held stable on purpose. FlashList re-renders its
@@ -174,6 +185,22 @@ export default function ChannelListScreen() {
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false })
   }, [filter, query])
+
+  // Which rows the guide should be fetched and queried for. Only these — a
+  // catalogue this size spans many countries, and downloading every one of
+  // their guide files would be tens of megabytes for schedules the user has
+  // not scrolled to.
+  const [visibleRows, setVisibleRows] = useState<PortalChannelWithSource[]>([])
+
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item: PortalChannelWithSource }> }) => {
+      setVisibleRows(viewableItems.map((entry) => entry.item))
+    },
+  ).current
+
+  // FlashList treats this as fixed for the life of the list and warns if it
+  // changes, so it is built once rather than inline.
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 10 }).current
 
   const listPadding = useMemo(
     () => ({ paddingHorizontal: 12, paddingBottom: insets.bottom + 12 }),
@@ -234,6 +261,7 @@ export default function ChannelListScreen() {
   }
 
   return (
+    <EpgProvider channels={withSource} portals={portals} visible={visibleRows}>
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* The wordmark is gone: a native app does not need to tell you which app
           you just opened, and the space is better spent on content. The bunny
@@ -374,6 +402,8 @@ export default function ChannelListScreen() {
           // empty space. Worth having in a chat, where content grows upward —
           // here every change is a new list that should start at the top.
           maintainVisibleContentPosition={MAINTAIN_POSITION}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
         />
       )}
 
@@ -408,5 +438,6 @@ export default function ChannelListScreen() {
         }}
       />
     </View>
+    </EpgProvider>
   )
 }

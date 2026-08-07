@@ -6,6 +6,8 @@ import { Tv } from "lucide-react-native"
 import type { PortalChannelWithSource } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
+import { EpgStrip } from "@/components/epg-strip"
+import { useNowPlaying } from "@/components/epg-provider"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 // Tighter than the web's 84pt row: a phone shows far less at once, so padding
@@ -22,13 +24,18 @@ export const ChannelRow = memo(function ChannelRow({
 }) {
   const { colors } = useTheme()
   const logo = channel.logoUrl || channel.logo
+  const programme = useNowPlaying(channel.xmltvId)
 
   return (
     <PressableScale
       preset="row"
       onPress={() => onPress(channel)}
       className="mb-0.5 flex-row items-center gap-3 rounded-xl px-2"
-      style={{ height: CHANNEL_ROW_HEIGHT }}
+      // minHeight rather than height: a row carrying a guide strip is taller,
+      // and FlashList v2 measures each item rather than assuming one size.
+      // Channels with no schedule keep the compact row instead of reserving
+      // space for something that will never arrive.
+      style={{ minHeight: CHANNEL_ROW_HEIGHT, paddingVertical: 8 }}
     >
       <View
         className="size-11 items-center justify-center overflow-hidden border p-1"
@@ -81,6 +88,7 @@ export const ChannelRow = memo(function ChannelRow({
             {channel.genre || "Uncategorized"}
           </Text>
         </View>
+        {programme ? <EpgStrip programme={programme} /> : null}
       </View>
     </PressableScale>
   )

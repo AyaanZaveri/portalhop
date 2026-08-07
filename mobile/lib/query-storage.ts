@@ -1,4 +1,4 @@
-import * as SQLite from "expo-sqlite"
+import { db } from "./db"
 
 /**
  * A key/value store on SQLite, shaped like AsyncStorage so TanStack's persister
@@ -11,15 +11,6 @@ import * as SQLite from "expo-sqlite"
  * row per query rather than one blob for the whole cache, a single portal can
  * be read or replaced without touching the others.
  */
-const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(async (handle) => {
-  // WAL so a background write while the list is reading doesn't block it.
-  await handle.execAsync(
-    "PRAGMA journal_mode = WAL;" +
-      "CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);",
-  )
-  return handle
-})
-
 export const sqliteStorage = {
   async getItem(key: string) {
     const handle = await db

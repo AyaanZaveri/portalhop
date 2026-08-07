@@ -32,6 +32,7 @@ import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 
 import { loadThemePreference } from "@/lib/preferences"
 import { sqliteStorage } from "@/lib/query-storage"
+import { pruneExpiredSlots } from "@/lib/epg"
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
@@ -104,8 +105,11 @@ export default function RootLayout() {
   // Re-syncing a source gives its catalogue a new key, so the row holding the
   // previous one is never read again — nothing else would ever delete it.
   // Fire-and-forget: it touches only entries no query can reach.
+  // Programmes that have already finished, likewise: the guide table tracks a
+  // moving window rather than accumulating every schedule ever downloaded.
   useEffect(() => {
     void persister.persisterGc().catch(() => {})
+    void pruneExpiredSlots().catch(() => {})
   }, [])
 
   // Resolved before the splash comes down, so the saved scheme is already in
