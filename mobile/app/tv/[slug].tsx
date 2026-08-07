@@ -50,7 +50,7 @@ export default function ChannelDetailScreen() {
       {/* Logo, name, category and source — the same block the web's channel
           header carries, and the same logo treatment as a list row so a
           channel looks like itself on both screens. */}
-      <View className="flex-row items-center gap-3 px-3 py-2">
+      <View className="flex-row items-center gap-3 px-3 pt-2 pb-3">
         <PressableScale
           preset="icon"
           hitSlop={8}
@@ -111,13 +111,20 @@ export default function ChannelDetailScreen() {
               // The web's outline Badge. Which source a channel came from
               // matters most here, where you are about to watch it.
               <View
-                className="rounded-md border px-1.5"
-                style={{ borderColor: colors.border }}
+                className="rounded-md border"
+                // Padding as a style, not a class. Uniwind did not apply
+                // px-1.5 here — the same thing that left the filter chips flat
+                // — and the badge came out with its text against the border.
+                style={{
+                  borderColor: colors.border,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                }}
               >
                 <Text
                   numberOfLines={1}
                   className="text-[10px] text-muted-foreground"
-                  style={{ lineHeight: 15, includeFontPadding: false }}
+                  style={{ lineHeight: 12, includeFontPadding: false }}
                 >
                   {portalName}
                 </Text>
