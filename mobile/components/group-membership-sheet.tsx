@@ -2,13 +2,14 @@ import { forwardRef } from "react"
 import { Text, View } from "react-native"
 import { BottomSheetFlatList, type BottomSheetModal } from "@gorhom/bottom-sheet"
 import * as Haptics from "expo-haptics"
-import { Check, FolderHeart } from "lucide-react-native"
+import { Check } from "lucide-react-native"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
 import type { FavoriteGroup } from "@/lib/filters"
 import { useToggleGroupMembership } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
 import { PressableScale } from "@/components/ui/pressable-scale"
+import { GroupIcon } from "@/components/group-icon"
 import { Sheet } from "@/components/ui/sheet"
 
 /**
@@ -57,9 +58,7 @@ export const GroupMembershipSheet = forwardRef<
                 })
               }}
             >
-              {/* Placeholder icon: each group carries its own icon name, and
-                  the name-to-component map that resolves it is still web-only. */}
-              <FolderHeart size={16} color={iconPrimary} />
+              <GroupIcon icon={item.icon} size={16} color={iconPrimary} />
               <Text
                 numberOfLines={1}
                 className="flex-1 text-[15px] tracking-tight text-foreground"

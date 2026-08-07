@@ -49,6 +49,7 @@ import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { CategoryVisual } from "@/components/category-visual"
+import { GroupIcon } from "@/components/group-icon"
 import { ChannelRow } from "@/components/channel-row"
 import { ChannelReorderList } from "@/components/channel-reorder-list"
 import { invalidateFeeds } from "@/lib/epg"
@@ -507,7 +508,11 @@ export default function ChannelListScreen() {
           {filter.type === "category" || filter.type === "favoriteGroup" ? (
             <View className="h-6 flex-row items-center gap-2">
               {filter.type === "favoriteGroup" ? (
-                <FolderHeart size={16} color={colors["muted-foreground"]} />
+                <GroupIcon
+                  icon={groups?.find((g) => g.id === filter.groupId)?.icon}
+                  size={16}
+                  color={colors["muted-foreground"]}
+                />
               ) : (
                 <CategoryVisual category={filter.genre} size={16} />
               )}

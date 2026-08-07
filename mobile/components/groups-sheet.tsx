@@ -1,13 +1,14 @@
 import { forwardRef } from "react"
 import { Text } from "react-native"
 import { BottomSheetFlatList, type BottomSheetModal } from "@gorhom/bottom-sheet"
-import { Check, FolderHeart } from "lucide-react-native"
+import { Check } from "lucide-react-native"
 
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 
 import { useTheme } from "@/lib/theme"
 import type { FavoriteGroup } from "@/lib/filters"
 import { PressableScale } from "@/components/ui/pressable-scale"
+import { GroupIcon } from "@/components/group-icon"
 import { Sheet } from "@/components/ui/sheet"
 
 export const GroupsSheet = forwardRef<
@@ -45,10 +46,7 @@ export const GroupsSheet = forwardRef<
                   : "h-11 flex-row items-center gap-2 rounded-md px-2"
               }
             >
-              {/* Every group carries its own icon name from a fixed allowlist.
-                  Rendering the right one needs that name-to-component map,
-                  which is still web-only — one placeholder until it moves. */}
-              <FolderHeart size={16} color={iconPrimary} />
+              <GroupIcon icon={item.icon} size={16} color={iconPrimary} />
               <Text
                 numberOfLines={1}
                 className="flex-1 font-mono-medium text-[15px] tracking-tight text-foreground"
