@@ -122,17 +122,12 @@ export function ChannelSchedule({
             const stopAt = new Date(programme.stopAt).getTime()
             const isNow = startAt <= now && stopAt > now
 
+            // No outline on the current programme — the web has none either,
+            // and the progress bar already marks it.
             return (
               <View
                 key={programme.id}
                 className="gap-1.5 overflow-hidden rounded-xl p-3"
-                style={{
-                  // Only what is on now is outlined. A border on every card
-                  // turns the list into a grid and buries the one row that
-                  // answers "what is on".
-                  borderWidth: isNow ? 1 : 0,
-                  borderColor: isNow ? colors.primary : "transparent",
-                }}
               >
                 {/* The web's bg-muted/20. A fill layer rather than a colour on
                     the card itself: the alpha cannot be applied to the theme's
@@ -173,7 +168,7 @@ export function ChannelSchedule({
                 {isNow ? (
                   <View
                     style={{
-                      height: 3,
+                      height: 5,
                       borderRadius: 999,
                       overflow: "hidden",
                       marginTop: 2,

@@ -76,7 +76,7 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
         <View
           style={{
             flex: 1,
-            height: 3,
+            height: 4,
             borderRadius: 999,
             overflow: "hidden",
             backgroundColor: colors.border,
