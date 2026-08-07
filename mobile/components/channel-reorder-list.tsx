@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
+import { Platform, ScrollView, Text, View } from "react-native"
 import Sortable from "react-native-sortables"
 import * as Haptics from "expo-haptics"
 import { GripVertical } from "lucide-react-native"
@@ -11,6 +11,28 @@ import { useReorderChannels } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
 import { CHANNEL_ROW_HEIGHT } from "@/components/channel-row"
+
+/**
+ * The tick felt as one row passes another.
+ *
+ * Android gets Segment_Frequent_Tick, the constant the platform reserves for
+ * moving through a series of choices — a clock face, a list being scrubbed. It
+ * is specified to be very soft precisely because it fires in quick succession,
+ * and a device that cannot produce something that soft is allowed to produce
+ * nothing. selectionAsync sounds like the right call and is not: on Android it
+ * comes out as a short vibration rather than a tick.
+ *
+ * iOS keeps selectionAsync, which is already that platform's selection tick.
+ */
+function tick() {
+  if (Platform.OS === "android") {
+    void Haptics.performAndroidHapticsAsync(
+      Haptics.AndroidHaptics.Segment_Frequent_Tick,
+    )
+    return
+  }
+  void Haptics.selectionAsync()
+}
 
 /**
  * The favourites list, in drag-to-reorder mode.
@@ -151,12 +173,7 @@ export function ChannelReorderList({
           }}
           // A tick each time the row passes another, so the reordering is felt
           // as it happens rather than only confirmed at the drop.
-          // selectionAsync rather than an impact: it is the lightest thing
-          // either platform offers, and this fires on every row passed — an
-          // impact at that rate would buzz.
-          onOrderChange={() => {
-            void Haptics.selectionAsync()
-          }}
+          onOrderChange={tick}
         />
       </Sortable.Layer>
     </ScrollView>
