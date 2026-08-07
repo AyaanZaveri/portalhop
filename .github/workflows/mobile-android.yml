@@ -59,9 +59,12 @@ jobs:
         working-directory: mobile
         run: bun install --frozen-lockfile
 
+      # Via the script rather than tsc directly: uniwind's declarations are
+      # generated and git-ignored, so a fresh checkout has to produce them
+      # before anything can typecheck against them.
       - name: Typecheck
         working-directory: mobile
-        run: bunx tsc --noEmit
+        run: bun run typecheck
 
   build:
     needs: check

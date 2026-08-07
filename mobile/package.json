@@ -48,7 +48,8 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "prebuild": "expo prebuild"
+    "prebuild": "expo prebuild",
+    "typecheck": "uniwind generate-artifacts --css ./global.css --dts ./uniwind-types.d.ts && tsc --noEmit"
   },
   "private": true
 }

@@ -19,7 +19,6 @@
     },
     "android": {
       "package": "app.portalhop.mobile",
-      "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#0d0d0d"
