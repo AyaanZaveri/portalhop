@@ -177,13 +177,18 @@ jobs:
 
       # Kept for per-run history. GitHub always serves artifacts as a zip, which
       # is why the release job below exists.
-      - name: Upload APK artifact
+      # Transport between this job and the release job, not the way anyone is
+      # meant to download a build. GitHub always serves artifacts as a zip --
+      # there is no option for anything else -- which is exactly why the
+      # release below exists, and why these expire almost immediately rather
+      # than sitting alongside it looking like the thing to click.
+      - name: Pass the APK to the release job
         uses: actions/upload-artifact@v5
         with:
           name: portalhop-${{ matrix.variant }}-apk
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   # Separate from the matrix on purpose: two concurrent jobs publishing to one
   # tag race each other, and the loser's APK goes missing from the release.
@@ -229,6 +234,9 @@ jobs:
             The production APK is the one to install for normal use; the
             development APK is a dev client and needs Metro running to load
             any JavaScript.
-          prerelease: true
-          make_latest: false
+          # A real release rather than a prerelease, so it is the one shown on
+          # the repository page and on the releases tab instead of being
+          # filed away under "pre-release" where it reads as not ready.
+          prerelease: false
+          make_latest: true
           files: dist/*.apk
