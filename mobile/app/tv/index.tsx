@@ -180,6 +180,9 @@ export default function ChannelListScreen() {
         name: channel.name ?? "",
         channelId: channel.id ?? "",
         portalId: String(channel.portalSource?.id ?? ""),
+        // What /api/channel-link resolves a stream from, so the portal's
+        // credentials and stream command never leave the server.
+        savedChannelId: String(channel.savedChannelId ?? ""),
       },
     })
   }, [])

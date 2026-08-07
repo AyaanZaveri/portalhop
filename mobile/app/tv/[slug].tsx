@@ -7,17 +7,20 @@ import { useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/auth"
 import { usePortals } from "@/lib/channels"
 
+import { ChannelPlayer } from "@/components/channel-player"
 import { ChannelSchedule } from "@/components/channel-schedule"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 export default function ChannelDetailScreen() {
-  const { name, xmltvId, channelId, portalId } = useLocalSearchParams<{
-    slug: string
-    name?: string
-    xmltvId?: string
-    channelId?: string
-    portalId?: string
-  }>()
+  const { name, xmltvId, channelId, portalId, savedChannelId } =
+    useLocalSearchParams<{
+      slug: string
+      name?: string
+      xmltvId?: string
+      channelId?: string
+      portalId?: string
+      savedChannelId?: string
+    }>()
   const insets = useSafeAreaInsets()
   const { colors } = useTheme()
 
@@ -52,13 +55,10 @@ export default function ChannelDetailScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Where the player goes. Deferred deliberately: the web player is 4,171
-            lines of custom controls, captions and live-latency tuning, and the
-            shell is worth judging before taking that on. The guide below is
-            positioned for it — the player drops in here without moving. */}
-        <View className="mx-3 aspect-video items-center justify-center rounded-lg bg-black">
-          <Text className="text-sm text-muted-foreground">Player goes here</Text>
-        </View>
+        <ChannelPlayer
+          sourceId={Number(portalId)}
+          savedChannelId={Number(savedChannelId)}
+        />
 
         {/* Icon and weight follow the web's guide heading. */}
         <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
