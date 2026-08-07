@@ -76,21 +76,31 @@ export function ChannelPlayer({
 
   const viewRef = useRef<VideoView>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
-  // Read once the first frame lands rather than watched: the track is fixed for
-  // a stream, and polling it would be work for a label that never changes.
-  const [stream, setStream] = useState<string | null>(null)
 
-  const readStreamInfo = useCallback(() => {
-    const track = player.videoTrack
-    if (!track) return
-    const height = track.size?.height
-    const mbps = track.bitrate ? track.bitrate / 1_000_000 : null
-    setStream(
-      [height ? `${height}p` : null, mbps ? `${mbps.toFixed(1)} Mbps` : null]
-        .filter(Boolean)
-        .join(" · ") || null,
-    )
-  }, [player])
+  /**
+   * The track, watched rather than read once.
+   *
+   * It was read at the first frame, which is too early for a stream that only
+   * declares its bitrate once a segment or two has been parsed — hence the
+   * badge appearing for some channels and not others. This also follows an
+   * adaptive stream when it switches rendition.
+   */
+  const { videoTrack } = useEvent(player, "videoTrackChange", {
+    videoTrack: player.videoTrack,
+  })
+
+  const height = videoTrack?.size?.height
+  // averageBitrate and peakBitrate in preference to bitrate, which is
+  // deprecated. Average describes what the stream is actually costing; peak is
+  // the ceiling, and stands in when only it is known.
+  const bps = videoTrack?.averageBitrate ?? videoTrack?.peakBitrate ?? null
+  const stream =
+    [
+      height ? `${height}p` : null,
+      bps ? `${(bps / 1_000_000).toFixed(1)} Mbps` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null
 
   // Controls fall away on their own, but never while paused — a paused player
   // with no controls gives you nothing to press.
@@ -143,7 +153,6 @@ export function ChannelPlayer({
         // The manifest flag that makes this possible on Android comes from the
         // expo-video config plugin, so it needs a build rather than a reload.
         allowsPictureInPicture
-        onFirstFrameRender={readStreamInfo}
         // Leaves the frame-rate strategy at ExoPlayer's default. Matching the
         // display to the video is what removes judder from 24fps film and
         // 60fps sport, and the case for turning it off — keeping a feed's UI at
@@ -231,9 +240,16 @@ export function ChannelPlayer({
                 ) : null}
 
                 <View className="absolute right-0 bottom-0 left-0 flex-row items-center gap-2 p-3">
-                  <View className="flex-row items-center gap-1.5 rounded-md bg-black/50 px-2 py-1">
+                  {/* Both badges take one fixed height rather than each being
+                      sized by its own padding and type. A mono face and a sans
+                      face at the same padding do not come out the same height,
+                      which is why these did not line up. */}
+                  <View className="h-6 flex-row items-center gap-1.5 rounded-md bg-black/50 px-2">
                     <View className="size-1.5 rounded-full bg-red-500" />
-                    <Text className="text-[11px] font-medium tracking-wide text-white">
+                    <Text
+                      className="text-[11px] font-medium tracking-wide text-white"
+                      style={{ includeFontPadding: false }}
+                    >
                       LIVE
                     </Text>
                   </View>
@@ -242,8 +258,11 @@ export function ChannelPlayer({
                       it. Absent rather than guessed at when the track reports
                       nothing useful. */}
                   {stream ? (
-                    <View className="rounded-md bg-black/50 px-2 py-1">
-                      <Text className="font-mono text-[10px] text-white/80">
+                    <View className="h-6 justify-center rounded-md bg-black/50 px-2">
+                      <Text
+                        className="font-mono text-[11px] text-white/80"
+                        style={{ includeFontPadding: false }}
+                      >
                         {stream}
                       </Text>
                     </View>
