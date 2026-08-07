@@ -131,21 +131,32 @@ export function EpgProvider({
         if (key) feeds.add(key)
       }
 
+      // Everything stored, not just the rows that were reported visible — the
+      // viewport decides which guides to download, never which rows may show
+      // one.
+      const paint = async () => {
+        const found = await queryNowPlaying(Date.now())
+        if (!cancelled) setNowPlaying(found)
+      }
+
+      // Read before downloading anything. Waiting on the feeds first meant that
+      // whenever one needed re-reading, every row sat blank for the length of a
+      // 2.4MB download and bulk insert — including the rows whose programmes
+      // were already sitting in the table. Whatever is stored is shown at once
+      // and corrected behind.
+      await paint()
+
       await Promise.all(
         [...feeds].map((key) =>
           // A guide that fails to load means no strip under the row, which is
           // the same as a channel that has no schedule — not worth an error.
-          ensureFeed(key, wantedByFeed.get(key) ?? new Set()).catch(() => {}),
+          ensureFeed(key, wantedByFeed.get(key) ?? new Set())
+            // Repainted per feed rather than once at the end, so a slow
+            // country does not hold up the ones that have already landed.
+            .then(paint)
+            .catch(() => {}),
         ),
       )
-
-      if (cancelled) return
-
-      // Everything stored, not just the rows that were reported visible — the
-      // viewport decides which guides to download, never which rows may show
-      // one.
-      const found = await queryNowPlaying(Date.now())
-      if (!cancelled) setNowPlaying(found)
     })()
 
     return () => {

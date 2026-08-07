@@ -100,9 +100,10 @@ async function ingestFeed(key: string, wanted: Set<string>): Promise<number> {
     // and awaiting a native call per row is seconds of work; a multi-row VALUES
     // list turns that into a couple of hundred calls.
     //
-    // 150 rows is five bound parameters each, staying under SQLite's default
-    // ceiling of 999 per statement.
-    const BATCH = 150
+    // 199 rows at five bound parameters each is 995, just under SQLite's
+    // conservative ceiling of 999 per statement — a third fewer round trips
+    // than 150 for nothing.
+    const BATCH = 199
     const params: Array<string | number> = []
     let pending = 0
 
