@@ -12,6 +12,7 @@ import Animated, {
   Extrapolation,
   interpolate,
   runOnJS,
+  useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
 } from "react-native-reanimated"
@@ -25,6 +26,18 @@ import {
 
 import { useTheme } from "@/lib/theme"
 import { blurAvailable, useBlurTarget } from "@/components/ui/blur-target"
+
+/**
+ * Animating `intensity` is supported on purpose: BlurView exposes
+ * getAnimatableRef so Reanimated drives the native view directly rather than
+ * re-rendering it. Created once, at module scope, because
+ * createAnimatedComponent inside a render remounts the view every pass.
+ */
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
+
+/** Intensity at rest, before Android divides it by blurReductionFactor (4). */
+const BLUR_DARK = 26
+const BLUR_LIGHT = 22
 
 /**
  * The app's one sheet shell, so every drawer shares a backdrop, a handle and a
@@ -99,19 +112,20 @@ export const Sheet = forwardRef<
 })
 
 /**
- * The sheet backdrop: a blur that is simply present or absent, under a scrim
- * that fades.
+ * The sheet backdrop: a blur that follows the sheet, under a scrim that fades.
  *
- * Nesting the BlurView inside gorhom's own backdrop put it under a parent whose
- * opacity is animated, and an animated opacity makes Android render that parent
- * into a hardware layer. Dimezis BlurView captures its target at draw time, and
- * that capture does not survive being composited through such a layer — the
- * blur resolved its target correctly and then drew nothing, silently.
+ * Both track `animatedIndex`, so dragging the sheet down thins the blur out
+ * with it and letting go part-way leaves the two in step — the blur reads as
+ * attached to the sheet rather than as something switched on behind it.
  *
- * So nothing animates the blur itself. It is mounted while the sheet is open
- * and unmounted when it is not, which costs the fade on the way in and is the
- * price of it working at all. The scrim over it still fades, and carries the
- * transition.
+ * The one thing that must not animate is the blur's *opacity*, which is why
+ * this exists rather than nesting a BlurView in gorhom's own backdrop. That
+ * backdrop animates opacity, and an animated opacity makes Android render the
+ * parent into a hardware layer; Dimezis BlurView captures its target at draw
+ * time and that capture does not survive being composited through such a
+ * layer. The blur resolved its target correctly and then drew nothing at all.
+ * Intensity is a native prop on the blur view itself, so driving that is safe
+ * where fading its parent was not.
  */
 function BlurBackdrop({
   animatedIndex,
@@ -141,6 +155,18 @@ function BlurBackdrop({
     }
   }, [open, blurTarget])
 
+  // Tracks the sheet rather than sitting at one value: fully blurred at rest,
+  // thinning out as the sheet is dragged down, so letting go part-way looks
+  // like the blur is attached to the sheet instead of switching off with it.
+  const blurProps = useAnimatedProps(() => ({
+    intensity: interpolate(
+      animatedIndex.value,
+      [-1, 0],
+      [0, dark ? BLUR_DARK : BLUR_LIGHT],
+      Extrapolation.CLAMP,
+    ),
+  }))
+
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       animatedIndex.value,
@@ -153,14 +179,14 @@ function BlurBackdrop({
   return (
     <Pressable style={style} onPress={() => close()}>
       {open && blurAvailable ? (
-        <BlurView
-          intensity={dark ? 48 : 42}
+        <AnimatedBlurView
+          animatedProps={blurProps}
           tint={dark ? "dark" : "light"}
-          // blurReductionFactor is left at its default of 4, which Android
-          // divides the intensity by. It was overridden to 2 while the blur was
-          // being blamed for rendering too weakly — it was not rendering at
-          // all, for an unrelated reason, so the override was compensating for
-          // something that was never the cause and left the radius doubled.
+          // blurReductionFactor stays at its default of 4, which Android
+          // divides the intensity by. It was briefly overridden to 2 while the
+          // blur was being blamed for rendering too weakly — it was not
+          // rendering at all, for an unrelated reason, so that override was
+          // compensating for something that was never the cause.
           blurMethod="dimezisBlurViewSdk31Plus"
           blurTarget={blurTarget ?? undefined}
           style={StyleSheet.absoluteFill}
