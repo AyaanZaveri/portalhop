@@ -149,8 +149,14 @@ jobs:
         working-directory: mobile/android
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
+        # arm64-v8a only. The template default builds all four architectures
+        # into one universal APK, which is why the first run produced a 120MB
+        # release and a 266MB debug, and why each took over twenty minutes —
+        # most of it compiling native code for CPUs no phone here has. Every
+        # Android device from roughly 2017 on is arm64. The cost is that these
+        # APKs will not run on an x86_64 emulator; build locally for that.
         run: >-
-          ./gradlew --build-cache
+          ./gradlew --build-cache -PreactNativeArchitectures=arm64-v8a
           ${{ matrix.variant == 'production' && ':app:assembleRelease' || ':app:assembleDebug' }}
 
       # Named after the variant and commit so a downloaded file is identifiable
