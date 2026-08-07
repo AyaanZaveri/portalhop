@@ -140,6 +140,11 @@ export function ChannelReorderList({
           keyExtractor={(channel) => channel.key}
           renderItem={renderItem}
           rowGap={2}
+          // On by default, and it re-centres the row under the finger the
+          // moment it is picked up — grab the handle on the right and the whole
+          // row jumps left to meet your thumb. The row should stay exactly
+          // where it was and follow from there.
+          enableActiveItemSnap={false}
           onDragEnd={onDragEnd}
           onDragStart={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)

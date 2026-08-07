@@ -15,6 +15,7 @@ import {
   Star,
   Tv,
   ArrowUpDown,
+  Check,
 } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -47,6 +48,7 @@ import { PortalFilterSheet } from "@/components/portal-filter-sheet"
 import { Chip } from "@/components/ui/chip"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
+import { CategoryVisual } from "@/components/category-visual"
 import { ChannelRow } from "@/components/channel-row"
 import { ChannelReorderList } from "@/components/channel-reorder-list"
 import { invalidateFeeds } from "@/lib/epg"
@@ -465,9 +467,19 @@ export default function ChannelListScreen() {
           filter.type === "favoriteGroup" ||
           canReorder ? (
             <View className="h-6 flex-row items-center gap-2">
+              {/* The icon the web puts on this row: a star for favourites, the
+                  group's own for a group, the category's for a category. */}
+              {filter.type === "favorites" ? (
+                <Star size={16} color={colors["muted-foreground"]} />
+              ) : filter.type === "favoriteGroup" ? (
+                <FolderHeart size={16} color={colors["muted-foreground"]} />
+              ) : (
+                <CategoryVisual category={filter.genre} size={16} />
+              )}
+
               <Text
                 numberOfLines={1}
-                className="font-mono-medium text-foreground flex-1 text-sm tracking-tight"
+                className="text-foreground flex-1 text-[15px] font-semibold tracking-tight"
               >
                 {filter.type === "category"
                   ? filter.genre
@@ -486,12 +498,13 @@ export default function ChannelListScreen() {
                     setReordering((current) => !current)
                   }}
                 >
-                  <ArrowUpDown
-                    size={17}
-                    color={
-                      reordering ? colors.primary : colors["muted-foreground"]
-                    }
-                  />
+                  {/* A check while reordering, as the web has it: the control
+                      that starts the mode should not also be what ends it. */}
+                  {reordering ? (
+                    <Check size={17} color={iconPrimary} />
+                  ) : (
+                    <ArrowUpDown size={17} color={colors["muted-foreground"]} />
+                  )}
                 </PressableScale>
               ) : null}
             </View>

@@ -44,11 +44,12 @@ export function useTheme() {
     isDark,
     colors,
     /**
-     * The primary, knocked back for accent icons so they read as accents
-     * rather than competing with the label — the same treatment the category
-     * list uses on the web. Light mode needs the heavier reduction.
+     * The primary, knocked back in light mode so accent icons read as accents
+     * rather than competing with the label. Dark mode takes the colour as it
+     * is: the primary is a light lime, and on a near-black background it needs
+     * its full value to hold up.
      */
-    iconPrimary: scaleBrightness(colors.primary, isDark ? 0.9 : 0.75),
+    iconPrimary: isDark ? colors.primary : scaleBrightness(colors.primary, 0.75),
     toggle,
   }
 }
