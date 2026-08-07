@@ -154,11 +154,13 @@ function BlurBackdrop({
     <Pressable style={style} onPress={() => close()}>
       {open && blurAvailable ? (
         <BlurView
-          intensity={dark ? 60 : 50}
+          intensity={dark ? 48 : 42}
           tint={dark ? "dark" : "light"}
-          // Android divides intensity by this before blurring, to bring its
-          // perceived strength in line with iOS.
-          blurReductionFactor={2}
+          // blurReductionFactor is left at its default of 4, which Android
+          // divides the intensity by. It was overridden to 2 while the blur was
+          // being blamed for rendering too weakly — it was not rendering at
+          // all, for an unrelated reason, so the override was compensating for
+          // something that was never the cause and left the radius doubled.
           blurMethod="dimezisBlurViewSdk31Plus"
           blurTarget={blurTarget ?? undefined}
           style={StyleSheet.absoluteFill}
