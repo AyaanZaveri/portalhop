@@ -151,11 +151,18 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          {/* Inside the query provider but outside the sheet provider: this is
-              the subtree Android samples to blur, and it has to contain the
-              app while the sheets that blur it portal in below. */}
-          <BlurTargetProvider>
-            <BottomSheetModalProvider>
+          {/* The sheet provider has to be OUTSIDE the blur target, not inside
+              it. Sheets portal into this provider, so nesting it within the
+              target put the backdrop's BlurView inside the very subtree that
+              BlurView samples — and Android's implementation redraws its target
+              into a bitmap every frame, so a BlurView inside its own target
+              recurses until the process dies. It took the app down natively on
+              every long press, with nothing reaching JS to explain it.
+
+              Only what should actually be blurred goes inside: the screens.
+              Toasts stay out for the same reason as the sheets. */}
+          <BottomSheetModalProvider>
+            <BlurTargetProvider>
               <StatusBar style={isDark ? "light" : "dark"} />
               <Stack
                 screenOptions={{
@@ -163,9 +170,9 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: tokens.background },
                 }}
               />
-              <Toaster />
-            </BottomSheetModalProvider>
-          </BlurTargetProvider>
+            </BlurTargetProvider>
+            <Toaster />
+          </BottomSheetModalProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
