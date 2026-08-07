@@ -3,13 +3,17 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native"
 import { useEvent } from "expo"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { useQuery } from "@tanstack/react-query"
-import { Maximize, Pause, Play, RotateCw } from "lucide-react-native"
+import * as Haptics from "expo-haptics"
+import { Maximize, Pause, Play, RotateCw, Volume2, VolumeX } from "lucide-react-native"
 
 import { resolveChannelLink } from "@/lib/stream"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 /** How long the controls stay up after a tap. */
 const HIDE_AFTER_MS = 3500
+
+/** Landscape and filling the screen, which is the only reason to go fullscreen on a phone. */
+const FULLSCREEN = { enable: true, orientation: "landscape" as const }
 
 export function ChannelPlayer({
   sourceId,
@@ -46,6 +50,9 @@ export function ChannelPlayer({
     // Live television: there is nothing behind the live edge worth keeping, and
     // a deep buffer only widens the gap to it.
     instance.bufferOptions = { minBufferForPlayback: 2 }
+    // Watching an hour of television without touching the screen is the normal
+    // case, and the display was going out on people mid-programme.
+    instance.keepScreenOnWhilePlaying = true
     instance.play()
   })
 
@@ -56,9 +63,25 @@ export function ChannelPlayer({
   const { isPlaying } = useEvent(player, "playingChange", {
     isPlaying: player.playing,
   })
+  const { muted } = useEvent(player, "mutedChange", { muted: player.muted })
 
   const viewRef = useRef<VideoView>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
+  // Read once the first frame lands rather than watched: the track is fixed for
+  // a stream, and polling it would be work for a label that never changes.
+  const [stream, setStream] = useState<string | null>(null)
+
+  const readStreamInfo = useCallback(() => {
+    const track = player.videoTrack
+    if (!track) return
+    const height = track.size?.height
+    const mbps = track.bitrate ? track.bitrate / 1_000_000 : null
+    setStream(
+      [height ? `${height}p` : null, mbps ? `${mbps.toFixed(1)} Mbps` : null]
+        .filter(Boolean)
+        .join(" · ") || null,
+    )
+  }, [player])
 
   // Controls fall away on their own, but never while paused — a paused player
   // with no controls gives you nothing to press.
@@ -73,13 +96,12 @@ export function ChannelPlayer({
   }, [])
 
   const togglePlayback = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     if (player.playing) player.pause()
     else player.play()
     setControlsVisible(true)
   }, [player])
 
-  // A channel with no saved row behind it — a manual or M3U entry — has nothing
-  // for /api/channel-link to resolve, so say so rather than spin forever.
   if (!canPlay) {
     return (
       <View className="mx-3 aspect-video items-center justify-center rounded-xl bg-black px-6">
@@ -90,8 +112,12 @@ export function ChannelPlayer({
     )
   }
 
-  const loading = link.isPending || status === "loading"
   const failed = link.error || status === "error"
+  // Nothing on screen yet, versus a picture that has stalled. They want
+  // different things said about them: one is opening the channel, the other is
+  // the network faltering with a frame still showing.
+  const opening = link.isPending || (status === "loading" && !stream)
+  const stalled = status === "loading" && Boolean(stream)
 
   return (
     <View className="mx-3 aspect-video overflow-hidden rounded-xl bg-black">
@@ -104,6 +130,8 @@ export function ChannelPlayer({
         // which is a limitation worth knowing rather than fighting.
         nativeControls={false}
         contentFit="contain"
+        fullscreenOptions={FULLSCREEN}
+        onFirstFrameRender={readStreamInfo}
         // Leaves the frame-rate strategy at ExoPlayer's default. Matching the
         // display to the video is what removes judder from 24fps film and
         // 60fps sport, and the case for turning it off — keeping a feed's UI at
@@ -132,67 +160,114 @@ export function ChannelPlayer({
               <Text className="text-sm font-medium text-white">Try again</Text>
             </PressableScale>
           </View>
-        ) : loading ? (
+        ) : opening ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator color="#fff" />
           </View>
-        ) : controlsVisible ? (
+        ) : (
           <View className="flex-1">
-            {/* A scrim rather than a solid bar: the controls have to stay
-                legible over whatever frame happens to be behind them. */}
-            <View
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                bottom: 0,
-                left: 0,
-                backgroundColor: "rgba(0,0,0,0.35)",
-              }}
-            />
-
-            <View className="flex-1 items-center justify-center">
-              <PressableScale
-                className="size-14 items-center justify-center rounded-full bg-white/20"
-                onPress={togglePlayback}
+            {/* Stays up through a stall even when the controls have faded, so a
+                picture that has stopped moving says why. */}
+            {stalled ? (
+              <View
+                pointerEvents="none"
+                className="absolute inset-0 items-center justify-center"
               >
-                {isPlaying ? (
-                  <Pause size={24} color="#fff" fill="#fff" />
-                ) : (
-                  // Nudged right: a triangle's mass sits left of its bounding
-                  // box, so a centred play glyph reads as off-centre.
-                  <Play
-                    size={24}
-                    color="#fff"
-                    fill="#fff"
-                    style={{ marginLeft: 3 }}
-                  />
-                )}
-              </PressableScale>
-            </View>
-
-            <View className="absolute bottom-0 left-0 right-0 flex-row items-center gap-2 p-3">
-              <View className="flex-row items-center gap-1.5 rounded-md bg-black/50 px-2 py-1">
-                <View className="size-1.5 rounded-full bg-red-500" />
-                <Text className="text-[11px] font-medium tracking-wide text-white">
-                  LIVE
-                </Text>
+                <ActivityIndicator color="#fff" />
               </View>
+            ) : null}
 
-              <View className="flex-1" />
+            {controlsVisible ? (
+              <>
+                {/* A scrim rather than a solid bar: the controls have to stay
+                    legible over whatever frame happens to be behind them. */}
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    left: 0,
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                  }}
+                />
 
-              <PressableScale
-                preset="icon"
-                hitSlop={8}
-                className="size-9 items-center justify-center rounded-lg bg-black/50"
-                onPress={() => void viewRef.current?.enterFullscreen()}
-              >
-                <Maximize size={18} color="#fff" />
-              </PressableScale>
-            </View>
+                {/* Hidden rather than removed while stalled, so the spinner has
+                    the middle to itself and the layout does not jump. */}
+                {!stalled ? (
+                  <View className="flex-1 items-center justify-center">
+                    <PressableScale
+                      className="size-14 items-center justify-center rounded-full bg-white/20"
+                      onPress={togglePlayback}
+                    >
+                      {isPlaying ? (
+                        <Pause size={24} color="#fff" fill="#fff" />
+                      ) : (
+                        // Nudged right: a triangle's mass sits left of its
+                        // bounding box, so a centred play glyph reads as
+                        // off-centre.
+                        <Play
+                          size={24}
+                          color="#fff"
+                          fill="#fff"
+                          style={{ marginLeft: 3 }}
+                        />
+                      )}
+                    </PressableScale>
+                  </View>
+                ) : null}
+
+                <View className="absolute right-0 bottom-0 left-0 flex-row items-center gap-2 p-3">
+                  <View className="flex-row items-center gap-1.5 rounded-md bg-black/50 px-2 py-1">
+                    <View className="size-1.5 rounded-full bg-red-500" />
+                    <Text className="text-[11px] font-medium tracking-wide text-white">
+                      LIVE
+                    </Text>
+                  </View>
+
+                  {/* What the stream is actually delivering, as the web shows
+                      it. Absent rather than guessed at when the track reports
+                      nothing useful. */}
+                  {stream ? (
+                    <View className="rounded-md bg-black/50 px-2 py-1">
+                      <Text className="font-mono text-[10px] text-white/80">
+                        {stream}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <View className="flex-1" />
+
+                  <PressableScale
+                    preset="icon"
+                    hitSlop={8}
+                    className="size-9 items-center justify-center rounded-lg bg-black/50"
+                    onPress={() => {
+                      player.muted = !player.muted
+                      setControlsVisible(true)
+                    }}
+                  >
+                    {muted ? (
+                      <VolumeX size={18} color="#fff" />
+                    ) : (
+                      <Volume2 size={18} color="#fff" />
+                    )}
+                  </PressableScale>
+
+                  <PressableScale
+                    preset="icon"
+                    hitSlop={8}
+                    className="size-9 items-center justify-center rounded-lg bg-black/50"
+                    onPress={() => void viewRef.current?.enterFullscreen()}
+                  >
+                    <Maximize size={18} color="#fff" />
+                  </PressableScale>
+                </View>
+              </>
+            ) : null}
           </View>
-        ) : null}
+        )}
       </Pressable>
     </View>
   )
