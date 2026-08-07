@@ -6,3 +6,4 @@
 // anything — has no declaration for `import "./global.css"` and fails to
 // typecheck. This file is committed and says the same thing.
 export {}
+

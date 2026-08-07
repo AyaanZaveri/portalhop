@@ -66,25 +66,63 @@ import {
   Volleyball,
   WavesHorizontal,
   Zap,
+  Icon as LucideIcon,
   type LucideProps,
 } from "lucide-react-native"
+
+// One file each, not the package root: the root is 7.4MB of icons and Metro
+// does not tree-shake reliably enough to trust it. Each of these is ~700 bytes.
+import basketball from "@lucide/lab/dist/esm/icons/basketball"
+import football from "@lucide/lab/dist/esm/icons/football"
+import baseball from "@lucide/lab/dist/esm/icons/baseball"
+import tennisRacket from "@lucide/lab/dist/esm/icons/tennis-racket"
+import cricketBall from "@lucide/lab/dist/esm/icons/cricket-ball"
+import rugby from "@lucide/lab/dist/esm/icons/rugby"
+import iceHockey from "@lucide/lab/dist/esm/icons/ice-hockey"
+import golfDriver from "@lucide/lab/dist/esm/icons/golf-driver"
+import bowling from "@lucide/lab/dist/esm/icons/bowling"
+import motorRacingHelmet from "@lucide/lab/dist/esm/icons/motor-racing-helmet"
+import horseHead from "@lucide/lab/dist/esm/icons/horse-head"
+import surfboard from "@lucide/lab/dist/esm/icons/surfboard"
+import skis from "@lucide/lab/dist/esm/icons/skis"
+
+type IconNode = React.ComponentProps<typeof LucideIcon>["iconNode"]
+
+/** Wraps a lucide-lab node as a component, the way the web's picker does. */
+function lab(iconNode: IconNode): ComponentType<LucideProps> {
+  return function LabIcon(props: LucideProps) {
+    return <LucideIcon {...props} iconNode={iconNode} />
+  }
+}
 
 /**
  * The icon a favourite group was saved with.
  *
- * Keyed by the same ids the web's picker writes, so a group given the cricket
- * icon there arrives here as that icon rather than a stand-in. The map lives
- * per platform because the id is what is stored — the component it resolves to
- * cannot cross into shared code.
+ * Keyed by the ids the web's picker writes, so a group given the cricket icon
+ * there arrives as that icon here. The map is per platform because the id is
+ * what is stored — the component it resolves to cannot cross into shared code.
  *
- * Three ids resolve to a different component than on the web, because
- * lucide-react-native does not ship the name lucide-react does: Waves,
- * Podcast and Globe2. The nearest equivalent is used rather than leaving them
- * blank, which is what an unknown name would otherwise produce.
+ * Thirteen of these are lucide-lab icons rather than core lucide: the sports
+ * that core does not draw, cricket among them. Three others resolve to a
+ * different core component than the web uses, because lucide-react-native does
+ * not ship the name lucide-react does — Waves, Podcast and Globe2.
  */
 const GROUP_ICONS: Record<string, ComponentType<LucideProps>> = {
   goal: Goal,
+  basketball: lab(basketball),
+  gridiron: lab(football),
+  baseball: lab(baseball),
+  tennis: lab(tennisRacket),
+  cricket: lab(cricketBall),
+  rugby: lab(rugby),
+  icehockey: lab(iceHockey),
+  golf: lab(golfDriver),
   volleyball: Volleyball,
+  bowling: lab(bowling),
+  motorsport: lab(motorRacingHelmet),
+  horseracing: lab(horseHead),
+  surfing: lab(surfboard),
+  skiing: lab(skis),
   cycling: Bike,
   swimming: WavesHorizontal,
   climbing: MountainSnow,
@@ -161,6 +199,6 @@ export function GroupIcon({
   size?: number
   color: string
 }) {
-  const Icon = (icon && GROUP_ICONS[icon]) || Star
-  return <Icon size={size} color={color} />
+  const Resolved = (icon && GROUP_ICONS[icon]) || Star
+  return <Resolved size={size} color={color} />
 }

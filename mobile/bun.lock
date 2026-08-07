@@ -9,6 +9,7 @@
         "@expo-google-fonts/jetbrains-mono": "^0.4.1",
         "@expo-google-fonts/montserrat": "^0.4.2",
         "@gorhom/bottom-sheet": "^5.2.14",
+        "@lucide/lab": "^0.2.0",
         "@react-native-async-storage/async-storage": "2.2.0",
         "@shopify/flash-list": "2.0.2",
         "@tanstack/query-persist-client-core": "^5.101.4",
@@ -315,6 +316,8 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@lucide/lab": ["@lucide/lab@0.2.0", "", {}, "sha512-5zXVyp+HizDgWjGX8v3yNEijo7yJwoHS5Icj9qeqBCIHPWxVNGofbEXtnHEJ1VZ71Uhho32AX6xpHVWtWbPO2g=="],
 
     "@noble/ciphers": ["@noble/ciphers@2.2.0", "", {}, "sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA=="],
 

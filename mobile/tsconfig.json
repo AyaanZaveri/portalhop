@@ -11,6 +11,9 @@
       ],
       "@portalhop/shared/*": [
         "../packages/shared/src/*"
+      ],
+      "@lucide/lab/dist/esm/icons/*": [
+        "./types/lab-icon.d.ts"
       ]
     }
   },

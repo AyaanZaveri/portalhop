@@ -8,6 +8,7 @@
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/montserrat": "^0.4.2",
     "@gorhom/bottom-sheet": "^5.2.14",
+    "@lucide/lab": "^0.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@shopify/flash-list": "2.0.2",
     "@tanstack/query-persist-client-core": "^5.101.4",
