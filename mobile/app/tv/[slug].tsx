@@ -111,19 +111,16 @@ export default function ChannelDetailScreen() {
               // The web's outline Badge. Which source a channel came from
               // matters most here, where you are about to watch it.
               <View
-                className="rounded-md border"
-                // Padding as a style, not a class. Uniwind did not apply
-                // px-1.5 here — the same thing that left the filter chips flat
-                // — and the badge came out with its text against the border.
-                style={{
-                  borderColor: colors.border,
-                  paddingHorizontal: 6,
-                  paddingVertical: 2,
-                }}
+                className="rounded-md border px-2 py-0.5"
+                style={{ borderColor: colors.border }}
               >
                 <Text
                   numberOfLines={1}
                   className="text-[10px] text-muted-foreground"
+                  // The line height is what sized this badge before: 15pt of
+                  // box around 10pt text, against 6pt of side padding, read as
+                  // though the horizontal padding had gone missing. The box now
+                  // hugs the text and the padding does the spacing.
                   style={{ lineHeight: 12, includeFontPadding: false }}
                 >
                   {portalName}
