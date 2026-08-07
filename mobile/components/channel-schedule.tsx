@@ -141,9 +141,11 @@ export function ChannelSchedule({
                     through that span the clock is — which a separate bar was
                     saying a second time, in less space, less clearly.
 
-                    Both tints are kept faint on purpose: the text sits over
-                    them and has to stay as readable on the elapsed side as on
-                    the remaining one. */}
+                    Both tints are very faint on purpose, and lighter than they
+                    first were. The description is muted grey, and grey over a
+                    saturated wash goes muddy long before the wash itself looks
+                    strong — so the ceiling here is set by the least contrasty
+                    text on the card, not by what reads well behind the title. */}
                 <View
                   pointerEvents="none"
                   style={{
@@ -153,7 +155,7 @@ export function ChannelSchedule({
                     bottom: 0,
                     left: 0,
                     backgroundColor: isNow ? colors.primary : colors.muted,
-                    opacity: isNow ? 0.12 : 0.2,
+                    opacity: isNow ? 0.07 : 0.2,
                   }}
                 />
 
@@ -167,7 +169,7 @@ export function ChannelSchedule({
                       left: 0,
                       width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
                       backgroundColor: colors.primary,
-                      opacity: 0.16,
+                      opacity: 0.09,
                     }}
                   />
                 ) : null}
