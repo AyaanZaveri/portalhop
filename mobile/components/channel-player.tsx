@@ -116,8 +116,13 @@ export function ChannelPlayer({
       >
         {failed ? (
           <View className="flex-1 items-center justify-center gap-3 px-6">
+            {/* The player's own message, not just ours. A generic "try again"
+                hid the one detail that mattered when release builds refused
+                every plain-HTTP stream: Android names that failure exactly. */}
             <Text className="text-center text-sm text-white">
-              {link.error?.message ?? "This channel would not play."}
+              {link.error?.message ??
+                error?.message ??
+                "This channel would not play."}
             </Text>
             <PressableScale
               className="h-9 flex-row items-center gap-2 rounded-lg bg-white/15 px-3"
