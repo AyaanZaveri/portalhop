@@ -149,6 +149,14 @@ export function ChannelReorderList({
           onDragStart={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
           }}
+          // A tick each time the row passes another, so the reordering is felt
+          // as it happens rather than only confirmed at the drop.
+          // selectionAsync rather than an impact: it is the lightest thing
+          // either platform offers, and this fires on every row passed — an
+          // impact at that rate would buzz.
+          onOrderChange={() => {
+            void Haptics.selectionAsync()
+          }}
         />
       </Sortable.Layer>
     </ScrollView>
