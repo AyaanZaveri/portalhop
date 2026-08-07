@@ -24,8 +24,6 @@ import {
   type CategoryIcon,
 } from "@portalhop/shared/category-flags"
 
-import { useTheme } from "@/lib/theme"
-
 // The same mapping the web's CategoryVisual uses. It lives per-platform because
 // the shared resolver deliberately returns an icon *name* rather than a
 // component — that is what lets one classifier serve both apps.
@@ -48,11 +46,22 @@ const CATEGORY_ICONS: Record<CategoryIcon, ComponentType<LucideProps>> = {
 export function CategoryVisual({
   category,
   size = 16,
+  color,
 }: {
   category: string
   size?: number
+  /**
+   * Required rather than defaulted, because the right answer depends on what
+   * the icon sits next to.
+   *
+   * It labels the category beside it, so it should read as one thing with that
+   * word rather than as an accent of its own — in the primary next to muted
+   * text it was louder than the label it belongs to, and down a list of rows
+   * that became a column of colour competing with the channel names. Flags are
+   * unaffected: they are images, and their colour is the point.
+   */
+  color: string
 }) {
-  const { iconPrimary } = useTheme()
   const visual = resolveCategoryVisual(category)
 
   if (visual?.kind === "flag") {
@@ -72,5 +81,5 @@ export function CategoryVisual({
   }
 
   const Icon = visual?.kind === "icon" ? CATEGORY_ICONS[visual.icon] : Tag
-  return <Icon size={size} color={iconPrimary} />
+  return <Icon size={size} color={color} />
 }

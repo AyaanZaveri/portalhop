@@ -110,7 +110,11 @@ export default function ChannelDetailScreen() {
                 marginTop: 2,
               }}
             >
-              <CategoryVisual category={genre || "Uncategorized"} size={12} />
+              <CategoryVisual
+                category={genre || "Uncategorized"}
+                size={12}
+                color={colors["muted-foreground"]}
+              />
               <Text
                 numberOfLines={1}
                 className="text-muted-foreground shrink text-xs"

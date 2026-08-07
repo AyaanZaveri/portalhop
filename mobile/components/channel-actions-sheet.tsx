@@ -94,6 +94,7 @@ export const ChannelActionsSheet = forwardRef<
                   <CategoryVisual
                     category={channel.genre || "Uncategorized"}
                     size={12}
+                    color={colors["muted-foreground"]}
                   />
                   <Text
                     numberOfLines={1}

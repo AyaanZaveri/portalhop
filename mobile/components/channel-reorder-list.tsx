@@ -126,6 +126,7 @@ export function ChannelReorderList({
               <CategoryVisual
                 category={item.genre || "Uncategorized"}
                 size={12}
+                color={colors["muted-foreground"]}
               />
               <Text
                 numberOfLines={1}

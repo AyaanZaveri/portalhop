@@ -514,7 +514,11 @@ export default function ChannelListScreen() {
                   color={colors["muted-foreground"]}
                 />
               ) : (
-                <CategoryVisual category={filter.genre} size={16} />
+                <CategoryVisual
+                  category={filter.genre}
+                  size={16}
+                  color={colors.foreground}
+                />
               )}
               <Text
                 numberOfLines={1}

@@ -82,7 +82,7 @@ export const CategoriesSheet = forwardRef<
                   : "h-11 flex-row items-center gap-2 rounded-md px-2"
               }
             >
-              <CategoryVisual category={item.genre} />
+              <CategoryVisual category={item.genre} color={colors.foreground} />
               <Text
                 numberOfLines={1}
                 className="font-mono-medium text-foreground flex-1 text-[15px] tracking-tight"
