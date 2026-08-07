@@ -1,6 +1,6 @@
 import { forwardRef } from "react"
 import { Text, View } from "react-native"
-import { BottomSheetView, type BottomSheetModal } from "@gorhom/bottom-sheet"
+import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { Image } from "expo-image"
 import * as Haptics from "expo-haptics"
 import { FolderHeart, FolderPlus, Star, Tv } from "lucide-react-native"
@@ -46,7 +46,10 @@ export const ChannelActionsSheet = forwardRef<
 
   return (
     <Sheet ref={ref} title="Channel">
-      <BottomSheetView style={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+      {/* A plain View: the shell already wraps a dynamically sized sheet in
+          the BottomSheetView it measures, and nesting another inside it would
+          measure the heading out of the height again. */}
+      <View style={{ paddingHorizontal: 16, paddingBottom: 32 }}>
         {channel ? (
           <>
             {/* The same identity block the row shows, so it is obvious which
@@ -75,7 +78,7 @@ export const ChannelActionsSheet = forwardRef<
               <View className="min-w-0 flex-1">
                 <Text
                   numberOfLines={1}
-                  className="font-medium text-[15px] tracking-tight text-foreground"
+                  className="text-foreground text-[15px] font-medium tracking-tight"
                   style={{ lineHeight: 19, includeFontPadding: false }}
                 >
                   {channel.name || "Channel"}
@@ -94,7 +97,7 @@ export const ChannelActionsSheet = forwardRef<
                   />
                   <Text
                     numberOfLines={1}
-                    className="flex-1 text-xs text-muted-foreground"
+                    className="text-muted-foreground flex-1 text-xs"
                     style={{ lineHeight: 15, includeFontPadding: false }}
                   >
                     {channel.genre || "Uncategorized"}
@@ -126,7 +129,7 @@ export const ChannelActionsSheet = forwardRef<
                 color={favorited ? "#f59e0b" : colors.foreground}
                 fill={favorited ? "#f59e0b" : "transparent"}
               />
-              <Text className="font-medium text-sm text-foreground">
+              <Text className="text-foreground text-sm font-medium">
                 {favorited ? "Remove from favorites" : "Add to favorites"}
               </Text>
             </PressableScale>
@@ -142,14 +145,14 @@ export const ChannelActionsSheet = forwardRef<
                 ) : (
                   <FolderPlus size={16} color={colors.foreground} />
                 )}
-                <Text className="font-medium text-sm text-foreground">
+                <Text className="text-foreground text-sm font-medium">
                   {grouped ? "Edit groups" : "Add to groups"}
                 </Text>
               </PressableScale>
             ) : null}
           </>
         ) : null}
-      </BottomSheetView>
+      </View>
     </Sheet>
   )
 })

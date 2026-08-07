@@ -3,6 +3,7 @@ import { Text } from "react-native"
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
+  BottomSheetView,
   type BottomSheetBackdropProps,
   type BottomSheetModalProps,
 } from "@gorhom/bottom-sheet"
@@ -38,6 +39,19 @@ export const Sheet = forwardRef<
     [],
   )
 
+  const body = (
+    <>
+      <Text
+        className="font-heading text-foreground text-[22px] tracking-tight"
+        // No top padding: the drag handle above already provides it.
+        style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14 }}
+      >
+        {title}
+      </Text>
+      {children}
+    </>
+  )
+
   return (
     <BottomSheetModal
       ref={ref}
@@ -52,14 +66,14 @@ export const Sheet = forwardRef<
       backgroundStyle={{ backgroundColor: colors.background }}
       handleIndicatorStyle={{ backgroundColor: colors["muted-foreground"] }}
     >
-      <Text
-        className="font-heading text-[22px] tracking-tight text-foreground"
-        // No top padding: the drag handle above already provides it.
-        style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14 }}
-      >
-        {title}
-      </Text>
-      {children}
+      {/* Dynamically sized sheets have to put everything inside one
+          BottomSheetView, because that is what gorhom measures to decide the
+          sheet's height. With the heading left outside it, the sheet sized
+          itself to the content alone and the title drew on top of it. A sheet
+          with snap points has a height already and needs no wrapper — its
+          child is usually a BottomSheetFlatList, which must not be nested in
+          a view that would cap its scroll. */}
+      {snapPoints ? body : <BottomSheetView>{body}</BottomSheetView>}
     </BottomSheetModal>
   )
 })
