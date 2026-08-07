@@ -62,7 +62,15 @@ export default function ChannelDetailScreen() {
 
         {/* Icon and weight follow the web's guide heading. */}
         <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
-          <Tv size={16} color={colors["muted-foreground"]} />
+          {/* Optically centred against the text rather than mathematically:
+              the icon's mass sits low next to a cap-height word, so it reads
+              as sunk when its box is aligned. The web nudges the same icon by
+              the same amount with -mt-0.5. */}
+          <Tv
+            size={16}
+            color={colors["muted-foreground"]}
+            style={{ marginTop: -2 }}
+          />
           <Text className="font-heading text-base text-foreground">
             Programme Guide
           </Text>
