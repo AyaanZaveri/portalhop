@@ -57,9 +57,16 @@ export const Sheet = forwardRef<
             The scrim underneath means those devices still get separation. */}
         {blurAvailable ? (
           <BlurView
-            intensity={theme === "dark" ? 32 : 24}
+            intensity={theme === "dark" ? 60 : 50}
             tint={theme === "dark" ? "dark" : "light"}
-            experimentalBlurMethod="dimezisBlurViewSdk31Plus"
+            // Android divides intensity by this before blurring, to bring its
+            // perceived strength in line with iOS. At the default of 4 an
+            // intensity of 32 blurs at an effective 8, which on a dark list is
+            // indistinguishable from no blur at all.
+            blurReductionFactor={2}
+            // blurMethod, not experimentalBlurMethod — the latter is the
+            // deprecated alias in SDK 57.
+            blurMethod="dimezisBlurViewSdk31Plus"
             blurTarget={blurTarget ?? undefined}
             style={StyleSheet.absoluteFill}
           />
