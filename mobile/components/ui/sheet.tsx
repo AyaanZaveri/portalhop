@@ -1,5 +1,7 @@
 import { forwardRef, useCallback, type ReactNode } from "react"
-import { Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
+import { BlurView } from "expo-blur"
+import { useUniwind } from "uniwind"
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -9,6 +11,7 @@ import {
 } from "@gorhom/bottom-sheet"
 
 import { useTheme } from "@/lib/theme"
+import { useBlurTarget } from "@/components/ui/blur-target"
 
 /**
  * The app's one sheet shell, so every drawer shares a backdrop, a handle and a
@@ -19,13 +22,16 @@ import { useTheme } from "@/lib/theme"
 export const Sheet = forwardRef<
   BottomSheetModal,
   {
-    title: string
+    /** Omit where the content says what the sheet is on its own. */
+    title?: string
     children: ReactNode
     /** Omit to size to content, as the portals sheet does. */
     snapPoints?: BottomSheetModalProps["snapPoints"]
   }
 >(function Sheet({ title, children, snapPoints }, ref) {
   const { colors } = useTheme()
+  const { theme } = useUniwind()
+  const blurTarget = useBlurTarget()
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -33,21 +39,44 @@ export const Sheet = forwardRef<
         {...props}
         appearsOnIndex={0}
         disappearsOnIndex={-1}
-        opacity={0.4}
-      />
+        // Lighter than it was: the blur is doing most of the separating now,
+        // and the two stacked read as a blackout.
+        opacity={0.2}
+      >
+        {/* Nested in the backdrop rather than replacing it, so tap-to-close
+            and the fade in and out still come from gorhom.
+
+            The intensity is fixed and the backdrop's own opacity animates —
+            animating blur radius per frame is the expensive way to do this and
+            the one that stutters.
+
+            dimezisBlurViewSdk31Plus: real blur through Android's RenderNode on
+            12 and above, and nothing at all below it, where the only
+            alternative is RenderScript and it is too slow to be worth having.
+            The scrim underneath means those devices still get separation. */}
+        <BlurView
+          intensity={theme === "dark" ? 32 : 24}
+          tint={theme === "dark" ? "dark" : "light"}
+          experimentalBlurMethod="dimezisBlurViewSdk31Plus"
+          blurTarget={blurTarget ?? undefined}
+          style={StyleSheet.absoluteFill}
+        />
+      </BottomSheetBackdrop>
     ),
-    [],
+    [theme, blurTarget],
   )
 
   const body = (
     <>
-      <Text
-        className="font-heading text-foreground text-[22px] tracking-tight"
-        // No top padding: the drag handle above already provides it.
-        style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14 }}
-      >
-        {title}
-      </Text>
+      {title ? (
+        <Text
+          className="font-heading text-foreground text-[22px] tracking-tight"
+          // No top padding: the drag handle above already provides it.
+          style={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 14 }}
+        >
+          {title}
+        </Text>
+      ) : null}
       {children}
     </>
   )

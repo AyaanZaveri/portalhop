@@ -33,6 +33,7 @@ import { darkTokens, lightTokens } from "@portalhop/shared/theme/tokens"
 import { loadThemePreference } from "@/lib/preferences"
 import { sqliteStorage } from "@/lib/query-storage"
 import { pruneExpiredSlots } from "@/lib/epg"
+import { BlurTargetProvider } from "@/components/ui/blur-target"
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
@@ -150,16 +151,21 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <BottomSheetModalProvider>
-            <StatusBar style={isDark ? "light" : "dark"} />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: tokens.background },
-              }}
-            />
-            <Toaster />
-          </BottomSheetModalProvider>
+          {/* Inside the query provider but outside the sheet provider: this is
+              the subtree Android samples to blur, and it has to contain the
+              app while the sheets that blur it portal in below. */}
+          <BlurTargetProvider>
+            <BottomSheetModalProvider>
+              <StatusBar style={isDark ? "light" : "dark"} />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: tokens.background },
+                }}
+              />
+              <Toaster />
+            </BottomSheetModalProvider>
+          </BlurTargetProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

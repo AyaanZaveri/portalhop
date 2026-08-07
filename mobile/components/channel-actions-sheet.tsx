@@ -45,7 +45,7 @@ export const ChannelActionsSheet = forwardRef<
   const logo = channel?.logoUrl || channel?.logo
 
   return (
-    <Sheet ref={ref} title="Channel">
+    <Sheet ref={ref}>
       {/* A plain View: the shell already wraps a dynamically sized sheet in
           the BottomSheetView it measures, and nesting another inside it would
           measure the heading out of the height again. */}
