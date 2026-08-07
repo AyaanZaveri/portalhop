@@ -34,17 +34,31 @@ export const Sheet = forwardRef<
   const blurTarget = useBlurTarget()
 
   const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        // Lighter where the blur is doing most of the separating; the two
-        // stacked read as a blackout. Without blur the scrim is all there is,
-        // so it goes back to carrying the separation on its own.
-        opacity={blurAvailable ? 0.2 : 0.4}
-      >
-        {/* Nested in the backdrop rather than replacing it, so tap-to-close
+    (props: BottomSheetBackdropProps) => {
+      if (__DEV__) {
+        // The two things that silently turn the blur into a no-op. expo-blur
+        // resolves the target once, in componentDidMount, and its update check
+        // compares a stable ref against itself so it never resolves again — so
+        // a target that is null at that moment stays null, with no warning and
+        // no blur.
+        console.log(
+          `[portalhop] blur available=${blurAvailable} target=${
+            blurTarget?.current ? "resolved" : "null"
+          }`,
+        )
+      }
+
+      return (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          // Lighter where the blur is doing most of the separating; the two
+          // stacked read as a blackout. Without blur the scrim is all there is,
+          // so it goes back to carrying the separation on its own.
+          opacity={blurAvailable ? 0.2 : 0.4}
+        >
+          {/* Nested in the backdrop rather than replacing it, so tap-to-close
             and the fade in and out still come from gorhom.
 
             The intensity is fixed and the backdrop's own opacity animates —
@@ -55,24 +69,25 @@ export const Sheet = forwardRef<
             12 and above, and nothing at all below it, where the only
             alternative is RenderScript and it is too slow to be worth having.
             The scrim underneath means those devices still get separation. */}
-        {blurAvailable ? (
-          <BlurView
-            intensity={theme === "dark" ? 60 : 50}
-            tint={theme === "dark" ? "dark" : "light"}
-            // Android divides intensity by this before blurring, to bring its
-            // perceived strength in line with iOS. At the default of 4 an
-            // intensity of 32 blurs at an effective 8, which on a dark list is
-            // indistinguishable from no blur at all.
-            blurReductionFactor={2}
-            // blurMethod, not experimentalBlurMethod — the latter is the
-            // deprecated alias in SDK 57.
-            blurMethod="dimezisBlurViewSdk31Plus"
-            blurTarget={blurTarget ?? undefined}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : null}
-      </BottomSheetBackdrop>
-    ),
+          {blurAvailable ? (
+            <BlurView
+              intensity={theme === "dark" ? 60 : 50}
+              tint={theme === "dark" ? "dark" : "light"}
+              // Android divides intensity by this before blurring, to bring its
+              // perceived strength in line with iOS. At the default of 4 an
+              // intensity of 32 blurs at an effective 8, which on a dark list is
+              // indistinguishable from no blur at all.
+              blurReductionFactor={2}
+              // blurMethod, not experimentalBlurMethod — the latter is the
+              // deprecated alias in SDK 57.
+              blurMethod="dimezisBlurViewSdk31Plus"
+              blurTarget={blurTarget ?? undefined}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+        </BottomSheetBackdrop>
+      )
+    },
     [theme, blurTarget],
   )
 
