@@ -473,57 +473,53 @@ export default function ChannelListScreen() {
               active={filter.type === "favoriteGroup"}
               onPress={() => groupsSheet.current?.present()}
             />
+
+            {/* Pushed to the far end, and kept there whichever orderable view
+                is open, so the control has one place rather than moving with
+                the heading. The gap is doing real work: this is a mode, not a
+                fifth filter, and sitting flush against the chips would read as
+                one. */}
+            <View className="flex-1" />
+
+            {canReorder ? (
+              <PressableScale
+                preset="icon"
+                hitSlop={10}
+                className="size-8 items-center justify-center rounded-lg"
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                  setReordering((current) => !current)
+                }}
+              >
+                {reordering ? (
+                  <Check size={18} color={iconPrimary} />
+                ) : (
+                  <ArrowUpDown size={18} color={colors["muted-foreground"]} />
+                )}
+              </PressableScale>
+            ) : null}
           </View>
 
-          {/* Which category or group is showing is otherwise invisible once the
-            sheet closes — the chip only says that one is active. */}
-          {/* The active view's name on the left, and the reorder toggle on the
-              right where one is possible — the same pairing the web puts above
-              an orderable list. */}
-          {filter.type === "category" ||
-          filter.type === "favoriteGroup" ||
-          canReorder ? (
+          {/* Only where the chip cannot say which one: the Categories and
+              Groups chips name the kind, not the choice. Favourites needs no
+              heading — its chip already says the word, and repeating it just
+              cost a row of the list. */}
+          {filter.type === "category" || filter.type === "favoriteGroup" ? (
             <View className="h-6 flex-row items-center gap-2">
-              {/* The icon the web puts on this row: a star for favourites, the
-                  group's own for a group, the category's for a category. */}
-              {filter.type === "favorites" ? (
-                <Star size={16} color={colors["muted-foreground"]} />
-              ) : filter.type === "favoriteGroup" ? (
+              {filter.type === "favoriteGroup" ? (
                 <FolderHeart size={16} color={colors["muted-foreground"]} />
               ) : (
                 <CategoryVisual category={filter.genre} size={16} />
               )}
-
               <Text
                 numberOfLines={1}
                 className="text-foreground flex-1 text-[15px] font-semibold tracking-tight"
               >
                 {filter.type === "category"
                   ? filter.genre
-                  : filter.type === "favoriteGroup"
-                    ? (groups?.find((g) => g.id === filter.groupId)?.name ??
-                      "Group")
-                    : "Favorites"}
+                  : (groups?.find((g) => g.id === filter.groupId)?.name ??
+                    "Group")}
               </Text>
-
-              {canReorder ? (
-                <PressableScale
-                  preset="icon"
-                  hitSlop={10}
-                  onPress={() => {
-                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                    setReordering((current) => !current)
-                  }}
-                >
-                  {/* A check while reordering, as the web has it: the control
-                      that starts the mode should not also be what ends it. */}
-                  {reordering ? (
-                    <Check size={17} color={iconPrimary} />
-                  ) : (
-                    <ArrowUpDown size={17} color={colors["muted-foreground"]} />
-                  )}
-                </PressableScale>
-              ) : null}
             </View>
           ) : null}
         </View>
