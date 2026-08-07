@@ -32,7 +32,12 @@ import {
 } from "@/lib/filters"
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 import { useSession } from "@/lib/auth"
-import { loadSelectedPortalIds, saveSelectedPortalIds } from "@/lib/preferences"
+import {
+  loadBrowseFilter,
+  loadSelectedPortalIds,
+  saveBrowseFilter,
+  saveSelectedPortalIds,
+} from "@/lib/preferences"
 import { useTheme } from "@/lib/theme"
 import { CategoriesSheet } from "@/components/categories-sheet"
 import { GroupsSheet } from "@/components/groups-sheet"
@@ -110,7 +115,20 @@ export default function ChannelListScreen() {
   const filterSheet = useRef<BottomSheetModal>(null)
   const categoriesSheet = useRef<BottomSheetModal>(null)
   const groupsSheet = useRef<BottomSheetModal>(null)
-  const [filter, setFilter] = useState<BrowseFilter>({ type: "all" })
+  const [filter, setFilterState] = useState<BrowseFilter>({ type: "all" })
+  // Nothing is written back until the saved chip has been read, or the default
+  // this starts on would overwrite the user's choice before it loads.
+  const [filterRestored, setFilterRestored] = useState(false)
+  const userChoseFilter = useRef(false)
+
+  const setFilter = useCallback(
+    (next: BrowseFilter) => {
+      userChoseFilter.current = true
+      setFilterState(next)
+      void saveBrowseFilter(session?.user?.id ?? null, next)
+    },
+    [session?.user?.id],
+  )
 
   const { data: portals, error: portalsError } = usePortals(signedIn)
 
@@ -132,6 +150,33 @@ export default function ChannelListScreen() {
 
   const { favorites } = useFavorites(signedIn)
   const { data: groups } = useFavoriteGroups(signedIn)
+
+  // Restores the chip the user was last on, per account.
+  useEffect(() => {
+    if (sessionPending) return
+    let cancelled = false
+    void loadBrowseFilter(session?.user?.id ?? null).then((saved) => {
+      if (cancelled) return
+      if (saved) {
+        userChoseFilter.current = true
+        setFilterState(saved)
+      }
+      setFilterRestored(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionPending, session?.user?.id])
+
+  // With nothing saved, Favorites is the more useful landing place for someone
+  // who has any — the same default the web falls back to. Only until the user
+  // picks something themselves, after which their choice is what is restored.
+  useEffect(() => {
+    if (!filterRestored || userChoseFilter.current) return
+    setFilterState(
+      favorites.keys.length ? { type: "favorites" } : { type: "all" },
+    )
+  }, [filterRestored, favorites.keys.length])
 
   // Loud on purpose while the data layer is new: a silent empty list gives no
   // clue whether the request failed, returned nothing, or was never made.
@@ -431,10 +476,10 @@ export default function ChannelListScreen() {
                 renderItem={renderChannel}
                 contentContainerStyle={listPadding}
                 onScroll={onScroll}
-              // Without this iOS reports scroll about once a second, which is
-              // long enough for the gesture to still believe the list is at
-              // the top after it has been scrolled away.
-              scrollEventThrottle={16}
+                // Without this iOS reports scroll about once a second, which is
+                // long enough for the gesture to still believe the list is at
+                // the top after it has been scrolled away.
+                scrollEventThrottle={16}
                 ref={listRef}
                 // On by default in v2, and its own known-issues page names this case:
                 // it anchors the rows that were on screen when the data changes, so

@@ -14,12 +14,12 @@
   --radius-2xl: calc(var(--radius) * 1.8);
 
   /* Android has no synthetic bold, so each weight is registered separately. */
-  --font-sans: Geist-Regular;
-  --font-medium: Geist-Medium;
-  --font-semibold: Geist-SemiBold;
-  --font-mono: GeistMono-Regular;
-  --font-mono-medium: GeistMono-Medium;
-  --font-heading: Geist-Medium;
+  --font-sans: Inter-Regular;
+  --font-medium: Inter-Medium;
+  --font-semibold: Inter-SemiBold;
+  --font-mono: JetBrainsMono-Regular;
+  --font-mono-medium: JetBrainsMono-Medium;
+  --font-heading: Inter-Medium;
   --font-wordmark: Montserrat-Bold;
 }
 

@@ -11,14 +11,14 @@ import {
 } from "@tanstack/react-query"
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core"
 import {
-  Geist_400Regular,
-  Geist_500Medium,
-  Geist_600SemiBold,
-} from "@expo-google-fonts/geist"
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+} from "@expo-google-fonts/inter"
 import {
-  GeistMono_400Regular,
-  GeistMono_500Medium,
-} from "@expo-google-fonts/geist-mono"
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+} from "@expo-google-fonts/jetbrains-mono"
 import { Montserrat_700Bold } from "@expo-google-fonts/montserrat"
 import { useFonts } from "expo-font"
 import { Stack } from "expo-router"
@@ -129,11 +129,11 @@ export default function RootLayout() {
   // Registered under the names global.css's @theme maps to. Each weight is
   // its own family because Android does not synthesise bold.
   const [fontsLoaded, fontError] = useFonts({
-    "Geist-Regular": Geist_400Regular,
-    "Geist-Medium": Geist_500Medium,
-    "Geist-SemiBold": Geist_600SemiBold,
-    "GeistMono-Regular": GeistMono_400Regular,
-    "GeistMono-Medium": GeistMono_500Medium,
+    "Inter-Regular": Inter_400Regular,
+    "Inter-Medium": Inter_500Medium,
+    "Inter-SemiBold": Inter_600SemiBold,
+    "JetBrainsMono-Regular": JetBrainsMono_400Regular,
+    "JetBrainsMono-Medium": JetBrainsMono_500Medium,
     "Montserrat-Bold": Montserrat_700Bold,
   })
 

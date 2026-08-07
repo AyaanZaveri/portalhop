@@ -70,7 +70,7 @@ export function Chip({
           style={{
             color: foreground,
             fontSize: 13,
-            fontFamily: "Geist-Medium",
+            fontFamily: "Inter-Medium",
             includeFontPadding: false,
           }}
         >
