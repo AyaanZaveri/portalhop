@@ -8,6 +8,7 @@ import {
 } from "react-native"
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { useEvent } from "expo"
+import { useNavigation } from "expo-router"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { useQuery } from "@tanstack/react-query"
 import * as Haptics from "expo-haptics"
@@ -88,6 +89,34 @@ export function ChannelPlayer({
 
   const viewRef = useRef<VideoView>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
+
+  /**
+   * The video is taken down before the screen animates away.
+   *
+   * A SurfaceView is a separate native surface punched through the view
+   * hierarchy rather than a view in it, so it cannot be transformed with its
+   * parent: the screen slides out and the video stays put until it is destroyed,
+   * which reads as a flash. The alternative is surfaceType="textureView", which
+   * does animate — and tone-maps HDR down to SDR, which is the whole reason
+   * SurfaceView is here.
+   *
+   * So the surface is unmounted the moment the screen is committed to leaving.
+   * Its container keeps the same black box, so nothing moves; there is simply
+   * no longer a surface to lag behind.
+   */
+  const navigation = useNavigation()
+  const [leaving, setLeaving] = useState(false)
+
+  useEffect(
+    () =>
+      navigation.addListener("beforeRemove", () => {
+        setLeaving(true)
+        // Nothing is going to be watched from here, and letting it run means
+        // audio carrying over the transition.
+        player.pause()
+      }),
+    [navigation, player],
+  )
 
   /**
    * The track, watched rather than read once.
@@ -227,23 +256,25 @@ export function ChannelPlayer({
       {/* The system bars have no business over a full-screen picture, and the
           status bar is the one that overlaps it in landscape. */}
       {fullscreen ? <StatusBar hidden /> : null}
-      <VideoView
-        ref={viewRef}
-        player={player}
-        style={{ flex: 1 }}
-        // The whole point of this screen: our own controls over the video.
-        // Native controls are forced back on in fullscreen by both platforms,
-        // which is a limitation worth knowing rather than fighting.
-        nativeControls={false}
-        contentFit="contain"
-        // The manifest flag that makes this possible on Android comes from the
-        // expo-video config plugin, so it needs a build rather than a reload.
-        allowsPictureInPicture
-        // Leaves the frame-rate strategy at ExoPlayer's default. Matching the
-        // display to the video is what removes judder from 24fps film and
-        // 60fps sport, and the case for turning it off — keeping a feed's UI at
-        // 120Hz — does not apply to a screen that is mostly video.
-      />
+      {leaving ? null : (
+        <VideoView
+          ref={viewRef}
+          player={player}
+          style={{ flex: 1 }}
+          // The whole point of this screen: our own controls over the video.
+          // Native controls are forced back on in fullscreen by both platforms,
+          // which is a limitation worth knowing rather than fighting.
+          nativeControls={false}
+          contentFit="contain"
+          // The manifest flag that makes this possible on Android comes from the
+          // expo-video config plugin, so it needs a build rather than a reload.
+          allowsPictureInPicture
+          // Leaves the frame-rate strategy at ExoPlayer's default. Matching the
+          // display to the video is what removes judder from 24fps film and
+          // 60fps sport, and the case for turning it off — keeping a feed's UI at
+          // 120Hz — does not apply to a screen that is mostly video.
+        />
+      )}
 
       <Pressable
         onPress={toggleControls}
