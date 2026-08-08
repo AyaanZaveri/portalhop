@@ -36,6 +36,30 @@ const PAD_Y = 6
 const MAX_SCALE = 1.8
 
 /**
+ * The tile's corner, and the corner of the box holding the artwork.
+ *
+ * The tile matches the row it sits in, which is rounded-xl.
+ *
+ * The inner corner is what softens a logo that fills its own canvas. Artwork
+ * like Sony SAB or Game Show Network is a hard-edged rectangle, and set against
+ * a rounded tile it reads as a photograph pinned to a card rather than as part
+ * of it. Rounding the box it is clipped to rounds the artwork with it.
+ *
+ * It costs nothing on every other kind of logo, which is why no rule is needed
+ * to decide who gets it. A mark on transparency has nothing in its corners to
+ * lose, and where the tile continues the artwork's own background — Mississauga,
+ * CityNews — the corners it gives up are repainted in the very same colour by
+ * the tile behind. Only artwork that reaches its own edge in a colour of its own
+ * can tell the difference, and that is exactly the artwork this is for.
+ *
+ * INNER is OUTER minus the vertical padding, which is the usual way to keep two
+ * corners concentric. It cannot be exact here because the padding differs by
+ * axis, and the vertical is the one the eye follows on a tile this shape.
+ */
+const OUTER_RADIUS = 12
+const INNER_RADIUS = OUTER_RADIUS - PAD_Y
+
+/**
  * The tile when a logo offers no colour of its own.
  *
  * Colouring this from the logo unconditionally was tried at length and
@@ -116,7 +140,7 @@ export function ChannelLogo({
       style={{
         width: CHANNEL_LOGO_WIDTH,
         height: CHANNEL_LOGO_HEIGHT,
-        borderRadius: 10,
+        borderRadius: OUTER_RADIUS,
         borderColor: colors.border,
         backgroundColor: style.color ?? TILE_BASE,
       }}
@@ -124,13 +148,20 @@ export function ChannelLogo({
       {uri ? (
         // The box is its own view so the overhang is clipped to it rather than
         // to the tile, which would let a scaled-up logo run under the border.
-        <View style={{ width: boxWidth, height: boxHeight, overflow: "hidden" }}>
+        <View
+          style={{
+            width: boxWidth,
+            height: boxHeight,
+            overflow: "hidden",
+            borderRadius: INNER_RADIUS,
+          }}
+        >
           <Image
             source={{ uri: style.uri ?? uri }}
-            // No radius of its own. It was there because Android does not clip a
-            // child to a rounded parent reliably, but the logo is inset by the
-            // tile's padding and never reaches the corners — so all the radius
-            // did was shave the artwork.
+            // No radius of its own: the box it is clipped to carries it. Put
+            // here it would round the image rather than what is on screen — the
+            // image is usually larger than the box and its corners are already
+            // outside it, so the corner that shows is the box's either way.
             style={
               placement
                 ? { position: "absolute", ...placement }
