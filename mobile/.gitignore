@@ -1,8 +1,12 @@
 node_modules/
 .expo/
 dist/
-android/
-ios/
+# Anchored to the root on purpose. Unanchored, these match a directory of that
+# name at any depth — which quietly swallowed the native source of the local
+# module under modules/logo-analysis/android, so it was never committed and CI
+# built an app without it.
+/android/
+/ios/
 *.log
 
 # @generated expo-cli sync-2b81b286409207a5da26e14c78851eb30d8ccbdb
