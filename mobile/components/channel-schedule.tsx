@@ -1,6 +1,9 @@
 import { useMemo } from "react"
 import { ActivityIndicator, Text, View } from "react-native"
 import { useQuery } from "@tanstack/react-query"
+import { Image } from "expo-image"
+
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 
 import type { EpgProgramme } from "@portalhop/shared/stalker-types"
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
@@ -173,26 +176,49 @@ export function ChannelSchedule({
                     }}
                   />
                 ) : null}
-                {/* A step up across the card. At 14 and 12 this read as fine
-                    print next to the rest of the app, and a guide is meant to
-                    be skimmed. */}
-                <Text className="text-muted-foreground font-mono text-xs">
-                  {formatRange(startAt, stopAt)}
-                </Text>
+                <View className="flex-row items-start gap-3">
+                  <View className="min-w-0 flex-1 gap-1.5">
+                    {/* A step up across the card. At 14 and 12 this read as
+                        fine print next to the rest of the app, and a guide is
+                        meant to be skimmed. */}
+                    <Text className="text-muted-foreground font-mono text-xs">
+                      {formatRange(startAt, stopAt)}
+                    </Text>
 
-                <Text className="text-foreground font-rounded text-[15px]">
-                  {programme.title}
-                </Text>
+                    <Text className="text-foreground font-rounded text-[15px]">
+                      {programme.title}
+                    </Text>
 
-                {programme.description ? (
-                  <Text
-                    numberOfLines={3}
-                    className="text-muted-foreground text-[13px]"
-                    style={{ lineHeight: 18 }}
-                  >
-                    {programme.description}
-                  </Text>
-                ) : null}
+                    {programme.description ? (
+                      <Text
+                        numberOfLines={3}
+                        className="text-muted-foreground text-[13px]"
+                        style={{ lineHeight: 18 }}
+                      >
+                        {programme.description}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {/* The web's 5:7 poster, at the width a phone can spare. It
+                      goes through the shared image proxy for the same reason
+                      the web does: these come from arbitrary EPG hosts, and the
+                      proxy resizes them rather than pulling a full-size still
+                      down for a thumbnail. */}
+                  {programme.posterUrl ? (
+                    <Image
+                      source={{ uri: proxyImageUrl(programme.posterUrl) }}
+                      style={{
+                        width: 60,
+                        height: 84,
+                        borderRadius: 8,
+                        backgroundColor: colors.muted,
+                      }}
+                      contentFit="cover"
+                      transition={140}
+                    />
+                  ) : null}
+                </View>
               </View>
             )
           })}
