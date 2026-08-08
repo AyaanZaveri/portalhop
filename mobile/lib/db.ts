@@ -64,7 +64,18 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
       "PRAGMA user_version",
     )
 
-    if ((row?.user_version ?? 0) < 2) {
+    const version = row?.user_version ?? 0
+
+    // Colours are keyed by logo URL alone, so changing which swatch is stored
+    // does not change the key — every logo already looked at would keep its old
+    // answer forever. Emptying the table is the migration, and it is a DELETE
+    // rather than a DROP because the table was created moments ago in the
+    // statement above and dropping it here would leave nothing to write to.
+    if (version < 3) {
+      await handle.execAsync("DELETE FROM logo_color;")
+    }
+
+    if (version < 2) {
       await handle.execAsync(`
         DROP TABLE IF EXISTS epg_slot;
         DROP TABLE IF EXISTS epg_feed;
@@ -90,9 +101,14 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
           -- later.
           wanted_count INTEGER NOT NULL DEFAULT 0
         );
-
-        PRAGMA user_version = 2;
       `)
+    }
+
+    // Set once, outside the branches. Inside the version-2 block it would never
+    // run for a database already at 2, so the colour table would be emptied on
+    // every launch from then on.
+    if (version < 3) {
+      await handle.execAsync("PRAGMA user_version = 3;")
     }
 
     return handle

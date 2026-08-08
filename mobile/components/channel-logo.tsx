@@ -49,7 +49,10 @@ export function ChannelLogo({
       style={{
         width: CHANNEL_LOGO_WIDTH,
         height: CHANNEL_LOGO_HEIGHT,
-        padding: 5,
+        // Enough that a logo drawn edge to edge in its own file — CP24's is —
+        // does not touch the tile, and so does not tower over one that carries
+        // its own margin, like TSN's.
+        padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
         backgroundColor: tint ?? "#18181b",

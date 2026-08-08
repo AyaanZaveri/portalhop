@@ -44,22 +44,28 @@ const memory = new Map<string, string | null>()
 const inFlight = new Map<string, Promise<string | null>>()
 
 /**
- * Picks the colour a channel would be recognised by.
+ * Picks a backdrop for the logo, which is not the same as picking its colour.
  *
- * Vibrant before dominant on Android: a logo is usually a mark on white or
- * transparent, so the dominant colour is often the backdrop rather than the
- * brand. Vibrant is the one that reads as "the BBC red" or "the ZDF orange".
+ * Vibrant is the obvious choice and the wrong one. Most channel logos are a
+ * coloured mark on transparency, so vibrant returns the mark's own colour — and
+ * putting a red mark on the red it is made of makes it vanish, which is exactly
+ * what happened to the TSN logos.
+ *
+ * The dark swatches exist for this: they are the ones Palette intends as
+ * backgrounds for light content, so they stay clear of whatever the mark is
+ * made of while keeping its hue. A channel still reads as red or blue at a
+ * glance; the mark on top stays legible.
  */
 function pickColor(
   result: Awaited<ReturnType<NonNullable<GetColors>>>,
 ): string | null {
   if (result.platform === "android") {
-    return result.vibrant || result.dominant || null
+    return result.darkVibrant || result.darkMuted || null
   }
   if (result.platform === "ios") {
-    return result.primary || result.background || null
+    return result.background || null
   }
-  return result.vibrant || result.dominant || null
+  return result.darkVibrant || result.darkMuted || null
 }
 
 async function readStored(url: string) {
