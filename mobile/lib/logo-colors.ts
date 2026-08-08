@@ -44,28 +44,23 @@ const memory = new Map<string, string | null>()
 const inFlight = new Map<string, Promise<string | null>>()
 
 /**
- * Picks a backdrop for the logo, which is not the same as picking its colour.
+ * The channel's hue. Not the tile colour — that is derived from this at render.
  *
- * Vibrant is the obvious choice and the wrong one. Most channel logos are a
- * coloured mark on transparency, so vibrant returns the mark's own colour — and
- * putting a red mark on the red it is made of makes it vanish, which is exactly
- * what happened to the TSN logos.
- *
- * The dark swatches exist for this: they are the ones Palette intends as
- * backgrounds for light content, so they stay clear of whatever the mark is
- * made of while keeping its hue. A channel still reads as red or blue at a
- * glance; the mark on top stays legible.
+ * Vibrant, because it is the most identifiable thing about a logo: the hue that
+ * makes a row read as TSN or C-SPAN before the name is. Its lightness is not
+ * used, so it does not matter that vibrant is often the colour the mark itself
+ * is made of; see mixOverBase in ChannelLogo for what happens to it.
  */
 function pickColor(
   result: Awaited<ReturnType<NonNullable<GetColors>>>,
 ): string | null {
   if (result.platform === "android") {
-    return result.darkVibrant || result.darkMuted || null
+    return result.vibrant || result.darkVibrant || result.dominant || null
   }
   if (result.platform === "ios") {
-    return result.background || null
+    return result.primary || result.detail || null
   }
-  return result.darkVibrant || result.darkMuted || null
+  return result.vibrant || result.darkVibrant || result.dominant || null
 }
 
 async function readStored(url: string) {

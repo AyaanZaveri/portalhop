@@ -19,6 +19,47 @@ import { useLogoColor } from "@/lib/logo-colors"
 export const CHANNEL_LOGO_HEIGHT = 44
 export const CHANNEL_LOGO_WIDTH = 66
 
+/** What a tile is when there is no colour for it, and the floor every tile is mixed down to. */
+const TILE_BASE = "#18181b"
+
+/**
+ * How much of the channel's colour survives the mix.
+ *
+ * The one number worth tuning here. Higher is more colourful and more likely to
+ * swallow part of a logo; lower is safer and duller.
+ */
+const TILE_MIX = 0.38
+
+/**
+ * Mixes a colour down onto the base tile.
+ *
+ * A logo with more than one colour will clash with any single background — the
+ * C-SPAN mark is a red "2" beside white lettering, so a tile light enough for
+ * the red is wrong for the white and vice versa. There is no swatch that solves
+ * that, because the problem is not which colour, it is how light.
+ *
+ * So the hue is kept and the lightness is not negotiable: every tile is mixed
+ * most of the way down to the same near-black. Marks stay light-on-dark, which
+ * is the case logos are drawn for, while the tile still says which channel it
+ * is. The ceiling is fixed here rather than left to whatever lightness a
+ * palette swatch happened to have.
+ */
+function mixOverBase(hex: string) {
+  const parse = (value: string, at: number) =>
+    parseInt(value.slice(at, at + 2), 16)
+
+  const clean = hex.replace("#", "")
+  if (clean.length < 6) return TILE_BASE
+
+  const base = TILE_BASE.replace("#", "")
+  const channel = (at: number) =>
+    Math.round(parse(clean, at) * TILE_MIX + parse(base, at) * (1 - TILE_MIX))
+      .toString(16)
+      .padStart(2, "0")
+
+  return `#${channel(0)}${channel(2)}${channel(4)}`
+}
+
 export function ChannelLogo({
   uri,
   recyclingKey,
@@ -38,8 +79,9 @@ export function ChannelLogo({
    * before the name is read — and it is the tile rather than the whole row,
    * because the row carries text that a saturated wash would fight with.
    *
-   * Full strength, not a wash: the logo is drawn over it with padding, so this
-   * is the mark's own backdrop rather than a tint over content.
+   * The stored value is the channel's hue; mixOverBase decides how much of it
+   * reaches the tile. Blending at render rather than at extraction means that
+   * balance can be changed without re-decoding every logo in the cache.
    */
   const tint = useLogoColor(uri)
 
@@ -55,7 +97,7 @@ export function ChannelLogo({
         padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: tint ?? "#18181b",
+        backgroundColor: tint ? mixOverBase(tint) : TILE_BASE,
       }}
     >
       {uri ? (
