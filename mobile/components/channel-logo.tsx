@@ -22,44 +22,6 @@ export const CHANNEL_LOGO_WIDTH = 66
 /** What a tile is when there is no colour for it, and the floor every tile is mixed down to. */
 const TILE_BASE = "#18181b"
 
-/**
- * How much of the channel's colour survives the mix.
- *
- * The one number worth tuning here. Higher is more colourful and more likely to
- * swallow part of a logo; lower is safer and duller.
- */
-const TILE_MIX = 0.38
-
-/**
- * Mixes a colour down onto the base tile.
- *
- * A logo with more than one colour will clash with any single background — the
- * C-SPAN mark is a red "2" beside white lettering, so a tile light enough for
- * the red is wrong for the white and vice versa. There is no swatch that solves
- * that, because the problem is not which colour, it is how light.
- *
- * So the hue is kept and the lightness is not negotiable: every tile is mixed
- * most of the way down to the same near-black. Marks stay light-on-dark, which
- * is the case logos are drawn for, while the tile still says which channel it
- * is. The ceiling is fixed here rather than left to whatever lightness a
- * palette swatch happened to have.
- */
-function mixOverBase(hex: string) {
-  const parse = (value: string, at: number) =>
-    parseInt(value.slice(at, at + 2), 16)
-
-  const clean = hex.replace("#", "")
-  if (clean.length < 6) return TILE_BASE
-
-  const base = TILE_BASE.replace("#", "")
-  const channel = (at: number) =>
-    Math.round(parse(clean, at) * TILE_MIX + parse(base, at) * (1 - TILE_MIX))
-      .toString(16)
-      .padStart(2, "0")
-
-  return `#${channel(0)}${channel(2)}${channel(4)}`
-}
-
 export function ChannelLogo({
   uri,
   recyclingKey,
@@ -71,17 +33,13 @@ export function ChannelLogo({
   const { colors } = useTheme()
 
   /**
-   * The tile takes the logo's own colour.
+   * The tile continues the logo's own background, where it has one.
    *
-   * Most channel logos are a mark with no background of their own, so they were
-   * sitting on the same near-black square as every other channel and a list of
-   * them read as identical. Colouring the tile is what makes a row recognisable
-   * before the name is read — and it is the tile rather than the whole row,
-   * because the row carries text that a saturated wash would fight with.
-   *
-   * The stored value is the channel's hue; mixOverBase decides how much of it
-   * reaches the tile. Blending at render rather than at extraction means that
-   * balance can be changed without re-decoding every logo in the cache.
+   * Used as it is rather than blended, because the point is for the artwork and
+   * the tile to become a single shape: Mississauga's blue square stops looking
+   * like a square inside a tile and starts looking like a blue tile. A logo
+   * with nothing to continue returns null and keeps the neutral base, which is
+   * what a floating mark needs behind it anyway.
    */
   const tint = useLogoColor(uri)
 
@@ -97,7 +55,7 @@ export function ChannelLogo({
         padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: tint ? mixOverBase(tint) : TILE_BASE,
+        backgroundColor: tint ?? TILE_BASE,
       }}
     >
       {uri ? (

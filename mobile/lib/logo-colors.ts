@@ -43,24 +43,57 @@ const memory = new Map<string, string | null>()
 /** Logos already being worked on, so ten rows sharing one do not queue ten decodes. */
 const inFlight = new Map<string, Promise<string | null>>()
 
+/** Perceived lightness, 0 to 1. */
+function luminance(hex: string) {
+  const clean = hex.replace("#", "")
+  if (clean.length < 6) return 0
+  const at = (i: number) => parseInt(clean.slice(i, i + 2), 16)
+  return (0.299 * at(0) + 0.587 * at(2) + 0.114 * at(4)) / 255
+}
+
 /**
- * The channel's hue. Not the tile colour — that is derived from this at render.
+ * Above this, a logo is taken to have a background of its own.
  *
- * Vibrant, because it is the most identifiable thing about a logo: the hue that
- * makes a row read as TSN or C-SPAN before the name is. Its lightness is not
- * used, so it does not matter that vibrant is often the colour the mark itself
- * is made of; see mixOverBase in ChannelLogo for what happens to it.
+ * Low, because the test is "did anything at all fill this image" rather than
+ * "is it bright" — a mark covering a fifth of a transparent canvas still lands
+ * well under it.
+ */
+const OPAQUE_ABOVE = 0.18
+
+/**
+ * The tile colour, or null to leave the tile alone.
+ *
+ * Two kinds of logo, and they want opposite things. One arrives as a finished
+ * tile — Mississauga's is a blue square with a white mark on it — and the right
+ * move is to continue that colour outwards so the artwork and the tile become
+ * one shape. The other is a bare mark on transparency, like TSN's, and there is
+ * no background to continue: colouring behind it only risks the tile creeping
+ * towards the colour the mark is made of.
+ *
+ * Telling them apart falls out of how this library computes `average`. It sums
+ * red, green and blue over every pixel and never consults alpha, so the
+ * transparent parts of a PNG count as black and drag the average down. A
+ * floating mark therefore reads very dark; a logo that fills its own canvas
+ * does not.
+ *
+ * A logo with a genuinely dark background — CP24's — reads dark too and is left
+ * neutral. That is the right answer by accident and by intent: its own black
+ * sits on the near-black tile without a seam either way.
  */
 function pickColor(
   result: Awaited<ReturnType<NonNullable<GetColors>>>,
 ): string | null {
-  if (result.platform === "android") {
-    return result.vibrant || result.darkVibrant || result.dominant || null
+  if (result.platform !== "android") {
+    // iOS reports a background swatch directly rather than an average, so there
+    // is nothing to infer from; taking it at its word is the closest equivalent.
+    return result.platform === "ios" ? result.background || null : null
   }
-  if (result.platform === "ios") {
-    return result.primary || result.detail || null
-  }
-  return result.vibrant || result.darkVibrant || result.dominant || null
+
+  if (luminance(result.average) < OPAQUE_ABOVE) return null
+
+  // Dominant rather than vibrant: what is wanted here is the colour the logo
+  // is sitting on, which is the most populous one, not the most colourful.
+  return result.dominant || null
 }
 
 async function readStored(url: string) {

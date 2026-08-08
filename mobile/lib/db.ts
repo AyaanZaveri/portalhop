@@ -72,10 +72,9 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // rather than a DROP because the table was created moments ago in the
     // statement above and dropping it here would leave nothing to write to.
     //
-    // Bump this whenever pickColor changes which swatch it keeps. It does not
-    // need bumping to change how that swatch is used: the tile blends at render
-    // precisely so its balance can be tuned without re-decoding anything.
-    if (version < 4) {
+    // Bump this whenever pickColor changes what it decides — which swatch it
+    // keeps, or when it keeps one at all.
+    if (version < 5) {
       await handle.execAsync("DELETE FROM logo_color;")
     }
 
@@ -111,8 +110,8 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // Set once, outside the branches. Inside the version-2 block it would never
     // run for a database already at 2, so the colour table would be emptied on
     // every launch from then on.
-    if (version < 4) {
-      await handle.execAsync("PRAGMA user_version = 4;")
+    if (version < 5) {
+      await handle.execAsync("PRAGMA user_version = 5;")
     }
 
     return handle
