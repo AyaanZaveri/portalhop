@@ -49,8 +49,18 @@ import kotlin.math.sin
  */
 class LogoAnalysisModule : Module() {
   private companion object {
-    /** Crisp on a 66x44 tile at 3x, and still cheap to walk. */
-    const val TARGET = 256
+    /**
+     * The longest edge the analysed copy is kept at.
+     *
+     * 256 was sized for drawing the canvas into a 66x44 tile at 3x, and that
+     * stopped being the whole story once the tile started sizing the artwork
+     * instead. A logo whose mark is 40% of its canvas is now drawn with the
+     * canvas well outside the tile, so the pixels that matter are a fraction of
+     * what is stored: Mississauga needs a canvas around 280px tall on a 3.5x
+     * screen to put 112px of mark on the tile, and at 256 it was being
+     * upscaled. Four times the pixels, still around a megabyte to walk.
+     */
+    const val TARGET = 512
 
     const val CLEAR = 0
     const val MARK = 1

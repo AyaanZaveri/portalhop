@@ -40,6 +40,38 @@ const PLAIN: LogoStyle = {}
 const memory = new Map<string, LogoStyle>()
 const inFlight = new Map<string, Promise<LogoStyle>>()
 
+/**
+ * Every decision ever made, read in one query at startup.
+ *
+ * Storing the answers was never the problem — they were already in SQLite and
+ * being found. The problem was that each row asked for its own, so a cold
+ * launch fired one SELECT per visible logo and every one of them resolved a
+ * frame or more after the row had already painted. The list appeared in its
+ * fallback colours and then corrected itself a moment later, which read as the
+ * app changing its mind rather than as loading.
+ *
+ * One scan of a small table is cheaper than fifteen indexed lookups and, more
+ * to the point, it finishes before the catalogue does — so the first paint has
+ * the answers already.
+ */
+const warm = (async () => {
+  try {
+    const handle = await db
+    const rows = await handle.getAllAsync<{ url: string; style: string }>(
+      "SELECT url, style FROM logo_style",
+    )
+    for (const row of rows) {
+      try {
+        memory.set(row.url, JSON.parse(row.style) as LogoStyle)
+      } catch {
+        // One unreadable row is not worth losing the rest of the table over.
+      }
+    }
+  } catch {
+    // Falls back to asking per logo, which is what it did before.
+  }
+})()
+
 async function readStored(url: string) {
   const handle = await db
   const row = await handle.getFirstAsync<{ style: string }>(
@@ -73,6 +105,12 @@ async function store(url: string, style: LogoStyle) {
  * first.
  */
 async function resolve(url: string): Promise<LogoStyle> {
+  // Nothing is decided until the stored answers are in, or a logo already known
+  // would be analysed a second time on every launch.
+  await warm
+  const known = memory.get(url)
+  if (known) return known
+
   const stored = await readStored(url)
   if (stored) {
     memory.set(url, stored)

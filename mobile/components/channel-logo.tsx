@@ -137,6 +137,14 @@ export function ChannelLogo({
                 : { width: "100%", height: "100%" }
             }
             contentFit="contain"
+            // The image is deliberately drawn larger than the view it sits in
+            // -- that is how the artwork fills the box while its margin hangs
+            // outside -- and downscaling decodes to the view instead, so the
+            // part on screen is the part that was thrown away. It showed as
+            // logos soft in the list and sharp on the player, which is the same
+            // tile: the list recycles, so a bitmap decoded for one row's layout
+            // was reused at another's.
+            allowDownscaling={false}
             recyclingKey={recyclingKey}
             // Rows are recycled, and a cross-fade on a recycled row reads as a
             // glitch rather than as loading.
