@@ -95,19 +95,51 @@ class LogoAnalysisModule : Module() {
     const val TILE_LIGHTNESS_MAX = 0.42f
 
     /**
-     * How much of an opaque logo's outer ring must be one colour before that
-     * colour is carried onto the tile.
+     * How much of an opaque logo's outer ring must be its dominant colour before
+     * that colour is carried onto the tile.
      *
      * Artwork that fills its own canvas is a finished tile, and when its edge is
      * a flat colour the surrounding tile can simply continue it, so the two read
-     * as one shape rather than a square sitting in a box. Measured, Mississauga
-     * scores 1.00 and Sky Sports 0.98, while Game Show Network scores 0.00 and
-     * SAB 0.01 — there is nothing in between to get wrong.
+     * as one shape rather than a square sitting in a box.
+     *
+     * Lower than it looks, because it is measured against the ring's dominant
+     * colour rather than its average. Virgin One is a red wordmark on white that
+     * runs out to the edge on both sides: against the average — which its own
+     * red drags to pink — it scores 0.04, and against the white it is actually
+     * made of, 0.62.
+     *
+     * 0.60 is also where the genuinely two-coloured edges fall out on their own.
+     * WCSH is a navy band over a lighter blue and scores 0.57, and continuing
+     * the navy leaves the lighter block floating mid-tile looking like a
+     * mistake — worse than the neutral tile it gets instead.
      */
-    const val BORDER_UNIFORM_ABOVE = 0.90
+    const val BORDER_MAJORITY_ABOVE = 0.60
 
     /** How close two colours must be to count as the same along that ring. */
     const val BORDER_TOLERANCE = 28
+
+    /** How coarsely ring colours are bucketed when looking for the dominant one. */
+    const val BORDER_BUCKET = 24
+
+    /**
+     * When a logo of several hues should sit on paper rather than on the tile.
+     *
+     * Its colours are what identify it, so it is never redrawn -- but the
+     * wordmark beside it is not coloured, and when that ink is dark it is
+     * invisible against the near-black tile. KFOR and WDIV are the peacock over
+     * a black "NBC": four tenths of their ink is uncoloured and half of that is
+     * dark. Nothing is redrawn for this; the tile is simply turned the other way
+     * up.
+     *
+     * The share test is what keeps it off marks that have no wordmark to save.
+     * BabyTV is almost entirely coloured -- 0.02 uncoloured -- and belongs on
+     * the dark tile it already has.
+     */
+    const val WORDMARK_SHARE_ABOVE = 0.15
+    const val WORDMARK_DARK_ABOVE = 0.40
+
+    /** The tile for a coloured mark whose lettering is dark. */
+    const val TILE_PAPER = 0xFFFAFAFA.toInt()
 
     /**
      * How much of a colourless mark must be dark before it is turned white.
@@ -188,6 +220,11 @@ class LogoAnalysisModule : Module() {
     var bestSaturation = 0f
     var accent = 0
 
+    // Uncoloured ink, split by lightness. This is the wordmark next to a
+    // coloured mark, and whether it is dark decides which way up the tile goes.
+    var achromatic = 0
+    var achromaticDark = 0
+
     val hsl = FloatArray(3)
 
     for (i in pixels.indices) {
@@ -215,6 +252,9 @@ class LogoAnalysisModule : Module() {
           bestSaturation = saturation
           accent = pixel
         }
+      } else {
+        achromatic++
+        if (lightness < DARK_INK_LIGHTNESS) achromaticDark++
       }
     }
 
@@ -228,7 +268,7 @@ class LogoAnalysisModule : Module() {
     // but where its edge is a flat colour the tile can continue it, so the two
     // read as one shape instead of a square sitting inside a box.
     if (transparentFraction < OPAQUE_BELOW) {
-      val border = uniformBorder(pixels, width, height)
+      val border = dominantBorder(pixels, width, height)
       // Measured against the border colour rather than transparency: filled
       // artwork has none, and its margin is that flat colour.
       return if (border == null) plain() + frame(pixels, width, height, null)
@@ -236,7 +276,19 @@ class LogoAnalysisModule : Module() {
         frame(pixels, width, height, border)
     }
 
-    if (hueSpread > MULTI_HUE_ABOVE) return plain() + frame(pixels, width, height, null)
+    if (hueSpread > MULTI_HUE_ABOVE) {
+      // Several hues, so the mark keeps its colours -- but if the lettering
+      // beside them is dark, the tile has to be light or the name cannot be
+      // read. The image itself is untouched, so no copy is written.
+      val hasWordmark = opaque > 0 && achromatic.toDouble() / opaque >= WORDMARK_SHARE_ABOVE
+      val darkWordmark =
+        achromatic > 0 && achromaticDark.toDouble() / achromatic >= WORDMARK_DARK_ABOVE
+      if (hasWordmark && darkWordmark) {
+        return mapOf("kind" to "prepared", "color" to hex(TILE_PAPER)) +
+          frame(pixels, width, height, null)
+      }
+      return plain() + frame(pixels, width, height, null)
+    }
 
     // A mark with no colour in it has no colour to put behind it — but if the
     // ink is dark it is invisible against the near-black tile, and that is the
@@ -433,13 +485,23 @@ class LogoAnalysisModule : Module() {
   }
 
   /**
-   * The colour of the outer ring, when the ring is all one colour.
+   * The colour the outer ring is mostly made of, when one colour holds it.
+   *
+   * Averaging the ring was the first attempt and is not robust: a wordmark
+   * running out to the edge puts a few of its own pixels in the sample, and the
+   * average moves to a colour that is nowhere on the edge at all. Virgin One is
+   * red on white and averaged to pink; nothing then matched the pink, so a logo
+   * with an obvious white background was read as having no background.
+   *
+   * Bucketing and taking the heaviest bucket asks a different question -- what
+   * is this edge mostly made of -- and the intruders lose the vote instead of
+   * shifting the answer.
    *
    * Two pixels deep rather than one: the outermost row of a scaled bitmap is
    * often a blend with whatever was outside it, and sampling only that would
    * report an edge as varied when the artwork behind it is flat.
    */
-  private fun uniformBorder(pixels: IntArray, width: Int, height: Int): Int? {
+  private fun dominantBorder(pixels: IntArray, width: Int, height: Int): Int? {
     val ring = ArrayList<Int>()
     for (x in 0 until width) {
       for (y in intArrayOf(0, 1, height - 2, height - 1)) {
@@ -459,28 +521,51 @@ class LogoAnalysisModule : Module() {
     }
     if (ring.isEmpty()) return null
 
+    // Bucket first, so the intruders are outvoted rather than averaged in.
+    val buckets = HashMap<Int, Int>()
+    for (p in ring) {
+      val key =
+        (Color.red(p) / BORDER_BUCKET shl 16) or
+          (Color.green(p) / BORDER_BUCKET shl 8) or
+          (Color.blue(p) / BORDER_BUCKET)
+      buckets[key] = (buckets[key] ?: 0) + 1
+    }
+    val heaviest = buckets.maxByOrNull { it.value }?.key ?: return null
+
+    // Averaged within the winning bucket only. The bucket is coarse enough to
+    // group a colour with its own anti-aliasing, and its members are all within
+    // one step of each other, so this cannot drift the way the ring's own
+    // average does.
     var r = 0L
     var g = 0L
     var b = 0L
+    var members = 0
     for (p in ring) {
+      val key =
+        (Color.red(p) / BORDER_BUCKET shl 16) or
+          (Color.green(p) / BORDER_BUCKET shl 8) or
+          (Color.blue(p) / BORDER_BUCKET)
+      if (key != heaviest) continue
       r += Color.red(p)
       g += Color.green(p)
       b += Color.blue(p)
+      members++
     }
-    val average = Color.rgb((r / ring.size).toInt(), (g / ring.size).toInt(), (b / ring.size).toInt())
+    if (members == 0) return null
+    val dominant = Color.rgb((r / members).toInt(), (g / members).toInt(), (b / members).toInt())
 
     var near = 0
     for (p in ring) {
       val delta =
         maxOf(
-          Math.abs(Color.red(p) - Color.red(average)),
-          Math.abs(Color.green(p) - Color.green(average)),
-          Math.abs(Color.blue(p) - Color.blue(average)),
+          Math.abs(Color.red(p) - Color.red(dominant)),
+          Math.abs(Color.green(p) - Color.green(dominant)),
+          Math.abs(Color.blue(p) - Color.blue(dominant)),
         )
       if (delta < BORDER_TOLERANCE) near++
     }
 
-    return if (near.toDouble() / ring.size >= BORDER_UNIFORM_ABOVE) average else null
+    return if (near.toDouble() / ring.size >= BORDER_MAJORITY_ABOVE) dominant else null
   }
 
   /** Pulls a colour down to the tile ceiling, keeping its hue and saturation. */

@@ -77,7 +77,7 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // stored row points at a redrawn PNG by path, so raising the resolution
     // those are written at changes nothing until the rows naming the old files
     // are gone.
-    if (version < 14) {
+    if (version < 15) {
       await handle.execAsync("DELETE FROM logo_style;")
     }
 
@@ -113,8 +113,8 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // Set once, outside the branches. Inside the version-2 block it would never
     // run for a database already at 2, so the colour table would be emptied on
     // every launch from then on.
-    if (version < 14) {
-      await handle.execAsync("PRAGMA user_version = 14;")
+    if (version < 15) {
+      await handle.execAsync("PRAGMA user_version = 15;")
     }
 
     return handle
