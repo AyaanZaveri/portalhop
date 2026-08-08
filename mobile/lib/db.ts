@@ -38,15 +38,15 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
       -- Lets a stale feed be replaced by feed name without a table scan.
       CREATE INDEX IF NOT EXISTS epg_slot_feed ON epg_slot (feed);
 
-      -- One row per logo, keyed by its URL. Extracting a colour means
-      -- downloading and decoding the image, so it is done once per logo ever
+      -- One row per logo, keyed by its URL. Deciding how a logo should be
+      -- presented means decoding it, so the answer is kept once per logo ever
       -- rather than once per launch — a catalogue of tens of thousands would
       -- otherwise redo the work every time the list was scrolled.
-      CREATE TABLE IF NOT EXISTS logo_color (
+      CREATE TABLE IF NOT EXISTS logo_style (
         url TEXT PRIMARY KEY NOT NULL,
-        -- Null is a real answer: a logo we looked at and found nothing usable
-        -- in. Stored so it is not retried on every scroll.
-        color TEXT
+        -- The decision as JSON. "Leave it alone" is a real answer and is stored
+        -- like any other, so it is not reconsidered on every pass.
+        style TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS epg_feed (
@@ -74,8 +74,8 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     //
     // Bump this whenever pickColor changes what it decides — which swatch it
     // keeps, or when it keeps one at all.
-    if (version < 7) {
-      await handle.execAsync("DELETE FROM logo_color;")
+    if (version < 8) {
+      await handle.execAsync("DROP TABLE IF EXISTS logo_color;")
     }
 
     if (version < 2) {
@@ -110,8 +110,8 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // Set once, outside the branches. Inside the version-2 block it would never
     // run for a database already at 2, so the colour table would be emptied on
     // every launch from then on.
-    if (version < 7) {
-      await handle.execAsync("PRAGMA user_version = 7;")
+    if (version < 8) {
+      await handle.execAsync("PRAGMA user_version = 8;")
     }
 
     return handle

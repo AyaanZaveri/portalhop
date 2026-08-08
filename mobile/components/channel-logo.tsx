@@ -3,6 +3,7 @@ import { Image } from "expo-image"
 import { Tv } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
+import { useLogoStyle } from "@/lib/logo-style"
 
 /**
  * The logo tile, in the one shape every screen shows it.
@@ -19,7 +20,7 @@ export const CHANNEL_LOGO_HEIGHT = 44
 export const CHANNEL_LOGO_WIDTH = 66
 
 /**
- * One tile colour for every channel.
+ * The tile when a logo is left as drawn.
  *
  * Colouring this from the logo was tried at length and abandoned. A logo is
  * usually a coloured mark on transparency, so any colour drawn from it is a
@@ -41,6 +42,22 @@ export function ChannelLogo({
 }) {
   const { colors } = useTheme()
 
+  /**
+   * Two treatments, decided by measuring the logo rather than guessing.
+   *
+   * A single-hue mark on transparency is flattened to white and set on its own
+   * colour — TSN's red, CNN's red, HGTV's green. That is the treatment worth
+   * having: the tile becomes the channel's colour and the mark stays perfectly
+   * legible on it, because it is white by then rather than the same red as the
+   * tile. Every earlier attempt failed on exactly that collision.
+   *
+   * Everything else is left alone. A mark of several hues would be destroyed by
+   * flattening — the NBC peacock is its colours — and artwork that already
+   * fills its canvas is a finished tile that wants nothing done to it.
+   */
+  const style = useLogoStyle(uri)
+  const tinted = style.kind === "tinted"
+
   return (
     <View
       className="items-center justify-center overflow-hidden border"
@@ -53,7 +70,7 @@ export function ChannelLogo({
         padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: TILE_BASE,
+        backgroundColor: tinted ? style.color : TILE_BASE,
       }}
     >
       {uri ? (
@@ -64,6 +81,9 @@ export function ChannelLogo({
           // overflow-hidden alone leaves square corners on the logo.
           style={{ width: "100%", height: "100%", borderRadius: 6 }}
           contentFit="contain"
+          // Every non-transparent pixel becomes white, so the mark reads as a
+          // silhouette on the channel's colour.
+          tintColor={tinted ? "#fff" : undefined}
           recyclingKey={recyclingKey}
           // Rows are recycled, and a cross-fade on a recycled row reads as a
           // glitch rather than as loading.
