@@ -3,6 +3,7 @@ import { Image } from "expo-image"
 import { Tv } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
+import { useLogoColor } from "@/lib/logo-colors"
 
 /**
  * The logo tile, in the one shape every screen shows it.
@@ -28,6 +29,20 @@ export function ChannelLogo({
 }) {
   const { colors } = useTheme()
 
+  /**
+   * The tile takes the logo's own colour.
+   *
+   * Most channel logos are a mark with no background of their own, so they were
+   * sitting on the same near-black square as every other channel and a list of
+   * them read as identical. Colouring the tile is what makes a row recognisable
+   * before the name is read — and it is the tile rather than the whole row,
+   * because the row carries text that a saturated wash would fight with.
+   *
+   * Full strength, not a wash: the logo is drawn over it with padding, so this
+   * is the mark's own backdrop rather than a tint over content.
+   */
+  const tint = useLogoColor(uri)
+
   return (
     <View
       className="items-center justify-center overflow-hidden border"
@@ -37,7 +52,7 @@ export function ChannelLogo({
         padding: 5,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: "#18181b",
+        backgroundColor: tint ?? "#18181b",
       }}
     >
       {uri ? (
