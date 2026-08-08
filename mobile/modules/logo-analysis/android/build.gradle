@@ -1,10 +1,18 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
-apply plugin: 'expo-module-gradle-plugin'
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
 
 group = 'expo.modules.logoanalysis'
 version = '0.1.0'
 
 android {
   namespace "expo.modules.logoanalysis"
+  defaultConfig {
+    // Both required: expo-module-gradle-plugin reads them while configuring the
+    // project and fails outright without them. The Kotlin plugin is not applied
+    // by hand either — the Expo plugin brings it.
+    versionCode 1
+    versionName '0.1.0'
+  }
 }

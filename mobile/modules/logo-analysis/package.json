@@ -1,0 +1,7 @@
+{
+  "name": "logo-analysis",
+  "version": "0.1.0",
+  "description": "Measures a channel logo to decide how it should be presented",
+  "main": "src/index.ts",
+  "private": true
+}
