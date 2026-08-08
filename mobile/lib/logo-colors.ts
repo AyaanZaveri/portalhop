@@ -43,57 +43,32 @@ const memory = new Map<string, string | null>()
 /** Logos already being worked on, so ten rows sharing one do not queue ten decodes. */
 const inFlight = new Map<string, Promise<string | null>>()
 
-/** Perceived lightness, 0 to 1. */
-function luminance(hex: string) {
-  const clean = hex.replace("#", "")
-  if (clean.length < 6) return 0
-  const at = (i: number) => parseInt(clean.slice(i, i + 2), 16)
-  return (0.299 * at(0) + 0.587 * at(2) + 0.114 * at(4)) / 255
-}
-
 /**
- * Above this, a logo is taken to have a background of its own.
+ * A backdrop for the logo, which is not the same as the logo's own colour.
  *
- * Low, because the test is "did anything at all fill this image" rather than
- * "is it bright" — a mark covering a fifth of a transparent canvas still lands
- * well under it.
- */
-const OPAQUE_ABOVE = 0.18
-
-/**
- * The tile colour, or null to leave the tile alone.
+ * The dark swatches, because Palette intends them as backgrounds for light
+ * content: they keep the channel's hue while staying clear of whatever colour
+ * the mark itself is made of. Vibrant is the tempting one and it fails, since
+ * most logos are a coloured mark on transparency and vibrant returns the very
+ * colour the mark is drawn in — a red mark on its own red.
  *
- * Two kinds of logo, and they want opposite things. One arrives as a finished
- * tile — Mississauga's is a blue square with a white mark on it — and the right
- * move is to continue that colour outwards so the artwork and the tile become
- * one shape. The other is a bare mark on transparency, like TSN's, and there is
- * no background to continue: colouring behind it only risks the tile creeping
- * towards the colour the mark is made of.
- *
- * Telling them apart falls out of how this library computes `average`. It sums
- * red, green and blue over every pixel and never consults alpha, so the
- * transparent parts of a PNG count as black and drag the average down. A
- * floating mark therefore reads very dark; a logo that fills its own canvas
- * does not.
- *
- * A logo with a genuinely dark background — CP24's — reads dark too and is left
- * neutral. That is the right answer by accident and by intent: its own black
- * sits on the near-black tile without a seam either way.
+ * Inferring whether a logo has a background of its own, and continuing it where
+ * it does, was tried and does not work. The only signal available is the average
+ * across all pixels with alpha ignored, and PNGs routinely store colour data
+ * underneath fully transparent pixels — so that average reports what the
+ * exporter left in the file rather than what is visible. It read TSN's logo as a
+ * solid red image and Mississauga's blue square as empty, which is backwards.
  */
 function pickColor(
   result: Awaited<ReturnType<NonNullable<GetColors>>>,
 ): string | null {
-  if (result.platform !== "android") {
-    // iOS reports a background swatch directly rather than an average, so there
-    // is nothing to infer from; taking it at its word is the closest equivalent.
-    return result.platform === "ios" ? result.background || null : null
+  if (result.platform === "android") {
+    return result.darkVibrant || result.darkMuted || null
   }
-
-  if (luminance(result.average) < OPAQUE_ABOVE) return null
-
-  // Dominant rather than vibrant: what is wanted here is the colour the logo
-  // is sitting on, which is the most populous one, not the most colourful.
-  return result.dominant || null
+  if (result.platform === "ios") {
+    return result.background || null
+  }
+  return result.darkVibrant || result.darkMuted || null
 }
 
 async function readStored(url: string) {
