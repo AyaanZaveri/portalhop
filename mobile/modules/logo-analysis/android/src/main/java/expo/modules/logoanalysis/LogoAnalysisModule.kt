@@ -83,6 +83,43 @@ class LogoAnalysisModule : Module() {
      * pink — while giving the white something to sit on.
      */
     const val TILE_LIGHTNESS_MAX = 0.42f
+
+    /**
+     * How much of an opaque logo's outer ring must be one colour before that
+     * colour is carried onto the tile.
+     *
+     * Artwork that fills its own canvas is a finished tile, and when its edge is
+     * a flat colour the surrounding tile can simply continue it, so the two read
+     * as one shape rather than a square sitting in a box. Measured, Mississauga
+     * scores 1.00 and Sky Sports 0.98, while Game Show Network scores 0.00 and
+     * SAB 0.01 — there is nothing in between to get wrong.
+     */
+    const val BORDER_UNIFORM_ABOVE = 0.90
+
+    /** How close two colours must be to count as the same along that ring. */
+    const val BORDER_TOLERANCE = 28
+
+    /**
+     * How much of a colourless mark must be dark before it is turned white.
+     *
+     * A black wordmark on the near-black tile is invisible, which is the one
+     * case where leaving a logo alone is worse than touching it. ABC's mark
+     * measures 0.70 dark; CP24, HBO and AMC are drawn white already and measure
+     * 0.00.
+     */
+    const val DARK_INK_ABOVE = 0.35
+
+    /** Below this a pixel counts as dark ink rather than light. */
+    const val DARK_INK_LIGHTNESS = 0.45f
+
+    /**
+     * The tile a logo sits on when it contributes no colour of its own.
+     *
+     * Kept in step with TILE_BASE in components/channel-logo.tsx. It is used to
+     * fill the holes in a whitened mark, and those holes have to match the tile
+     * behind them or they read as grey blocks rather than as cutouts.
+     */
+    const val TILE_BASE = 0xFF18181B.toInt()
   }
 
   override fun definition() = ModuleDefinition {
@@ -97,7 +134,16 @@ class LogoAnalysisModule : Module() {
   private fun plain(): Map<String, Any?> = mapOf("kind" to "plain")
 
   private fun decode(url: String): Bitmap? {
-    val bytes = URL(url).openStream().use { it.readBytes() }
+    // Timeouts, because several of these hosts are bare IPs over plain HTTP and
+    // one that stops answering would otherwise hold the request open
+    // indefinitely — blocking the logo behind it rather than failing and moving
+    // on.
+    val connection =
+      URL(url).openConnection().apply {
+        connectTimeout = 8_000
+        readTimeout = 8_000
+      }
+    val bytes = connection.getInputStream().use { it.readBytes() }
 
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -168,18 +214,43 @@ class LogoAnalysisModule : Module() {
       if (hueCount < 20) 0.0 else 1.0 - hypot(hueX / hueCount, hueY / hueCount)
     val colorfulFraction = if (opaque == 0) 0.0 else hueCount.toDouble() / opaque
 
-    if (
-      transparentFraction < OPAQUE_BELOW ||
-      hueSpread > MULTI_HUE_ABOVE ||
-      colorfulFraction < NEEDS_COLOR_ABOVE ||
-      hueCount == 0
-    ) {
-      return plain()
+    // Artwork that fills its own canvas is already a tile. Nothing is redrawn,
+    // but where its edge is a flat colour the tile can continue it, so the two
+    // read as one shape instead of a square sitting inside a box.
+    if (transparentFraction < OPAQUE_BELOW) {
+      val border = uniformBorder(pixels, width, height)
+      return if (border == null) plain()
+      else mapOf("kind" to "prepared", "uri" to url, "color" to hex(border))
     }
 
-    // Darkened before it is used anywhere: the holes are painted with it and
-    // the tile is set to it, and both need the white mark to read against them.
-    val tile = darken(accent)
+    if (hueSpread > MULTI_HUE_ABOVE) return plain()
+
+    // A mark with no colour in it has no colour to put behind it — but if the
+    // ink is dark it is invisible against the near-black tile, and that is the
+    // one case where leaving a logo alone is worse than touching it. Turning it
+    // white costs nothing, since there is no colour to lose.
+    //
+    // Which is the same redraw as below with a different tile, so it is the same
+    // code: the mark goes white and its enclosed holes take the tile's colour.
+    // Whitening the whole mark and stopping there is what loses ABC's lettering,
+    // exactly as it once lost TSN's "1" — the letters are white already, and a
+    // white disc drawn over them leaves nothing but the disc.
+    val tile: Int
+    if (colorfulFraction < NEEDS_COLOR_ABOVE || hueCount == 0) {
+      var dark = 0
+      for (i in pixels.indices) {
+        if (kind[i] == CLEAR) continue
+        ColorUtils.colorToHSL(pixels[i], hsl)
+        if (hsl[2] < DARK_INK_LIGHTNESS) dark++
+      }
+      if (opaque == 0 || dark.toDouble() / opaque < DARK_INK_ABOVE) return plain()
+      tile = TILE_BASE
+    } else {
+      // Darkened before it is used anywhere: the holes are painted with it and
+      // the tile is set to it, and both need the white mark to read against
+      // them.
+      tile = darken(accent)
+    }
 
     recolorEnclosed(pixels, kind, width, height, tile)
 
@@ -189,17 +260,11 @@ class LogoAnalysisModule : Module() {
       }
     }
 
-    val redrawn = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    redrawn.setPixels(pixels, 0, width, 0, 0, width, height)
-
-    val file = File(cacheDir(), "logo-" + digest(url) + ".png")
-    file.outputStream().use { redrawn.compress(Bitmap.CompressFormat.PNG, 100, it) }
-
-    return mapOf(
-      "kind" to "prepared",
-      "uri" to "file://" + file.absolutePath,
-      "color" to hex(tile),
-    )
+    val uri = write(url, pixels, width, height)
+    // A colourless mark asks for no tile of its own, and saying so lets the tile
+    // stay whatever the app's base happens to be under either theme.
+    return if (tile == TILE_BASE) mapOf("kind" to "prepared", "uri" to uri)
+    else mapOf("kind" to "prepared", "uri" to uri, "color" to hex(tile))
   }
 
   /**
@@ -274,6 +339,65 @@ class LogoAnalysisModule : Module() {
           )
       }
     }
+  }
+
+  private fun write(url: String, pixels: IntArray, width: Int, height: Int): String {
+    val redrawn = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    redrawn.setPixels(pixels, 0, width, 0, 0, width, height)
+    val file = File(cacheDir(), "logo-" + digest(url) + ".png")
+    file.outputStream().use { redrawn.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    return "file://" + file.absolutePath
+  }
+
+  /**
+   * The colour of the outer ring, when the ring is all one colour.
+   *
+   * Two pixels deep rather than one: the outermost row of a scaled bitmap is
+   * often a blend with whatever was outside it, and sampling only that would
+   * report an edge as varied when the artwork behind it is flat.
+   */
+  private fun uniformBorder(pixels: IntArray, width: Int, height: Int): Int? {
+    val ring = ArrayList<Int>()
+    for (x in 0 until width) {
+      for (y in intArrayOf(0, 1, height - 2, height - 1)) {
+        if (y in 0 until height) {
+          val p = pixels[y * width + x]
+          if (Color.alpha(p) > 200) ring.add(p)
+        }
+      }
+    }
+    for (y in 0 until height) {
+      for (x in intArrayOf(0, 1, width - 2, width - 1)) {
+        if (x in 0 until width) {
+          val p = pixels[y * width + x]
+          if (Color.alpha(p) > 200) ring.add(p)
+        }
+      }
+    }
+    if (ring.isEmpty()) return null
+
+    var r = 0L
+    var g = 0L
+    var b = 0L
+    for (p in ring) {
+      r += Color.red(p)
+      g += Color.green(p)
+      b += Color.blue(p)
+    }
+    val average = Color.rgb((r / ring.size).toInt(), (g / ring.size).toInt(), (b / ring.size).toInt())
+
+    var near = 0
+    for (p in ring) {
+      val delta =
+        maxOf(
+          Math.abs(Color.red(p) - Color.red(average)),
+          Math.abs(Color.green(p) - Color.green(average)),
+          Math.abs(Color.blue(p) - Color.blue(average)),
+        )
+      if (delta < BORDER_TOLERANCE) near++
+    }
+
+    return if (near.toDouble() / ring.size >= BORDER_UNIFORM_ABOVE) average else null
   }
 
   /** Pulls a colour down to the tile ceiling, keeping its hue and saturation. */

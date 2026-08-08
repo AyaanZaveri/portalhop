@@ -69,7 +69,7 @@ export function ChannelLogo({
         padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: prepared ? prepared.color : TILE_BASE,
+        backgroundColor: prepared?.color ?? TILE_BASE,
       }}
     >
       {uri ? (

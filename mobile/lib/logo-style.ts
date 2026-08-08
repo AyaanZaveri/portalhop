@@ -14,8 +14,16 @@ import { db } from "./db"
  *            finished tile in its own right.
  */
 export type LogoStyle =
-  /** A redrawn copy of the logo, and the colour its tile should take. */
-  | { kind: "prepared"; uri: string; color: string }
+  /**
+   * The image to draw, and the colour its tile should take.
+   *
+   * The image may be a redrawn copy or the original — artwork that already
+   * fills its canvas is not touched, and only contributes the colour its edge
+   * should be continued in. The colour may be absent, for a mark that was
+   * turned white because its ink was too dark to see but had no colour to
+   * offer.
+   */
+  | { kind: "prepared"; uri: string; color?: string }
   /** Draw the original, on the neutral tile. */
   | { kind: "plain" }
 
