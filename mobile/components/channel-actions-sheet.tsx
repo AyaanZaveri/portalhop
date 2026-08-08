@@ -1,15 +1,15 @@
 import { forwardRef } from "react"
 import { Text, View } from "react-native"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
-import { Image } from "expo-image"
 import * as Haptics from "expo-haptics"
-import { FolderHeart, FolderPlus, Star, Tv } from "lucide-react-native"
+import { FolderHeart, FolderPlus, Star } from "lucide-react-native"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
 import type { FavoriteGroup } from "@/lib/filters"
 import { useToggleFavorite } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
+import { ChannelLogo } from "@/components/channel-logo"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { Sheet } from "@/components/ui/sheet"
 
@@ -55,25 +55,7 @@ export const ChannelActionsSheet = forwardRef<
             {/* The same identity block the row shows, so it is obvious which
                 channel the actions below are about. */}
             <View className="flex-row items-center gap-3 pb-4">
-              <View
-                className="size-11 items-center justify-center overflow-hidden border p-1"
-                style={{
-                  borderRadius: 10,
-                  borderColor: colors.border,
-                  backgroundColor: "#18181b",
-                }}
-              >
-                {logo ? (
-                  <Image
-                    source={{ uri: logo }}
-                    style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                    contentFit="contain"
-                    transition={0}
-                  />
-                ) : (
-                  <Tv size={18} color={colors["muted-foreground"]} />
-                )}
-              </View>
+              <ChannelLogo uri={logo} />
 
               <View className="min-w-0 flex-1">
                 <Text

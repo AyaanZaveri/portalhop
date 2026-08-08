@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { ScrollView, Text, View } from "react-native"
-import { Image } from "expo-image"
 import { router, useLocalSearchParams } from "expo-router"
 import { ChevronLeft, Tv } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -10,6 +9,7 @@ import { useSession } from "@/lib/auth"
 import { usePortals } from "@/lib/channels"
 
 import { CategoryVisual } from "@/components/category-visual"
+import { ChannelLogo } from "@/components/channel-logo"
 import { ChannelPlayer } from "@/components/channel-player"
 import { ChannelSchedule } from "@/components/channel-schedule"
 import { PressableScale } from "@/components/ui/pressable-scale"
@@ -71,27 +71,7 @@ export default function ChannelDetailScreen() {
             <ChevronLeft size={22} color={colors.foreground} />
           </PressableScale>
 
-          <View
-            className="size-11 items-center justify-center overflow-hidden border p-1"
-            style={{
-              borderRadius: 10,
-              borderColor: colors.border,
-              backgroundColor: "#18181b",
-            }}
-          >
-            {logo ? (
-              <Image
-                source={{ uri: logo }}
-                // Radius on the image as well as the parent: Android does not
-                // reliably clip a child to a rounded parent.
-                style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                contentFit="contain"
-                transition={0}
-              />
-            ) : (
-              <Tv size={18} color={colors["muted-foreground"]} />
-            )}
-          </View>
+          <ChannelLogo uri={logo} />
 
           <View className="min-w-0 flex-1">
             <Text

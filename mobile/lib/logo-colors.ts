@@ -1,7 +1,26 @@
 import { useEffect, useState } from "react"
-import { getColors } from "react-native-image-colors"
+import { requireOptionalNativeModule } from "expo"
 
 import { db } from "./db"
+
+/**
+ * Whether the running binary contains the colour extractor.
+ *
+ * react-native-image-colors calls requireNativeModule at import time, which
+ * throws outright when the native side is missing — and JavaScript reaches a
+ * development build over the network while native code does not, so an install
+ * from before this was added would fail on the import alone rather than simply
+ * going without tints. Hence the check before the require, and the require
+ * rather than an import.
+ */
+const available = requireOptionalNativeModule("ImageColors") !== null
+
+type GetColors = typeof import("react-native-image-colors").getColors
+
+const getColors: GetColors | null = available
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require("react-native-image-colors").getColors as GetColors)
+  : null
 
 /**
  * The colour a channel's logo is known by, for tinting its row.
@@ -31,7 +50,9 @@ const inFlight = new Map<string, Promise<string | null>>()
  * transparent, so the dominant colour is often the backdrop rather than the
  * brand. Vibrant is the one that reads as "the BBC red" or "the ZDF orange".
  */
-function pickColor(result: Awaited<ReturnType<typeof getColors>>) {
+function pickColor(
+  result: Awaited<ReturnType<NonNullable<GetColors>>>,
+): string | null {
   if (result.platform === "android") {
     return result.vibrant || result.dominant || null
   }
@@ -68,6 +89,7 @@ async function resolve(url: string): Promise<string | null> {
 
   let color: string | null = null
   try {
+    if (!getColors) return null
     // The library keeps its own cache too; the key keeps it aligned with ours
     // rather than keyed on a URL that may be long.
     color = pickColor(await getColors(url, { cache: true, key: url }))
@@ -83,25 +105,31 @@ async function resolve(url: string): Promise<string | null> {
 
 /** Null until known, and null forever for a logo with no usable colour. */
 export function useLogoColor(url: string | undefined) {
-  // Read synchronously when it is already known, so a recycled row paints its
-  // tint on the first frame rather than flashing untinted and correcting.
-  const [color, setColor] = useState<string | null>(() =>
-    url ? (memory.get(url) ?? null) : null,
-  )
+  const cached = available && url ? memory.get(url) : undefined
+
+  // Undefined means "not looked at yet" and null means "looked at, nothing
+  // there" — the difference is what stops a logo with no usable colour being
+  // re-decoded on every pass.
+  const [color, setColor] = useState<string | null | undefined>(cached)
+  const [seen, setSeen] = useState(url)
+
+  // Adjusted during render rather than from an effect. A recycled row is handed
+  // a new channel while mounted, and syncing that in an effect would paint the
+  // previous channel's tint for a frame before correcting it.
+  if (url !== seen) {
+    setSeen(url)
+    setColor(available && url ? memory.get(url) : undefined)
+  }
 
   useEffect(() => {
-    if (!url) {
-      setColor(null)
-      return
-    }
-
-    if (memory.has(url)) {
-      setColor(memory.get(url) ?? null)
-      return
-    }
+    // Nothing to do without the extractor, without a logo, or when the answer
+    // is already known — and nothing set synchronously here either, so the
+    // effect only ever starts work rather than driving a second render.
+    if (!available || !url || memory.has(url)) return
 
     let cancelled = false
-    const task = inFlight.get(url) ?? resolve(url).finally(() => inFlight.delete(url))
+    const task =
+      inFlight.get(url) ?? resolve(url).finally(() => inFlight.delete(url))
     inFlight.set(url, task)
 
     void task.then((found) => {
@@ -113,5 +141,5 @@ export function useLogoColor(url: string | undefined) {
     }
   }, [url])
 
-  return color
+  return color ?? null
 }

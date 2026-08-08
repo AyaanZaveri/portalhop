@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { Platform, ScrollView, Text, View } from "react-native"
 import Sortable from "react-native-sortables"
 import * as Haptics from "expo-haptics"
 import { GripVertical } from "lucide-react-native"
-import { Image } from "expo-image"
-import { Tv } from "lucide-react-native"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
 import { useReorderChannels } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
+import { ChannelLogo } from "@/components/channel-logo"
 import { CHANNEL_ROW_HEIGHT } from "@/components/channel-row"
 
 /**
@@ -61,11 +60,17 @@ export function ChannelReorderList({
 
   // The dragged order is held locally and shown until the save lands, so the
   // rows do not snap back to the server's order between drop and response.
+  //
+  // Reset during render rather than from an effect: an effect would paint the
+  // stale order first and correct it on a second pass, and React treats this
+  // adjust-state-when-props-change shape as the supported way to do it.
   const [order, setOrder] = useState(channels)
+  const [seen, setSeen] = useState(channels)
 
-  useEffect(() => {
+  if (channels !== seen) {
+    setSeen(channels)
     setOrder(channels)
-  }, [channels])
+  }
 
   const onDragEnd = useCallback(
     ({ data }: { data: PortalChannelWithSource[] }) => {
@@ -87,25 +92,7 @@ export function ChannelReorderList({
           className="mb-0.5 flex-row items-center gap-3 rounded-xl px-2"
           style={{ height: CHANNEL_ROW_HEIGHT }}
         >
-          <View
-            className="size-11 items-center justify-center overflow-hidden border p-1"
-            style={{
-              borderRadius: 10,
-              borderColor: colors.border,
-              backgroundColor: "#18181b",
-            }}
-          >
-            {logo ? (
-              <Image
-                source={{ uri: logo }}
-                style={{ width: "100%", height: "100%", borderRadius: 6 }}
-                contentFit="contain"
-                transition={0}
-              />
-            ) : (
-              <Tv size={18} color={colors["muted-foreground"]} />
-            )}
-          </View>
+          <ChannelLogo uri={logo} recyclingKey={item.id} />
 
           <View className="min-w-0 flex-1">
             <Text
