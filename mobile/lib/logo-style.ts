@@ -6,32 +6,36 @@ import { db } from "./db"
 /**
  * How a channel's logo should be presented.
  *
- *   tinted — a single-hue mark on transparency. Flattened to white and set on
- *            the channel's own colour, which is what makes a row unmistakable
- *            at a glance.
- *   plain  — anything else: a mark of several hues that flattening would
- *            destroy, or artwork that already fills its own canvas and is a
- *            finished tile in its own right.
+ * Every field is optional and every one is independent, because the answers are
+ * independent: a logo can be redrawn without offering a colour, offer a colour
+ * without being redrawn, and report its shape either way. An empty object is
+ * the honest description of "draw it as it came", so there is no separate kind
+ * for it.
  */
-export type LogoStyle =
+export type LogoStyle = {
+  /** A redrawn copy to draw instead of the original, where one was made. */
+  uri?: string
+  /** The colour the tile should take, where the logo offers one. */
+  color?: string
+  /** The image's own width over its height, needed to lay the artwork out. */
+  aspect?: number
   /**
-   * The image to draw, and the colour its tile should take.
+   * Where the artwork sits inside the image, in fractions of it.
    *
-   * The image may be a redrawn copy or the original — artwork that already
-   * fills its canvas is not touched, and only contributes the colour its edge
-   * should be continued in. The colour may be absent, for a mark that was
-   * turned white because its ink was too dark to see but had no colour to
-   * offer.
+   * Logo files carry wildly different amounts of their own margin, and fitting
+   * the image rather than the artwork passes that straight through: Mississauga
+   * is 30% flat blue above and below its mark and came out a postage stamp,
+   * while CP24 is drawn edge to edge and came out enormous. Given the
+   * rectangle, the tile can size the artwork instead and the two agree.
    */
-  | { kind: "prepared"; uri: string; color?: string }
-  /** Draw the original, on the neutral tile. */
-  | { kind: "plain" }
+  content?: { x: number; y: number; width: number; height: number }
+}
 
 const native = requireOptionalNativeModule<{
-  prepare: (url: string) => Promise<LogoStyle | null>
+  prepare: (url: string) => Promise<(LogoStyle & { kind: string }) | null>
 }>("LogoAnalysis")
 
-const PLAIN: LogoStyle = { kind: "plain" }
+const PLAIN: LogoStyle = {}
 
 const memory = new Map<string, LogoStyle>()
 const inFlight = new Map<string, Promise<LogoStyle>>()
@@ -77,8 +81,12 @@ async function resolve(url: string): Promise<LogoStyle> {
 
   let style: LogoStyle
   try {
-    const prepared = await native!.prepare(url)
-    style = prepared?.kind === "prepared" ? prepared : PLAIN
+    // The native side still labels its verdicts, but nothing here reads the
+    // label any more — the fields say everything — and storing it would put a
+    // dead key in every row.
+    const { kind, ...prepared } = (await native!.prepare(url)) ?? {}
+    void kind
+    style = prepared
   } catch {
     // A failure is not a verdict. This used to fall through to "plain" and then
     // store it, so one timed-out request marked a logo plain for good — which is

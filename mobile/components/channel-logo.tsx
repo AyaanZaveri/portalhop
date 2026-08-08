@@ -3,7 +3,7 @@ import { Image } from "expo-image"
 import { Tv } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
-import { useLogoStyle } from "@/lib/logo-style"
+import { useLogoStyle, type LogoStyle } from "@/lib/logo-style"
 
 /**
  * The logo tile, in the one shape every screen shows it.
@@ -20,17 +20,67 @@ export const CHANNEL_LOGO_HEIGHT = 44
 export const CHANNEL_LOGO_WIDTH = 66
 
 /**
- * The tile when a logo is left as drawn.
+ * The inset, wider than it is tall.
  *
- * Colouring this from the logo was tried at length and abandoned. A logo is
- * usually a coloured mark on transparency, so any colour drawn from it is a
- * colour the mark itself contains — and putting the two together is how a mark
- * disappears. The cases that worked were the ones whose artwork already carried
- * a background, and there is no way to tell those apart from what the palette
- * exposes. The channel's colour now lives on the progress bar, where nothing
- * sits on top of it and no such conflict exists.
+ * Equal padding makes wide marks tower over square ones. A wide mark is fitted
+ * by its width and a square one by its height, so the two are sized by
+ * different edges of the same box — CP24 filled the tile corner to corner while
+ * Game Show Network sat in the middle of it at half the area. Taking the extra
+ * room off the sides is what evens them up: it shrinks exactly the marks that
+ * are fitted by width and leaves room for the ones fitted by height.
+ */
+const PAD_X = 11
+const PAD_Y = 6
+
+/** How far past its natural fit a logo may be scaled to fill the box. */
+const MAX_SCALE = 1.8
+
+/**
+ * The tile when a logo offers no colour of its own.
+ *
+ * Colouring this from the logo unconditionally was tried at length and
+ * abandoned. A logo is usually a coloured mark on transparency, so any colour
+ * drawn from it is a colour the mark itself contains — and putting the two
+ * together is how a mark disappears. It is only safe once the mark has been
+ * redrawn white, which is what the native pass decides.
  */
 const TILE_BASE = "#18181b"
+
+/**
+ * Where to draw the image so its artwork fills the box.
+ *
+ * expo-image can only fit the whole image, margin included, so the layout is
+ * done here: the image is placed at whatever size puts its artwork against the
+ * edges of the box, and the surplus hangs outside and is clipped. There is
+ * nothing to lose to that clipping — the surplus is the logo's own margin,
+ * which is transparent, or the flat colour the tile is already painted.
+ */
+function layout(style: LogoStyle, boxWidth: number, boxHeight: number) {
+  const { aspect, content } = style
+  if (!aspect || !content || content.width <= 0 || content.height <= 0) {
+    return null
+  }
+
+  // What the image would be at its natural fit, which is the ceiling the scale
+  // limit is measured against.
+  const fitted = Math.min(boxWidth, boxHeight * aspect)
+
+  const width = Math.min(
+    Math.min(boxWidth / content.width, (boxHeight / content.height) * aspect),
+    fitted * MAX_SCALE,
+  )
+  const height = width / aspect
+
+  return {
+    width,
+    height,
+    // Centred on the artwork rather than on the image, or a logo whose margin
+    // is lopsided — StarPlus carries all of its on one side — would sit off to
+    // one side of the tile.
+    left: boxWidth / 2 - width * (content.x + content.width / 2),
+    top: boxHeight / 2 - height * (content.y + content.height / 2),
+  }
+}
 
 export function ChannelLogo({
   uri,
@@ -52,10 +102,13 @@ export function ChannelLogo({
    *
    * Whether a logo can take that is decided natively, by measuring it. Anything
    * that cannot — several hues, or artwork that is already a tile — comes back
-   * plain and is drawn exactly as it is.
+   * untouched and is drawn exactly as it is.
    */
   const style = useLogoStyle(uri)
-  const prepared = style.kind === "prepared" ? style : null
+
+  const boxWidth = CHANNEL_LOGO_WIDTH - PAD_X * 2
+  const boxHeight = CHANNEL_LOGO_HEIGHT - PAD_Y * 2
+  const placement = layout(style, boxWidth, boxHeight)
 
   return (
     <View
@@ -63,29 +116,33 @@ export function ChannelLogo({
       style={{
         width: CHANNEL_LOGO_WIDTH,
         height: CHANNEL_LOGO_HEIGHT,
-        // Enough that a logo drawn edge to edge in its own file — CP24's is —
-        // does not touch the tile, and so does not tower over one that carries
-        // its own margin, like TSN's.
-        padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: prepared?.color ?? TILE_BASE,
+        backgroundColor: style.color ?? TILE_BASE,
       }}
     >
       {uri ? (
-        <Image
-          source={{ uri: prepared?.uri ?? uri }}
-          // No radius of its own. It was there because Android does not clip a
-          // child to a rounded parent reliably, but the logo is inset by the
-          // tile's padding and never reaches the corners — so all the radius
-          // did was shave the artwork.
-          style={{ width: "100%", height: "100%" }}
-          contentFit="contain"
-          recyclingKey={recyclingKey}
-          // Rows are recycled, and a cross-fade on a recycled row reads as a
-          // glitch rather than as loading.
-          transition={0}
-        />
+        // The box is its own view so the overhang is clipped to it rather than
+        // to the tile, which would let a scaled-up logo run under the border.
+        <View style={{ width: boxWidth, height: boxHeight, overflow: "hidden" }}>
+          <Image
+            source={{ uri: style.uri ?? uri }}
+            // No radius of its own. It was there because Android does not clip a
+            // child to a rounded parent reliably, but the logo is inset by the
+            // tile's padding and never reaches the corners — so all the radius
+            // did was shave the artwork.
+            style={
+              placement
+                ? { position: "absolute", ...placement }
+                : { width: "100%", height: "100%" }
+            }
+            contentFit="contain"
+            recyclingKey={recyclingKey}
+            // Rows are recycled, and a cross-fade on a recycled row reads as a
+            // glitch rather than as loading.
+            transition={0}
+          />
+        </View>
       ) : (
         <Tv size={18} color={colors["muted-foreground"]} />
       )}

@@ -72,9 +72,10 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // rather than a DROP because the table was created moments ago in the
     // statement above and dropping it here would leave nothing to write to.
     //
-    // Bump this whenever pickColor changes what it decides — which swatch it
-    // keeps, or when it keeps one at all.
-    if (version < 12) {
+    // Bump this whenever the native pass changes what it decides or what it
+    // reports — which swatch it keeps, whether it keeps one at all, or the
+    // shape of the row it writes.
+    if (version < 13) {
       await handle.execAsync("DELETE FROM logo_style;")
     }
 
@@ -110,8 +111,8 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // Set once, outside the branches. Inside the version-2 block it would never
     // run for a database already at 2, so the colour table would be emptied on
     // every launch from then on.
-    if (version < 12) {
-      await handle.execAsync("PRAGMA user_version = 12;")
+    if (version < 13) {
+      await handle.execAsync("PRAGMA user_version = 13;")
     }
 
     return handle

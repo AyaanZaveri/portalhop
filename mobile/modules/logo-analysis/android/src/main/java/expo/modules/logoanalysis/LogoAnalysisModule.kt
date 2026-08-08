@@ -219,11 +219,14 @@ class LogoAnalysisModule : Module() {
     // read as one shape instead of a square sitting inside a box.
     if (transparentFraction < OPAQUE_BELOW) {
       val border = uniformBorder(pixels, width, height)
-      return if (border == null) plain()
-      else mapOf("kind" to "prepared", "uri" to url, "color" to hex(border))
+      // Measured against the border colour rather than transparency: filled
+      // artwork has none, and its margin is that flat colour.
+      return if (border == null) plain() + frame(pixels, width, height, null)
+      else mapOf("kind" to "prepared", "uri" to url, "color" to hex(border)) +
+        frame(pixels, width, height, border)
     }
 
-    if (hueSpread > MULTI_HUE_ABOVE) return plain()
+    if (hueSpread > MULTI_HUE_ABOVE) return plain() + frame(pixels, width, height, null)
 
     // A mark with no colour in it has no colour to put behind it — but if the
     // ink is dark it is invisible against the near-black tile, and that is the
@@ -243,7 +246,10 @@ class LogoAnalysisModule : Module() {
         ColorUtils.colorToHSL(pixels[i], hsl)
         if (hsl[2] < DARK_INK_LIGHTNESS) dark++
       }
-      if (opaque == 0 || dark.toDouble() / opaque < DARK_INK_ABOVE) return plain()
+
+      if (opaque == 0 || dark.toDouble() / opaque < DARK_INK_ABOVE) {
+        return plain() + frame(pixels, width, height, null)
+      }
       tile = TILE_BASE
     } else {
       // Darkened before it is used anywhere: the holes are painted with it and
@@ -260,11 +266,78 @@ class LogoAnalysisModule : Module() {
       }
     }
 
+    // Taken before the redraw only for clarity; the redraw changes colours and
+    // never alpha, so the artwork occupies the same rectangle either way.
+    val shape = frame(pixels, width, height, null)
     val uri = write(url, pixels, width, height)
     // A colourless mark asks for no tile of its own, and saying so lets the tile
     // stay whatever the app's base happens to be under either theme.
-    return if (tile == TILE_BASE) mapOf("kind" to "prepared", "uri" to uri)
-    else mapOf("kind" to "prepared", "uri" to uri, "color" to hex(tile))
+    return shape +
+      if (tile == TILE_BASE) mapOf("kind" to "prepared", "uri" to uri)
+      else mapOf("kind" to "prepared", "uri" to uri, "color" to hex(tile))
+  }
+
+  /**
+   * Where the artwork sits inside its canvas, as fractions of it.
+   *
+   * A logo file's own margin is arbitrary. Mississauga's is 30% flat blue above
+   * and below the mark, so fitting the canvas into the tile hands that margin
+   * straight through and stacks it on top of the tile's own padding -- which is
+   * why that logo came out a postage stamp while CP24, drawn edge to edge in its
+   * file, came out enormous. Reporting the rectangle lets the tile size the
+   * artwork rather than the canvas around it.
+   *
+   * The background to ignore is transparency for most logos and the flat border
+   * colour for filled artwork, which has no transparency to ignore.
+   */
+  private fun frame(
+    pixels: IntArray,
+    width: Int,
+    height: Int,
+    background: Int?,
+  ): Map<String, Any?> {
+    var left = width
+    var top = height
+    var right = -1
+    var bottom = -1
+
+    for (y in 0 until height) {
+      for (x in 0 until width) {
+        val pixel = pixels[y * width + x]
+        val ink =
+          if (background == null) {
+            Color.alpha(pixel) >= 128
+          } else {
+            Color.alpha(pixel) > 128 &&
+              maxOf(
+                Math.abs(Color.red(pixel) - Color.red(background)),
+                Math.abs(Color.green(pixel) - Color.green(background)),
+                Math.abs(Color.blue(pixel) - Color.blue(background)),
+              ) >= BORDER_TOLERANCE
+          }
+        if (!ink) continue
+        if (x < left) left = x
+        if (x > right) right = x
+        if (y < top) top = y
+        if (y > bottom) bottom = y
+      }
+    }
+
+    val aspect = mapOf("aspect" to width.toDouble() / height)
+    // Nothing found means nothing to frame -- a fully transparent image, or
+    // filled artwork that is a single flat colour edge to edge.
+    if (right < left || bottom < top) return aspect
+
+    return aspect +
+      mapOf(
+        "content" to
+          mapOf(
+            "x" to left.toDouble() / width,
+            "y" to top.toDouble() / height,
+            "width" to (right - left + 1).toDouble() / width,
+            "height" to (bottom - top + 1).toDouble() / height,
+          )
+      )
   }
 
   /**
