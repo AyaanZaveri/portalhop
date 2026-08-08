@@ -38,6 +38,17 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
       -- Lets a stale feed be replaced by feed name without a table scan.
       CREATE INDEX IF NOT EXISTS epg_slot_feed ON epg_slot (feed);
 
+      -- One row per logo, keyed by its URL. Extracting a colour means
+      -- downloading and decoding the image, so it is done once per logo ever
+      -- rather than once per launch — a catalogue of tens of thousands would
+      -- otherwise redo the work every time the list was scrolled.
+      CREATE TABLE IF NOT EXISTS logo_color (
+        url TEXT PRIMARY KEY NOT NULL,
+        -- Null is a real answer: a logo we looked at and found nothing usable
+        -- in. Stored so it is not retried on every scroll.
+        color TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS epg_feed (
         key TEXT PRIMARY KEY NOT NULL,
         -- When the fetched window stops covering the clock. Past this the feed

@@ -5,6 +5,7 @@ import { Tv } from "lucide-react-native"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
+import { useLogoColor } from "@/lib/logo-colors"
 import { CategoryVisual } from "@/components/category-visual"
 import { EpgStrip } from "@/components/epg-strip"
 import { useNowPlaying } from "@/components/epg-provider"
@@ -25,9 +26,10 @@ export const ChannelRow = memo(function ChannelRow({
   onPress: (channel: PortalChannelWithSource) => void
   onLongPress: (channel: PortalChannelWithSource) => void
 }) {
-  const { colors } = useTheme()
+  const { colors, isDark } = useTheme()
   const logo = channel.logoUrl || channel.logo
   const programme = useNowPlaying(channel.xmltvId)
+  const tint = useLogoColor(logo)
 
   return (
     <PressableScale
@@ -41,6 +43,32 @@ export const ChannelRow = memo(function ChannelRow({
       // list keeps uniform rows instead of measuring each one.
       style={{ height: CHANNEL_ROW_HEIGHT }}
     >
+      {/* The channel's own colour, pulled from its logo, so a row is
+          recognisable before the name is read.
+
+          Very faint, and fainter in light mode. The row carries a foreground
+          title over a muted category line, and the muted one is what sets the
+          ceiling — a wash strong enough to look deliberate behind the title
+          turns the category to mud. Against a light background a saturated tint
+          also reads much heavier at the same alpha, hence the two values.
+
+          Behind the content rather than on the row itself: opacity on the row
+          would take the text down with it. */}
+      {tint ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            borderRadius: 12,
+            backgroundColor: tint,
+            opacity: isDark ? 0.16 : 0.1,
+          }}
+        />
+      ) : null}
       <View
         className="size-11 items-center justify-center overflow-hidden border p-1"
         style={{
