@@ -7,6 +7,13 @@ dist/
 # built an app without it.
 /android/
 /ios/
+
+# The anchoring above has a cost: it also stops ignoring build output under
+# modules/*/android, which is how 102 files of Gradle cache ended up committed.
+# Named directly so the source stays tracked and the output does not.
+modules/*/android/build/
+modules/*/android/.gradle/
+
 *.log
 
 # @generated expo-cli sync-2b81b286409207a5da26e14c78851eb30d8ccbdb
