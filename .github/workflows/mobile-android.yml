@@ -175,20 +175,27 @@ jobs:
           mv "$src" "$dest"
           echo "path=$dest" >> "$GITHUB_OUTPUT"
 
-      # Kept for per-run history. GitHub always serves artifacts as a zip, which
-      # is why the release job below exists.
-      # Transport between this job and the release job, not the way anyone is
-      # meant to download a build. GitHub always serves artifacts as a zip --
-      # there is no option for anything else -- which is exactly why the
-      # release below exists, and why these expire almost immediately rather
-      # than sitting alongside it looking like the thing to click.
-      - name: Pass the APK to the release job
-        uses: actions/upload-artifact@v5
+      # archive: false is what stops this downloading as a zip. Artifacts were
+      # zipped unconditionally until GitHub added the option in February 2026,
+      # and no compression setting helped -- compression-level: 0 still produces
+      # a zip, just an uncompressed one. It needs upload-artifact v7 or later,
+      # and the download side needs v8.
+      #
+      # Two restrictions come with it, and both happen to suit this job: only a
+      # single file may be uploaded, and the `name` input is ignored because the
+      # artifact takes the file's own name. That name is already
+      # portalhop-<variant>-<sha>.apk, which is what should land in Downloads
+      # anyway.
+      #
+      # Now that these are the file itself rather than a zip to unpack, they are
+      # worth keeping around rather than expiring the next day.
+      - name: Upload the APK
+        uses: actions/upload-artifact@v7
         with:
-          name: portalhop-${{ matrix.variant }}-apk
           path: ${{ steps.apk.outputs.path }}
+          archive: false
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
   # Separate from the matrix on purpose: two concurrent jobs publishing to one
   # tag race each other, and the loser's APK goes missing from the release.
@@ -199,15 +206,21 @@ jobs:
     if: github.ref == 'refs/heads/expo-mobile' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
-    # To attach the APKs to a release, so each downloads as the file itself and
-    # can be tapped and installed straight from a phone with no unzipping.
+    # The release is still worth publishing now that the artifacts are plain
+    # files too: it is one rolling tag with stable names and no expiry, so a
+    # bookmark keeps working, where an artifact URL changes every run.
     permissions:
       contents: write
 
     steps:
-      - uses: actions/download-artifact@v5
+      # v8 or later, because artifacts uploaded with archive: false cannot be
+      # read by older versions. Matched by pattern rather than by name: an
+      # unarchived artifact is named after its file, so the names carry the
+      # commit and are not known ahead of time.
+      - uses: actions/download-artifact@v8
         with:
           path: dist
+          pattern: portalhop-*.apk
           merge-multiple: true
 
       # The per-run artifacts carry the commit in their name so a downloaded
@@ -219,8 +232,16 @@ jobs:
         working-directory: dist
         run: |
           set -euo pipefail
+          # find rather than a glob, so this works whether the downloads land
+          # flat or in a directory each, and fails loudly if one is missing
+          # instead of moving a glob pattern to a literal filename.
           for variant in development production; do
-            mv portalhop-"$variant"-*.apk portalhop-"$variant".apk
+            src=$(find . -name "portalhop-$variant-*.apk" -type f | head -1)
+            if [ -z "$src" ]; then
+              echo "no APK found for $variant" >&2
+              exit 1
+            fi
+            mv "$src" "portalhop-$variant.apk"
           done
           ls -la
 
