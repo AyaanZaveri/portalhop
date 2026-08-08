@@ -22,7 +22,7 @@ export const CategoriesSheet = forwardRef<
     onSelect: (category: CategoryEntry) => void
   }
 >(function CategoriesSheet({ categories, filter, onSelect }, ref) {
-  const { colors } = useTheme()
+  const { colors, iconPrimary } = useTheme()
   const [search, setSearch] = useState("")
 
   const visible = useMemo(() => {
@@ -82,10 +82,14 @@ export const CategoriesSheet = forwardRef<
                   : "h-11 flex-row items-center gap-2 rounded-md px-2"
               }
             >
-              <CategoryVisual category={item.genre} color={colors.foreground} />
+              {/* The accent, as in the groups drawer. A drawer is a list of
+                  things to pick between, so the icon is doing the picking out;
+                  in a channel row the same icon only labels the category beside
+                  the name, which is why that one stays muted. */}
+              <CategoryVisual category={item.genre} color={iconPrimary} />
               <Text
                 numberOfLines={1}
-                className="font-mono-medium text-foreground flex-1 text-[15px] tracking-tight"
+                className="font-rounded text-foreground flex-1 text-[15px] tracking-tight"
               >
                 {item.genre}
               </Text>

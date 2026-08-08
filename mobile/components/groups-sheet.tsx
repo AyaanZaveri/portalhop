@@ -52,7 +52,7 @@ export const GroupsSheet = forwardRef<
               <GroupIcon icon={item.icon} size={16} color={iconPrimary} />
               <Text
                 numberOfLines={1}
-                className="font-mono-medium text-foreground flex-1 text-[15px] tracking-tight"
+                className="font-rounded text-foreground flex-1 text-[15px] tracking-tight"
               >
                 {item.name}
               </Text>

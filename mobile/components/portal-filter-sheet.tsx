@@ -64,7 +64,7 @@ export const PortalFilterSheet = forwardRef<
           className="h-11 flex-row items-center gap-2 rounded-md px-2"
         >
           <LayoutGrid size={16} color={iconPrimary} />
-          <Text className="font-mono-medium text-foreground flex-1 text-[15px]">
+          <Text className="font-rounded text-foreground flex-1 text-[15px]">
             All Portals
           </Text>
           {selectedIds.size === 0 ? (
@@ -82,7 +82,7 @@ export const PortalFilterSheet = forwardRef<
             <Tv size={16} color={iconPrimary} />
             <Text
               numberOfLines={1}
-              className="font-mono-medium text-foreground flex-1 text-[15px]"
+              className="font-rounded text-foreground flex-1 text-[15px]"
             >
               {portal.name}
             </Text>
