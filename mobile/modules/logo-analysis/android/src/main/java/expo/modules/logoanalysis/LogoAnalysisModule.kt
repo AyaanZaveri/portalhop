@@ -32,10 +32,17 @@ import kotlin.math.sin
  * must not. They are the same colour, so nothing about the colours separates
  * them. Only where they sit does.
  *
- * So the decision is geometric. Flood filling inwards from the border, without
- * crossing the coloured mark, reaches every light pixel the outside can see;
- * those belong to the mark and are left alone. Light pixels it cannot reach are
- * enclosed, and take the tile colour so a hole still reads as a hole.
+ * So the decision is geometric, and it is made per region rather than per logo.
+ * Each connected run of light pixels is measured for how much of its border
+ * touches the mark. A knocked-out glyph is almost entirely ringed by it; a mark
+ * standing on transparency is barely touched by it at all.
+ *
+ * Reachability from the border was the obvious test and is too brittle. Food
+ * Network's "f" and "d" graze the edge of the circle they sit in, and CNN's coil
+ * runs out to meet its own outline, so a single pixel of contact made the fill
+ * call them free-standing and leave them white on a white mark. Surroundedness
+ * barely notices that contact: those regions still measure 0.96 and 0.99, while
+ * TSN's arrow and every letter of C-SPAN measure 0.00.
  *
  * Logos of several hues are excluded before any of this. No two-tone treatment
  * survives the NBC peacock, whose colours are what identify it.
@@ -57,6 +64,15 @@ class LogoAnalysisModule : Module() {
 
     /** A mark with almost no colour in it has no colour to put behind it. */
     const val NEEDS_COLOR_ABOVE = 0.04
+
+    /**
+     * How much of a light region's border must touch the mark for it to count
+     * as knocked out of it.
+     *
+     * Measured, the two cases do not overlap at all: enclosed regions score 0.96
+     * to 1.00 and free-standing ones score 0.00, so anywhere in between does.
+     */
+    const val SURROUNDED_ABOVE = 0.55
   }
 
   override fun definition() = ModuleDefinition {
@@ -151,21 +167,12 @@ class LogoAnalysisModule : Module() {
       return plain()
     }
 
-    val outside = floodFromBorder(kind, width, height)
+    recolorEnclosed(pixels, kind, width, height, accent)
 
     for (i in pixels.indices) {
       if (kind[i] == MARK) {
         pixels[i] = Color.argb(Color.alpha(pixels[i]), 255, 255, 255)
-      } else if (kind[i] == LIGHT && !outside[i]) {
-        pixels[i] =
-          Color.argb(
-            Color.alpha(pixels[i]),
-            Color.red(accent),
-            Color.green(accent),
-            Color.blue(accent),
-          )
       }
-      // Light and reachable from outside: part of the mark, left as it is.
     }
 
     val redrawn = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -182,44 +189,77 @@ class LogoAnalysisModule : Module() {
   }
 
   /**
-   * Every pixel the outside can reach without crossing the mark.
+   * Paints every light region that is mostly ringed by the mark.
    *
-   * Four-way rather than eight-way on purpose: a one-pixel diagonal gap, which
-   * anti-aliasing produces constantly, would otherwise let the fill leak into a
-   * hole and leave it uncoloured.
+   * Four-way neighbours throughout: a one-pixel diagonal gap, which
+   * anti-aliasing produces constantly, would otherwise join a hole to the
+   * outside and halve its measured surroundedness.
    */
-  private fun floodFromBorder(kind: IntArray, width: Int, height: Int): BooleanArray {
+  private fun recolorEnclosed(
+    pixels: IntArray,
+    kind: IntArray,
+    width: Int,
+    height: Int,
+    accent: Int,
+  ) {
     val seen = BooleanArray(kind.size)
     val queue = ArrayDeque<Int>()
+    val region = ArrayList<Int>()
 
-    fun push(x: Int, y: Int) {
-      val i = y * width + x
-      if (!seen[i] && kind[i] != MARK) {
-        seen[i] = true
-        queue.add(i)
+    for (start in kind.indices) {
+      if (kind[start] != LIGHT || seen[start]) continue
+
+      region.clear()
+      queue.add(start)
+      seen[start] = true
+
+      var touchingMark = 0
+      var touchingRest = 0
+
+      while (queue.isNotEmpty()) {
+        val i = queue.poll()
+        region.add(i)
+        val x = i % width
+        val y = i / width
+
+        for (n in 0 until 4) {
+          val nx = x + if (n == 0) -1 else if (n == 1) 1 else 0
+          val ny = y + if (n == 2) -1 else if (n == 3) 1 else 0
+
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+            // The image edge counts as the outside, so a region running off it
+            // is not enclosed by anything.
+            touchingRest++
+            continue
+          }
+
+          val j = ny * width + nx
+          when {
+            kind[j] == LIGHT ->
+              if (!seen[j]) {
+                seen[j] = true
+                queue.add(j)
+              }
+            kind[j] == MARK -> touchingMark++
+            else -> touchingRest++
+          }
+        }
+      }
+
+      val border = touchingMark + touchingRest
+      if (border == 0) continue
+      if (touchingMark.toDouble() / border < SURROUNDED_ABOVE) continue
+
+      for (i in region) {
+        pixels[i] =
+          Color.argb(
+            Color.alpha(pixels[i]),
+            Color.red(accent),
+            Color.green(accent),
+            Color.blue(accent),
+          )
       }
     }
-
-    for (x in 0 until width) {
-      push(x, 0)
-      push(x, height - 1)
-    }
-    for (y in 0 until height) {
-      push(0, y)
-      push(width - 1, y)
-    }
-
-    while (queue.isNotEmpty()) {
-      val i = queue.poll()
-      val x = i % width
-      val y = i / width
-      if (x > 0) push(x - 1, y)
-      if (x < width - 1) push(x + 1, y)
-      if (y > 0) push(x, y - 1)
-      if (y < height - 1) push(x, y + 1)
-    }
-
-    return seen
   }
 
   private fun cacheDir(): File {
