@@ -75,10 +75,11 @@ export function ChannelLogo({
       {uri ? (
         <Image
           source={{ uri: prepared?.uri ?? uri }}
-          // Radius on the image as well as the parent: Android does not
-          // reliably clip a child to a rounded parent, so relying on
-          // overflow-hidden alone leaves square corners on the logo.
-          style={{ width: "100%", height: "100%", borderRadius: 6 }}
+          // No radius of its own. It was there because Android does not clip a
+          // child to a rounded parent reliably, but the logo is inset by the
+          // tile's padding and never reaches the corners — so all the radius
+          // did was shave the artwork.
+          style={{ width: "100%", height: "100%" }}
           contentFit="contain"
           recyclingKey={recyclingKey}
           // Rows are recycled, and a cross-fade on a recycled row reads as a

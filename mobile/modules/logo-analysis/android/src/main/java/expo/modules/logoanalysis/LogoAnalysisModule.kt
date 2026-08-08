@@ -73,6 +73,16 @@ class LogoAnalysisModule : Module() {
      * to 1.00 and free-standing ones score 0.00, so anywhere in between does.
      */
     const val SURROUNDED_ABOVE = 0.55
+
+    /**
+     * How light the tile is allowed to get.
+     *
+     * The mark is drawn white on it, so a pale accent leaves white on white.
+     * Star Gold's is a light pink and its tile came out barely tinted, with the
+     * logo invisible against it. Darkening keeps the hue — it still reads as
+     * pink — while giving the white something to sit on.
+     */
+    const val TILE_LIGHTNESS_MAX = 0.42f
   }
 
   override fun definition() = ModuleDefinition {
@@ -167,7 +177,11 @@ class LogoAnalysisModule : Module() {
       return plain()
     }
 
-    recolorEnclosed(pixels, kind, width, height, accent)
+    // Darkened before it is used anywhere: the holes are painted with it and
+    // the tile is set to it, and both need the white mark to read against them.
+    val tile = darken(accent)
+
+    recolorEnclosed(pixels, kind, width, height, tile)
 
     for (i in pixels.indices) {
       if (kind[i] == MARK) {
@@ -184,7 +198,7 @@ class LogoAnalysisModule : Module() {
     return mapOf(
       "kind" to "prepared",
       "uri" to "file://" + file.absolutePath,
-      "color" to hex(accent),
+      "color" to hex(tile),
     )
   }
 
@@ -260,6 +274,15 @@ class LogoAnalysisModule : Module() {
           )
       }
     }
+  }
+
+  /** Pulls a colour down to the tile ceiling, keeping its hue and saturation. */
+  private fun darken(color: Int): Int {
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(color, hsl)
+    if (hsl[2] <= TILE_LIGHTNESS_MAX) return color
+    hsl[2] = TILE_LIGHTNESS_MAX
+    return ColorUtils.HSLToColor(hsl)
   }
 
   private fun cacheDir(): File {

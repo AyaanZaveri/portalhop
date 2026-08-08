@@ -67,13 +67,19 @@ async function resolve(url: string): Promise<LogoStyle> {
     return stored
   }
 
-  let style: LogoStyle = PLAIN
+  let style: LogoStyle
   try {
-    const prepared = await native?.prepare(url)
-    if (prepared?.kind === "prepared") style = prepared
+    const prepared = await native!.prepare(url)
+    style = prepared?.kind === "prepared" ? prepared : PLAIN
   } catch {
-    // A logo that will not load or decode stays exactly as it is drawn, which
-    // is what it looked like before any of this.
+    // A failure is not a verdict. This used to fall through to "plain" and then
+    // store it, so one timed-out request marked a logo plain for good — which is
+    // how two identical logos at different URLs ended up looking different, one
+    // redrawn and one not, with no way back short of clearing the table.
+    //
+    // Nothing is written and nothing is remembered, so the next row to ask for
+    // this logo tries again.
+    return PLAIN
   }
 
   memory.set(url, style)
