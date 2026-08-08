@@ -11,11 +11,6 @@ import {
 } from "@tanstack/react-query"
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core"
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-} from "@expo-google-fonts/inter"
-import {
   JetBrainsMono_400Regular,
   JetBrainsMono_500Medium,
 } from "@expo-google-fonts/jetbrains-mono"
@@ -129,15 +124,13 @@ export default function RootLayout() {
   // Registered under the names global.css's @theme maps to. Each weight is
   // its own family because Android does not synthesise bold.
   const [fontsLoaded, fontError] = useFonts({
-    "Inter-Regular": Inter_400Regular,
-    "Inter-Medium": Inter_500Medium,
-    "Inter-SemiBold": Inter_600SemiBold,
     "JetBrainsMono-Regular": JetBrainsMono_400Regular,
     "JetBrainsMono-Medium": JetBrainsMono_500Medium,
     // Open Runde is Inter with rounded terminals — same skeleton, same metrics
     // — so it sits against the body text without the optical mismatch an
     // unrelated display face brings. Vendored from the project's own release:
     // it is not on Google Fonts or npm.
+    "OpenRunde-Regular": require("../assets/fonts/OpenRunde-Regular.otf"),
     "OpenRunde-Medium": require("../assets/fonts/OpenRunde-Medium.otf"),
     "OpenRunde-Semibold": require("../assets/fonts/OpenRunde-Semibold.otf"),
     "OpenRunde-Bold": require("../assets/fonts/OpenRunde-Bold.otf"),

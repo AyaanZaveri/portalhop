@@ -14,14 +14,13 @@
   --radius-2xl: calc(var(--radius) * 1.8);
 
   /* Android has no synthetic bold, so each weight is registered separately. */
-  --font-sans: Inter-Regular;
-  --font-medium: Inter-Medium;
-  --font-semibold: Inter-SemiBold;
+  --font-sans: OpenRunde-Regular;
+  --font-medium: OpenRunde-Medium;
+  --font-semibold: OpenRunde-Semibold;
   --font-mono: JetBrainsMono-Regular;
   --font-mono-medium: JetBrainsMono-Medium;
-  /* The rounded face at text weight, for the things a channel is known by:
-     its name, what is on it, and the chips that filter them. Headings take the
-     heavier cut. */
+  /* Kept as its own name because a good deal of the app asks for it directly.
+     It is the same face as --font-medium now that Open Runde is the sans. */
   --font-rounded: OpenRunde-Medium;
   --font-heading: OpenRunde-Semibold;
   --font-wordmark: OpenRunde-Bold;

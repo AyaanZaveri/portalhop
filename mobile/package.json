@@ -4,7 +4,6 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@better-auth/expo": "1.6.19",
-    "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@lucide/lab": "^0.2.0",
