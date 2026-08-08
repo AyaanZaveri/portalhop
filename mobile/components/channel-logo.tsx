@@ -3,7 +3,6 @@ import { Image } from "expo-image"
 import { Tv } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
-import { useLogoColor } from "@/lib/logo-colors"
 
 /**
  * The logo tile, in the one shape every screen shows it.
@@ -19,7 +18,17 @@ import { useLogoColor } from "@/lib/logo-colors"
 export const CHANNEL_LOGO_HEIGHT = 44
 export const CHANNEL_LOGO_WIDTH = 66
 
-/** What a tile is when there is no colour for it, and the floor every tile is mixed down to. */
+/**
+ * One tile colour for every channel.
+ *
+ * Colouring this from the logo was tried at length and abandoned. A logo is
+ * usually a coloured mark on transparency, so any colour drawn from it is a
+ * colour the mark itself contains — and putting the two together is how a mark
+ * disappears. The cases that worked were the ones whose artwork already carried
+ * a background, and there is no way to tell those apart from what the palette
+ * exposes. The channel's colour now lives on the progress bar, where nothing
+ * sits on top of it and no such conflict exists.
+ */
 const TILE_BASE = "#18181b"
 
 export function ChannelLogo({
@@ -31,17 +40,6 @@ export function ChannelLogo({
   recyclingKey?: string
 }) {
   const { colors } = useTheme()
-
-  /**
-   * The tile continues the logo's own background, where it has one.
-   *
-   * Used as it is rather than blended, because the point is for the artwork and
-   * the tile to become a single shape: Mississauga's blue square stops looking
-   * like a square inside a tile and starts looking like a blue tile. A logo
-   * with nothing to continue returns null and keeps the neutral base, which is
-   * what a floating mark needs behind it anyway.
-   */
-  const tint = useLogoColor(uri)
 
   return (
     <View
@@ -55,7 +53,7 @@ export function ChannelLogo({
         padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: tint ?? TILE_BASE,
+        backgroundColor: TILE_BASE,
       }}
     >
       {uri ? (

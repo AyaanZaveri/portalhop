@@ -109,7 +109,9 @@ async function ingestFeed(key: string, wanted: Set<string>): Promise<number> {
 
     const flush = async () => {
       if (!pending) return
-      const values = Array.from({ length: pending }, () => "(?,?,?,?,?)").join(",")
+      const values = Array.from({ length: pending }, () => "(?,?,?,?,?)").join(
+        ",",
+      )
       await handle.runAsync(
         `INSERT INTO epg_slot (feed, xmltv_id, start_at, stop_at, title) VALUES ${values}`,
         ...params,

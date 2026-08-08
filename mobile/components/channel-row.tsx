@@ -3,6 +3,7 @@ import { Text, View } from "react-native"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
+import { useLogoColor } from "@/lib/logo-colors"
 import { CategoryVisual } from "@/components/category-visual"
 import { ChannelLogo } from "@/components/channel-logo"
 import { EpgStrip } from "@/components/epg-strip"
@@ -27,6 +28,9 @@ export const ChannelRow = memo(function ChannelRow({
   const { colors } = useTheme()
   const logo = channel.logoUrl || channel.logo
   const programme = useNowPlaying(channel.xmltvId)
+  // The bar carries the channel's colour, which is the one surface in the row
+  // with nothing drawn over it and so nothing for a strong colour to obscure.
+  const color = useLogoColor(logo)
 
   return (
     <PressableScale
@@ -57,7 +61,7 @@ export const ChannelRow = memo(function ChannelRow({
             same trade the web makes. 2pt of separation on top of the line
             heights: without it the lines read as one block. */}
         {programme ? (
-          <EpgStrip programme={programme} />
+          <EpgStrip programme={programme} color={color} />
         ) : (
           <View
             style={{

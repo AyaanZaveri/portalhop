@@ -74,7 +74,7 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     //
     // Bump this whenever pickColor changes what it decides — which swatch it
     // keeps, or when it keeps one at all.
-    if (version < 6) {
+    if (version < 7) {
       await handle.execAsync("DELETE FROM logo_color;")
     }
 
@@ -110,8 +110,8 @@ export const db = SQLite.openDatabaseAsync("portalhop-cache.db").then(
     // Set once, outside the branches. Inside the version-2 block it would never
     // run for a database already at 2, so the colour table would be emptied on
     // every launch from then on.
-    if (version < 6) {
-      await handle.execAsync("PRAGMA user_version = 6;")
+    if (version < 7) {
+      await handle.execAsync("PRAGMA user_version = 7;")
     }
 
     return handle

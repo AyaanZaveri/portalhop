@@ -44,31 +44,24 @@ const memory = new Map<string, string | null>()
 const inFlight = new Map<string, Promise<string | null>>()
 
 /**
- * A backdrop for the logo, which is not the same as the logo's own colour.
+ * The channel's colour, for its progress bar.
  *
- * The dark swatches, because Palette intends them as backgrounds for light
- * content: they keep the channel's hue while staying clear of whatever colour
- * the mark itself is made of. Vibrant is the tempting one and it fails, since
- * most logos are a coloured mark on transparency and vibrant returns the very
- * colour the mark is drawn in — a red mark on its own red.
- *
- * Inferring whether a logo has a background of its own, and continuing it where
- * it does, was tried and does not work. The only signal available is the average
- * across all pixels with alpha ignored, and PNGs routinely store colour data
- * underneath fully transparent pixels — so that average reports what the
- * exporter left in the file rather than what is visible. It read TSN's logo as a
- * solid red image and Mississauga's blue square as empty, which is backwards.
+ * Vibrant, because it is the most identifiable thing about a logo and there is
+ * nothing here to trade it against. A bar is a solid shape on a muted track
+ * with nothing drawn over it, so the colour can be as strong as it likes — the
+ * constraint that ruled vibrant out as a tile colour, that it is usually the
+ * colour the mark itself is drawn in, simply does not apply.
  */
 function pickColor(
   result: Awaited<ReturnType<NonNullable<GetColors>>>,
 ): string | null {
   if (result.platform === "android") {
-    return result.darkVibrant || result.darkMuted || null
+    return result.vibrant || result.darkVibrant || result.dominant || null
   }
   if (result.platform === "ios") {
-    return result.background || null
+    return result.primary || result.detail || null
   }
-  return result.darkVibrant || result.darkMuted || null
+  return result.vibrant || result.darkVibrant || result.dominant || null
 }
 
 async function readStored(url: string) {

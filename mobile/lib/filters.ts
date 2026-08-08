@@ -107,7 +107,9 @@ export function applyBrowseFilter(
       if (!favorites?.keys.length) return []
       return favorites.keys
         .map((key) => byKey.get(key))
-        .filter((channel): channel is PortalChannelWithSource => Boolean(channel))
+        .filter((channel): channel is PortalChannelWithSource =>
+          Boolean(channel),
+        )
     }
 
     case "category":
@@ -124,7 +126,9 @@ export function applyBrowseFilter(
       if (!group) return []
       return group.channelKeys
         .map((key) => byKey.get(key))
-        .filter((channel): channel is PortalChannelWithSource => Boolean(channel))
+        .filter((channel): channel is PortalChannelWithSource =>
+          Boolean(channel),
+        )
     }
   }
 }

@@ -43,16 +43,19 @@ export function useToggleFavorite() {
         "favorites",
       ])
 
-      queryClient.setQueryData<{ favorites: string[] }>(["favorites"], (current) => {
-        const keys = current?.favorites ?? []
-        return {
-          favorites: favorited
-            ? keys.filter((key) => key !== channelKey)
-            : // Appended, not prepended: the list is in the user's manual
-              // order and a new favourite belongs at the end of it.
-              [...keys, channelKey],
-        }
-      })
+      queryClient.setQueryData<{ favorites: string[] }>(
+        ["favorites"],
+        (current) => {
+          const keys = current?.favorites ?? []
+          return {
+            favorites: favorited
+              ? keys.filter((key) => key !== channelKey)
+              : // Appended, not prepended: the list is in the user's manual
+                // order and a new favourite belongs at the end of it.
+                [...keys, channelKey],
+          }
+        },
+      )
 
       return { previous }
     },

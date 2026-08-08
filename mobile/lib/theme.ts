@@ -49,7 +49,9 @@ export function useTheme() {
      * is: the primary is a light lime, and on a near-black background it needs
      * its full value to hold up.
      */
-    iconPrimary: isDark ? colors.primary : scaleBrightness(colors.primary, 0.75),
+    iconPrimary: isDark
+      ? colors.primary
+      : scaleBrightness(colors.primary, 0.75),
     toggle,
   }
 }

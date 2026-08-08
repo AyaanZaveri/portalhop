@@ -18,6 +18,9 @@ import type { ChannelWithSourceId } from "@portalhop/shared/channel-keys"
  * so the two agree as long as both pass the same thing. Revisit when favourites
  * land, since a mismatch would break deep links between the clients.
  */
-export function channelSlug(channel: ChannelWithSourceId, userId?: string | null) {
+export function channelSlug(
+  channel: ChannelWithSourceId,
+  userId?: string | null,
+) {
   return sharedChannelSlug(channel, userId ?? null)
 }

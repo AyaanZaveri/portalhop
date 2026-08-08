@@ -25,7 +25,17 @@ export function formatTime(at: number) {
  * carries a logo, a name and a category, so the guide has to earn its place in
  * about fourteen points of height.
  */
-export function EpgStrip({ programme }: { programme: NowPlaying }) {
+export function EpgStrip({
+  programme,
+  color,
+}: {
+  programme: NowPlaying
+  /**
+   * The channel's own colour, drawn from its logo. Falls back to the app's
+   * primary when a logo yields nothing usable, so a bar is never colourless.
+   */
+  color?: string | null
+}) {
   const { colors } = useTheme()
   // Read at render rather than passed in. The provider hands down a new map on
   // every tick, so a row with a strip re-renders on the same 30s cadence and
@@ -90,7 +100,7 @@ export function EpgStrip({ programme }: { programme: NowPlaying }) {
               // and a layout pass per row per tick is the one thing this
               // cannot cost.
               width: `${progress * 100}%`,
-              backgroundColor: colors.primary,
+              backgroundColor: color ?? colors.primary,
             }}
           />
         </View>
