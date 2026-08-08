@@ -43,20 +43,19 @@ export function ChannelLogo({
   const { colors } = useTheme()
 
   /**
-   * Two treatments, decided by measuring the logo rather than guessing.
+   * A redrawn copy of the logo where one exists, and the original otherwise.
    *
-   * A single-hue mark on transparency is flattened to white and set on its own
-   * colour — TSN's red, CNN's red, HGTV's green. That is the treatment worth
-   * having: the tile becomes the channel's colour and the mark stays perfectly
-   * legible on it, because it is white by then rather than the same red as the
-   * tile. Every earlier attempt failed on exactly that collision.
+   * The redraw turns the mark white and punches its holes through in the tile
+   * colour, so the tile can be the channel's own colour without the mark
+   * disappearing into it — which is what happened every time the tile was
+   * coloured from the logo without touching the logo itself.
    *
-   * Everything else is left alone. A mark of several hues would be destroyed by
-   * flattening — the NBC peacock is its colours — and artwork that already
-   * fills its canvas is a finished tile that wants nothing done to it.
+   * Whether a logo can take that is decided natively, by measuring it. Anything
+   * that cannot — several hues, or artwork that is already a tile — comes back
+   * plain and is drawn exactly as it is.
    */
   const style = useLogoStyle(uri)
-  const tinted = style.kind === "tinted"
+  const prepared = style.kind === "prepared" ? style : null
 
   return (
     <View
@@ -70,20 +69,17 @@ export function ChannelLogo({
         padding: 8,
         borderRadius: 10,
         borderColor: colors.border,
-        backgroundColor: tinted ? style.color : TILE_BASE,
+        backgroundColor: prepared ? prepared.color : TILE_BASE,
       }}
     >
       {uri ? (
         <Image
-          source={{ uri }}
+          source={{ uri: prepared?.uri ?? uri }}
           // Radius on the image as well as the parent: Android does not
           // reliably clip a child to a rounded parent, so relying on
           // overflow-hidden alone leaves square corners on the logo.
           style={{ width: "100%", height: "100%", borderRadius: 6 }}
           contentFit="contain"
-          // Every non-transparent pixel becomes white, so the mark reads as a
-          // silhouette on the channel's colour.
-          tintColor={tinted ? "#fff" : undefined}
           recyclingKey={recyclingKey}
           // Rows are recycled, and a cross-fade on a recycled row reads as a
           // glitch rather than as loading.

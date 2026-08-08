@@ -13,47 +13,15 @@ import { db } from "./db"
  *            destroy, or artwork that already fills its own canvas and is a
  *            finished tile in its own right.
  */
-export type LogoStyle = { kind: "tinted"; color: string } | { kind: "plain" }
-
-type Analysis = {
-  transparentFraction: number
-  hueSpread: number
-  colorfulFraction: number
-  accent: string | null
-  background: string
-}
+export type LogoStyle =
+  /** A redrawn copy of the logo, and the colour its tile should take. */
+  | { kind: "prepared"; uri: string; color: string }
+  /** Draw the original, on the neutral tile. */
+  | { kind: "plain" }
 
 const native = requireOptionalNativeModule<{
-  analyze: (url: string) => Promise<Analysis | null>
+  prepare: (url: string) => Promise<LogoStyle | null>
 }>("LogoAnalysis")
-
-/**
- * Below this a logo fills its own canvas, so it is already a tile and wants
- * nothing done to it. Game Show Network measures 0.00; every mark on
- * transparency measured above 0.20.
- */
-const OPAQUE_BELOW = 0.12
-
-/**
- * Above this the mark uses more than one hue and has to be left as drawn.
- *
- * The measured gap is wide enough that the exact threshold hardly matters:
- * single-hue marks — TSN, CNN, Food Network, HGTV, C-SPAN — all score 0.00,
- * while the NBC peacock scores 0.88.
- */
-const MULTI_HUE_ABOVE = 0.25
-
-/** A mark with almost no coloured pixels has no colour worth putting behind it. */
-const NEEDS_COLOR_ABOVE = 0.04
-
-function classify(analysis: Analysis): LogoStyle {
-  if (analysis.transparentFraction < OPAQUE_BELOW) return PLAIN
-  if (analysis.hueSpread > MULTI_HUE_ABOVE) return PLAIN
-  if (analysis.colorfulFraction < NEEDS_COLOR_ABOVE || !analysis.accent) {
-    return PLAIN
-  }
-  return { kind: "tinted", color: analysis.accent }
-}
 
 const PLAIN: LogoStyle = { kind: "plain" }
 
@@ -101,8 +69,8 @@ async function resolve(url: string): Promise<LogoStyle> {
 
   let style: LogoStyle = PLAIN
   try {
-    const analysis = await native?.analyze(url)
-    if (analysis) style = classify(analysis)
+    const prepared = await native?.prepare(url)
+    if (prepared?.kind === "prepared") style = prepared
   } catch {
     // A logo that will not load or decode stays exactly as it is drawn, which
     // is what it looked like before any of this.

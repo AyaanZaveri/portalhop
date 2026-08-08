@@ -6,57 +6,70 @@ import android.graphics.Color
 import androidx.core.graphics.ColorUtils
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.File
 import java.net.URL
+import java.security.MessageDigest
+import java.util.ArrayDeque
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * Describes a channel logo well enough to decide how to present it.
+ * Redraws a channel logo so it can sit on a tile of its own colour.
  *
- * Three kinds of logo want three different treatments, and telling them apart
- * is the whole problem:
+ * The mark becomes white and the tile takes the channel's colour, which is what
+ * makes a row recognisable before the name is read. Doing that naively destroys
+ * logos, and the interesting part is which ones and why.
  *
- *   a single-hue mark on transparency — TSN, CNN, Food Network — can be tinted
- *   flat white and set on its own colour, which is the treatment that makes a
- *   channel unmistakable
+ * Flattening every non-transparent pixel to white loses anything knocked out of
+ * the mark: TSN's "1" is a hole punched in a red badge, so white-on-red becomes
+ * white-on-white and the number disappears. Swapping the two tones instead fixes
+ * that and breaks the opposite case, because C-SPAN's lettering *is* white and
+ * swapping paints it the tile colour.
  *
- *   a mark of several hues — the NBC peacock — must be left exactly as drawn,
- *   because flattening it destroys the thing that identifies it
+ * Neither can be decided per logo, because TSN needs both answers at once: its
+ * "1" is a hole and must flip, while its arrow stands free on transparency and
+ * must not. They are the same colour, so nothing about the colours separates
+ * them. Only where they sit does.
  *
- *   artwork that already fills its own canvas — Game Show Network, Mississauga
- *   — is a finished tile and wants nothing done to it at all
+ * So the decision is geometric. Flood filling inwards from the border, without
+ * crossing the coloured mark, reaches every light pixel the outside can see;
+ * those belong to the mark and are left alone. Light pixels it cannot reach are
+ * enclosed, and take the tile colour so a hole still reads as a hole.
  *
- * Two measurements separate them: how much of the image is transparent, and how
- * far the hues of the opaque pixels spread. Measured on real logos the gap is
- * not close — single-hue marks score 0.00 spread, the peacock 0.88.
- *
- * Native rather than JavaScript because reading pixels needs a real decoder.
- * The image is fetched again rather than borrowed from expo-image's Glide
- * cache: sharing that cache means a compile-time dependency on another module's
- * internals, and the second fetch happens once per logo in the app's lifetime
- * because the verdict is stored.
+ * Logos of several hues are excluded before any of this. No two-tone treatment
+ * survives the NBC peacock, whose colours are what identify it.
  */
 class LogoAnalysisModule : Module() {
   private companion object {
-    const val TARGET = 64
+    /** Crisp on a 66x44 tile at 3x, and still cheap to walk. */
+    const val TARGET = 256
+
+    const val CLEAR = 0
+    const val MARK = 1
+    const val LIGHT = 2
+
+    /** Below this the logo fills its own canvas: already a tile, nothing to do. */
+    const val OPAQUE_BELOW = 0.12
+
+    /** Above this the mark uses more than one hue and has to be left as drawn. */
+    const val MULTI_HUE_ABOVE = 0.25
+
+    /** A mark with almost no colour in it has no colour to put behind it. */
+    const val NEEDS_COLOR_ABOVE = 0.04
   }
 
   override fun definition() = ModuleDefinition {
     Name("LogoAnalysis")
 
-    AsyncFunction("analyze") { url: String ->
-      decode(url)?.let { analyze(it) }
+    AsyncFunction("prepare") { url: String ->
+      val bitmap = decode(url)
+      if (bitmap == null) plain() else prepare(url, bitmap)
     }
   }
 
-  /**
-   * Decodes at roughly 64 pixels across.
-   *
-   * Nothing measured here needs detail: a thumbnail carries the same hue
-   * distribution as the original at a hundredth of the pixels, and decoding the
-   * full image only to walk it would be the slow part of this.
-   */
+  private fun plain(): Map<String, Any?> = mapOf("kind" to "plain")
+
   private fun decode(url: String): Bitmap? {
     val bytes = URL(url).openStream().use { it.readBytes() }
 
@@ -75,87 +88,150 @@ class LogoAnalysisModule : Module() {
     )
   }
 
-  private fun analyze(bitmap: Bitmap): Map<String, Any?> {
+  private fun prepare(url: String, bitmap: Bitmap): Map<String, Any?> {
     val width = bitmap.width
     val height = bitmap.height
     val pixels = IntArray(width * height)
     bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
+    val kind = IntArray(pixels.size)
     var transparent = 0
     var opaque = 0
 
-    // Hues are angles, so they average as vectors. Summing them as numbers puts
-    // the mean of red at 0.02 and red at 0.98 in the middle of the wheel — cyan
-    // — rather than back at red.
+    // Hues are angles and average as vectors. Summed as numbers, red at 0.02 and
+    // red at 0.98 would average to cyan rather than back to red.
     var hueX = 0.0
     var hueY = 0.0
     var hueCount = 0
-
-    // Weighted towards more saturated pixels, so a wash of near-grey does not
-    // drag the answer around.
     var bestSaturation = 0f
-    var bestColor = 0
+    var accent = 0
 
     val hsl = FloatArray(3)
 
-    for (pixel in pixels) {
-      val alpha = Color.alpha(pixel)
-      if (alpha < 32) {
+    for (i in pixels.indices) {
+      val pixel = pixels[i]
+      if (Color.alpha(pixel) < 128) {
         transparent++
+        kind[i] = CLEAR
         continue
       }
-      if (alpha < 200) continue
       opaque++
 
       ColorUtils.colorToHSL(pixel, hsl)
-      val (hue, saturation, lightness) = Triple(hsl[0], hsl[1], hsl[2])
+      val saturation = hsl[1]
+      val lightness = hsl[2]
 
-      // Only pixels with a colour worth calling a colour. Black, white and grey
-      // have a hue of sorts and it means nothing.
-      if (saturation > 0.25f && lightness > 0.12f && lightness < 0.95f) {
-        val radians = Math.toRadians(hue.toDouble())
+      val colored = saturation > 0.25f && lightness > 0.12f && lightness < 0.95f
+      kind[i] = if (colored || lightness < 0.5f) MARK else LIGHT
+
+      if (colored) {
+        val radians = Math.toRadians(hsl[0].toDouble())
         hueX += cos(radians)
         hueY += sin(radians)
         hueCount++
-
         if (saturation > bestSaturation) {
           bestSaturation = saturation
-          bestColor = pixel
+          accent = pixel
         }
       }
     }
 
     val total = pixels.size.toDouble()
-
-    // 1 minus the length of the mean vector: zero when every hue agrees, one
-    // when they are spread evenly around the wheel. Too few coloured pixels to
-    // be meaningful counts as agreement, since there is nothing to disagree.
-    val spread =
+    val transparentFraction = transparent / total
+    val hueSpread =
       if (hueCount < 20) 0.0 else 1.0 - hypot(hueX / hueCount, hueY / hueCount)
+    val colorfulFraction = if (opaque == 0) 0.0 else hueCount.toDouble() / opaque
+
+    if (
+      transparentFraction < OPAQUE_BELOW ||
+      hueSpread > MULTI_HUE_ABOVE ||
+      colorfulFraction < NEEDS_COLOR_ABOVE ||
+      hueCount == 0
+    ) {
+      return plain()
+    }
+
+    val outside = floodFromBorder(kind, width, height)
+
+    for (i in pixels.indices) {
+      if (kind[i] == MARK) {
+        pixels[i] = Color.argb(Color.alpha(pixels[i]), 255, 255, 255)
+      } else if (kind[i] == LIGHT && !outside[i]) {
+        pixels[i] =
+          Color.argb(
+            Color.alpha(pixels[i]),
+            Color.red(accent),
+            Color.green(accent),
+            Color.blue(accent),
+          )
+      }
+      // Light and reachable from outside: part of the mark, left as it is.
+    }
+
+    val redrawn = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    redrawn.setPixels(pixels, 0, width, 0, 0, width, height)
+
+    val file = File(cacheDir(), "logo-" + digest(url) + ".png")
+    file.outputStream().use { redrawn.compress(Bitmap.CompressFormat.PNG, 100, it) }
 
     return mapOf(
-      "transparentFraction" to transparent / total,
-      "opaqueFraction" to opaque / total,
-      "hueSpread" to spread,
-      "colorfulFraction" to if (opaque == 0) 0.0 else hueCount.toDouble() / opaque,
-      "accent" to if (hueCount == 0) null else hex(bestColor),
-      // The most common opaque colour, which for artwork that fills its canvas
-      // is the background it is sitting on.
-      "background" to hex(dominantOpaque(pixels)),
+      "kind" to "prepared",
+      "uri" to "file://" + file.absolutePath,
+      "color" to hex(accent),
     )
   }
 
-  /** The most frequent opaque colour, bucketed so near-identical shades count together. */
-  private fun dominantOpaque(pixels: IntArray): Int {
-    val counts = HashMap<Int, Int>()
-    for (pixel in pixels) {
-      if (Color.alpha(pixel) < 200) continue
-      val bucket =
-        Color.rgb(Color.red(pixel) and 0xF0, Color.green(pixel) and 0xF0, Color.blue(pixel) and 0xF0)
-      counts[bucket] = (counts[bucket] ?: 0) + 1
+  /**
+   * Every pixel the outside can reach without crossing the mark.
+   *
+   * Four-way rather than eight-way on purpose: a one-pixel diagonal gap, which
+   * anti-aliasing produces constantly, would otherwise let the fill leak into a
+   * hole and leave it uncoloured.
+   */
+  private fun floodFromBorder(kind: IntArray, width: Int, height: Int): BooleanArray {
+    val seen = BooleanArray(kind.size)
+    val queue = ArrayDeque<Int>()
+
+    fun push(x: Int, y: Int) {
+      val i = y * width + x
+      if (!seen[i] && kind[i] != MARK) {
+        seen[i] = true
+        queue.add(i)
+      }
     }
-    return counts.maxByOrNull { it.value }?.key ?: Color.BLACK
+
+    for (x in 0 until width) {
+      push(x, 0)
+      push(x, height - 1)
+    }
+    for (y in 0 until height) {
+      push(0, y)
+      push(width - 1, y)
+    }
+
+    while (queue.isNotEmpty()) {
+      val i = queue.poll()
+      val x = i % width
+      val y = i / width
+      if (x > 0) push(x - 1, y)
+      if (x < width - 1) push(x + 1, y)
+      if (y > 0) push(x, y - 1)
+      if (y < height - 1) push(x, y + 1)
+    }
+
+    return seen
   }
+
+  private fun cacheDir(): File {
+    val dir = File(appContext.cacheDirectory, "logo-analysis")
+    if (!dir.exists()) dir.mkdirs()
+    return dir
+  }
+
+  private fun digest(value: String) =
+    MessageDigest.getInstance("MD5")
+      .digest(value.toByteArray())
+      .joinToString("") { "%02x".format(it) }
 
   private fun hex(color: Int) =
     String.format("#%02x%02x%02x", Color.red(color), Color.green(color), Color.blue(color))
