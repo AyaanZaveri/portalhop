@@ -1,3 +1,4 @@
+import { View } from "react-native"
 import { ThinkingOrb, type OrbState } from "expo-thinking-orbs"
 
 import { useTheme } from "@/lib/theme"
@@ -48,5 +49,25 @@ export function Orb({
       theme={isDark ? "dark" : "light"}
       accessibilityLabel="Loading"
     />
+  )
+}
+
+/**
+ * A whole screen waiting.
+ *
+ * Sat dead centre it read as low on the screen, because the eye puts the
+ * optical centre above the geometric one and there is nothing below it to
+ * balance against. Lifting it by an eighth of the space is the usual
+ * correction. It is also smaller than the 64 the library defaults to: at full
+ * size, alone on an empty screen with nothing to be in proportion to, it read
+ * as the subject rather than as the wait.
+ */
+export function OrbScreen() {
+  return (
+    <View className="flex-1 items-center justify-center">
+      <View style={{ marginBottom: "12%" }}>
+        <Orb size={48} />
+      </View>
+    </View>
   )
 }

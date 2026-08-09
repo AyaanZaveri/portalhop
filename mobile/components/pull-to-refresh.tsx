@@ -158,8 +158,20 @@ export function PullToRefresh({
           Extrapolation.CLAMP,
         ),
       },
-      // Winds up as the threshold approaches, so the pull reads as loading
-      // something rather than as an icon that happens to move.
+    ],
+  }))
+
+  /**
+   * The wind-up, on its own layer.
+   *
+   * It used to live on the indicator's frame, which was fine while the frame
+   * held an arrow. The orb inherited it and came to rest at whatever angle the
+   * pull had reached — a sphere held at 110 degrees, which reads as a tilt
+   * rather than as a wind-up. The frame keeps the travel and the scale; only
+   * what is turning turns.
+   */
+  const arrowStyle = useAnimatedStyle(() => ({
+    transform: [
       {
         rotate: `${interpolate(
           pull.value,
@@ -204,7 +216,9 @@ export function PullToRefresh({
           // change size when the pull tips over into a refresh.
           <Orb size={20} />
         ) : (
-          <RefreshCw size={20} color={colors["muted-foreground"]} />
+          <Animated.View style={arrowStyle}>
+            <RefreshCw size={20} color={colors["muted-foreground"]} />
+          </Animated.View>
         )}
       </Animated.View>
 
