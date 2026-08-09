@@ -70,10 +70,17 @@ export function EpgStrip({
         }}
       >
         <Text
-          className="text-muted-foreground font-mono text-[10px]"
+          className="text-muted-foreground font-mono-medium text-[10px]"
           // Mono keeps the digits an even width, so the bar between the two
           // times holds still as the clock advances rather than twitching on
           // every tick.
+          //
+          // Medium rather than regular. These are the smallest thing in the
+          // row and already held back twice, by size and by the muted colour;
+          // at regular they were held back a third time, by weight, which is
+          // one more than a time anyone actually reads should carry. Weight is
+          // the right one to give back because size and colour still do the
+          // de-emphasising, so nothing is promoted past the title above.
           style={{
             lineHeight: 12,
             includeFontPadding: false,
@@ -106,7 +113,7 @@ export function EpgStrip({
         </View>
 
         <Text
-          className="text-muted-foreground font-mono text-[10px]"
+          className="text-muted-foreground font-mono-medium text-[10px]"
           style={{
             lineHeight: 12,
             includeFontPadding: false,
