@@ -1236,7 +1236,7 @@ export function ChannelList({
                           <TvIcon className="text-muted-foreground size-[18px]" />
                         </div>
                       )}
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
                         <span className="truncate font-medium">
                           {channel.name ||
                             `Channel ${channel.number || index + 1}`}
@@ -1402,7 +1402,7 @@ export function ChannelList({
                           <TvIcon className="text-muted-foreground size-[18px]" />
                         </div>
                       )}
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
                         <span className="truncate font-medium">
                           {channel.name ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
@@ -1412,7 +1412,13 @@ export function ChannelList({
                             pushing the row to four. */}
                         {nowPlaying ? (
                           <>
-                            <span className="text-foreground/80 truncate text-xs">
+                            {/* Semibold and at full strength, where it was
+                                regular at 80% — it is the line that decides
+                                whether the channel is worth opening, and it was
+                                set as fine print under the name. The name keeps
+                                the top line on size, which is what the eye
+                                sorts them by. */}
+                            <span className="truncate text-[13px] font-semibold">
                               {nowPlaying.title}
                             </span>
                             <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[10px] tabular-nums">
@@ -1602,7 +1608,7 @@ export function ChannelList({
                     <TvIcon className="text-muted-foreground" />
                   )}
                 </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
                   <span className="truncate font-medium">
                     {contextChannel.name || "Channel"}
                   </span>
