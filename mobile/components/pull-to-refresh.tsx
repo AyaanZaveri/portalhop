@@ -211,13 +211,15 @@ export function PullToRefresh({
         ]}
       >
         {refreshing ? (
-          // 20 is one of the two sizes the orb's dot layout is tuned for, and
-          // it is what the icon it replaces measured, so the indicator does not
-          // change size when the pull tips over into a refresh.
-          <Orb size={20} />
+          // Still the size of the arrow it replaces, so the indicator does not
+          // change size when the pull tips over into a refresh — both went up
+          // together. Past the 20 the orb's dot layout is tuned for, but it
+          // interpolates toward 64 and four points buys a lot of clarity on
+          // something this small.
+          <Orb size={24} />
         ) : (
           <Animated.View style={arrowStyle}>
-            <RefreshCw size={20} color={colors["muted-foreground"]} />
+            <RefreshCw size={24} color={colors["muted-foreground"]} />
           </Animated.View>
         )}
       </Animated.View>
