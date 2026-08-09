@@ -96,12 +96,20 @@ class LogoAnalysisModule : Module() {
      * the same, so no lightness exists that suits every hue. Measuring what
      * actually matters settles all of them at once.
      *
-     * 4:1 rather than the 3:1 WCAG asks of a graphical object, because these
-     * wordmarks carry small lettering — "CHANNEL" beneath "TENNIS" — and rather
-     * than the 4.5:1 it asks of body text, which took Tennis and Comedy Central
-     * far enough down that the brand's own colour stopped being recognisable.
+     * 3:1, which is what WCAG asks of large text and of a graphical object.
+     * Both descriptions fit: a tile is 44 by 32 points, and the only thing
+     * legible at that size is the primary wordmark, which is large. The
+     * lettering under it — "CHANNEL" beneath "TENNIS" — is a few points tall and
+     * is texture rather than text; no contrast rescues it, so it should not be
+     * what sets the figure.
+     *
+     * Four and four-and-a-half were both tried and both go too far. They take
+     * Tennis and CBBC dark enough that the brand's own colour starts to go,
+     * which costs the thing the tile exists to carry, and they move HGTV, which
+     * measures 3.20 and was never hard to read. At 3:1 the rule touches only
+     * what is actually failing.
      */
-    const val WHITE_CONTRAST_MIN = 4.0
+    const val WHITE_CONTRAST_MIN = 3.0
 
     /**
      * How much of an opaque logo's outer ring must be its dominant colour before

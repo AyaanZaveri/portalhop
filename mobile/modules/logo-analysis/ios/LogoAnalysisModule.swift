@@ -38,7 +38,7 @@ public final class LogoAnalysisModule: Module {
   private static let multiHueAbove = 0.25
   private static let needsColorAbove = 0.04
   private static let surroundedAbove = 0.55
-  private static let whiteContrastMin = 4.0
+  private static let whiteContrastMin = 3.0
   private static let borderMajorityAbove = 0.60
   private static let borderTolerance = 28
   private static let borderBucket = 24
