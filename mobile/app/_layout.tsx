@@ -15,7 +15,7 @@ import {
   JetBrainsMono_500Medium,
 } from "@expo-google-fonts/jetbrains-mono"
 import { useFonts } from "expo-font"
-import { Stack } from "expo-router"
+import { ExperimentalStack } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { StatusBar } from "expo-status-bar"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
@@ -162,12 +162,20 @@ export default function RootLayout() {
           <BottomSheetModalProvider>
             <BlurTargetProvider backgroundColor={tokens.background}>
               <StatusBar style={isDark ? "light" : "dark"} />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: tokens.background },
-                }}
-              />
+              {/* The experimental stack rather than Stack, because predictive
+                  back lives in react-native-screens' gamma stack and this is
+                  what sits on it — android.predictiveBackGestureEnabled only
+                  arms the system half of the gesture, and the flag was already
+                  set while the navigator underneath it could not animate.
+
+                  It is alpha, and it takes only title, headerShown,
+                  headerTransparent and headerBackVisible. contentStyle is gone
+                  with it; both screens paint bg-background on their own root,
+                  so the only place it could show is behind a transition.
+
+                  Both layouts move together on purpose: on Android the two
+                  stacks cannot coexist in one app. */}
+              <ExperimentalStack screenOptions={{ headerShown: false }} />
             </BlurTargetProvider>
             <Toaster />
           </BottomSheetModalProvider>
