@@ -217,7 +217,14 @@ export function ChannelSchedule({
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      height: 3,
+                      // Four, where the row's is five. They are not the same
+                      // job: the row's is an inline meter between two times,
+                      // this one runs the full width of a card, and a longer
+                      // line carries the same weight with less height. Four
+                      // rather than three because the leading cap is half the
+                      // height, and at three there was not enough of it to
+                      // read as round.
+                      height: 4,
                       backgroundColor: colors.border,
                     }}
                   >
@@ -278,6 +285,12 @@ export function ChannelSchedule({
                         height: 84,
                         borderRadius: 8,
                         backgroundColor: colors.muted,
+                        // Centred against the text beside it rather than
+                        // top-aligned with it, which is the web's self-center.
+                        // The text block is one to four lines depending on the
+                        // description, so aligning to its top left the poster
+                        // hanging off a short card and floating on a tall one.
+                        alignSelf: "center",
                       }}
                       contentFit="cover"
                       transition={140}
