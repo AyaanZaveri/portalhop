@@ -58,7 +58,7 @@ export function EpgStrip({
     <>
       <Text
         numberOfLines={1}
-        className="font-semibold text-foreground text-[13px]"
+        className="font-rounded text-foreground text-[13px]"
         // Full strength, and a point larger than the web's fine print.
         //
         // The channel keeps the top line: a logo does not identify a channel
@@ -71,14 +71,11 @@ export function EpgStrip({
         // But what is on decides whether the channel is worth opening, so it
         // should read as the second line of a pair rather than as a caption
         // under a heading. At 12 and 0.8 against a 15-point name it was fine
-        // print; at 13, semibold and full strength it is a sentence you
-        // actually read. The name keeps the top line on size, 15 against 13,
-        // which is the difference the eye sorts them by — weight is what makes
-        // this one legible, not what makes it first.
+        // print; at 13 and full strength it is a sentence you actually read.
         style={{
           lineHeight: 16,
           includeFontPadding: false,
-          marginTop: 1,
+          marginTop: 2,
         }}
       >
         {programme.title}
@@ -89,7 +86,7 @@ export function EpgStrip({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          marginTop: 2,
+          marginTop: 3,
         }}
       >
         <Text
