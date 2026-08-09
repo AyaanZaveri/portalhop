@@ -66,8 +66,7 @@
             "usesCleartextTraffic": true
           }
         }
-      ],
-      "./plugins/with-rns-gamma"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
