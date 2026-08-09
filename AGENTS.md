@@ -95,3 +95,18 @@ one the channel screen needs.
 - **`react-native-image-colors`' `average` ignores alpha**, and PNGs routinely
   store colour under transparent pixels — so it says nothing about whether a
   logo has a background. `modules/logo-analysis` measures alpha properly.
+- **In-app predictive back is not available to this app.** It needs expo-router's
+  `ExperimentalStack`, and that crashes on launch here: `app/index.tsx` redirects
+  to `/tv`, the gamma container implements a replace as pop-then-push, and it
+  refuses to pop the last screen — `IllegalStateException: [RNScreens] Attempt to
+  pop last screen from the stack`. No app-side workaround exists, because every
+  route into `/tv` is the same replace. Two further traps if it is retried after
+  react-native-screens fixes it: gamma is off on Android unless a config plugin
+  sets the `rnsGammaEnabled` Gradle property, since expo-router's plugin only
+  writes the iOS half into the Podfile; and `ExperimentalStack` takes four
+  options, so `contentStyle` goes. `android.predictiveBackGestureEnabled` is
+  unrelated and stays — it arms the system back-to-home gesture, which works.
+- **Skia's postinstall is blocked by bun.** `@shopify/react-native-skia` writes
+  its binaries in a postinstall, and bun blocks those by default, so the packages
+  resolve and both native builds fail on missing libraries. It is listed in
+  `trustedDependencies` for that reason.
