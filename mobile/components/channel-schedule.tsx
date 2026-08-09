@@ -144,23 +144,37 @@ export function ChannelSchedule({
                     cost per card per frame, and this guide mounts every card
                     at once rather than virtualising them. */}
                 {programme.posterUrl ? (
-                  <Image
-                    source={{ uri: proxyImageUrl(programme.posterUrl) }}
+                  // The filter goes on a wrapper rather than on the image: it
+                  // applies to a whole subtree either way, and expo-image's
+                  // style union makes `filter` ambiguous with the array form.
+                  <View
+                    pointerEvents="none"
                     style={{
                       position: "absolute",
                       top: 0,
                       right: 0,
                       bottom: 0,
                       left: 0,
-                      opacity: isDark ? 0.24 : 0.14,
+                      opacity: isDark ? 0.2 : 0.12,
+                      // Saturated, as the web saturates its own. This is what
+                      // stops a red poster arriving as maroon: blurring averages
+                      // a picture toward its middle, and the middle of any
+                      // photograph is duller than the colours that make it up.
+                      // Pushed back up and then run quieter than before, so the
+                      // card gets a stronger colour and less of it.
+                      filter: [{ saturate: 1.9 }, { contrast: 1.1 }],
                     }}
-                    contentFit="cover"
-                    blurRadius={28}
-                    // Slower than the poster's own fade, so the colour arrives
-                    // after the picture rather than with it.
-                    transition={220}
-                    pointerEvents="none"
-                  />
+                  >
+                    <Image
+                      source={{ uri: proxyImageUrl(programme.posterUrl) }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      blurRadius={28}
+                      // Slower than the poster's own fade, so the colour arrives
+                      // after the picture rather than with it.
+                      transition={220}
+                    />
+                  </View>
                 ) : null}
 
                 {/* A fill layer rather than a colour on the card itself: the
@@ -168,17 +182,20 @@ export function ChannelSchedule({
                     taking it apart, and putting opacity on the card would fade
                     its text with it.
 
-                    What is on now is tinted with the primary instead of muted,
-                    and the elapsed share of it is tinted again on top. The card
-                    already is a span of time, so filling it says how far
-                    through that span the clock is — which a separate bar was
-                    saying a second time, in less space, less clearly.
+                    One fill for every card now, the web's bg-muted/20. What is
+                    on now used to be tinted with the primary and its elapsed
+                    share tinted again on top — the card is a span of time, so
+                    filling it said how far through that span the clock was.
 
-                    Both tints are very faint on purpose, and lighter than they
-                    first were. The description is muted grey, and grey over a
-                    saturated wash goes muddy long before the wash itself looks
-                    strong — so the ceiling here is set by the least contrasty
-                    text on the card, not by what reads well behind the title. */}
+                    That held until the poster began colouring the card. Lime
+                    laid over a programme's own colour is two colours fighting,
+                    and matching the fill to the poster instead would have been
+                    worse: fill and wash would be the same colour, and the
+                    elapsed edge — the whole point of the fill — would vanish
+                    into it. So the clock moves to a bar along the bottom, where
+                    a single unmissable line of lime can sit over any colour
+                    without arguing with it. It is what the web does, and why
+                    the web never had this problem. */}
                 <View
                   pointerEvents="none"
                   style={{
@@ -187,8 +204,8 @@ export function ChannelSchedule({
                     right: 0,
                     bottom: 0,
                     left: 0,
-                    backgroundColor: isNow ? colors.primary : colors.muted,
-                    opacity: isNow ? 0.07 : 0.2,
+                    backgroundColor: colors.muted,
+                    opacity: 0.2,
                   }}
                 />
 
@@ -197,14 +214,21 @@ export function ChannelSchedule({
                     pointerEvents="none"
                     style={{
                       position: "absolute",
-                      top: 0,
-                      bottom: 0,
                       left: 0,
-                      width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
-                      backgroundColor: colors.primary,
-                      opacity: 0.09,
+                      right: 0,
+                      bottom: 0,
+                      height: 3,
+                      backgroundColor: colors.border,
                     }}
-                  />
+                  >
+                    <View
+                      style={{
+                        height: "100%",
+                        width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
+                        backgroundColor: colors.primary,
+                      }}
+                    />
+                  </View>
                 ) : null}
                 <View className="flex-row items-start gap-3">
                   <View className="min-w-0 flex-1 gap-1.5">
