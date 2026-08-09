@@ -226,6 +226,13 @@ export function ChannelSchedule({
                         height: "100%",
                         width: `${progressOf({ title: "", startAt, stopAt }, now) * 100}%`,
                         backgroundColor: colors.primary,
+                        // Only the leading end. The other one is against the
+                        // card's own edge, where a cap would read as a gap
+                        // rather than as a shape — this end is the one moving,
+                        // and rounding it is what makes it a bar rather than a
+                        // measurement drawn to a stop.
+                        borderTopRightRadius: 999,
+                        borderBottomRightRadius: 999,
                       }}
                     />
                   </View>
