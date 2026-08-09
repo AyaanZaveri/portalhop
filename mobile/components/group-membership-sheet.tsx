@@ -38,7 +38,7 @@ export const GroupMembershipSheet = forwardRef<
         keyExtractor={(group) => String(group.id)}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
         ListEmptyComponent={
-          <Text className="text-muted-foreground py-6 text-center text-sm">
+          <Text className="font-sans text-muted-foreground py-6 text-center text-sm">
             No groups yet. Create one on the web app.
           </Text>
         }
@@ -64,7 +64,7 @@ export const GroupMembershipSheet = forwardRef<
               <GroupIcon icon={item.icon} size={16} color={iconPrimary} />
               <Text
                 numberOfLines={1}
-                className="text-foreground flex-1 text-[15px] tracking-tight"
+                className="font-rounded text-foreground flex-1 text-[15px] tracking-tight"
               >
                 {item.name}
               </Text>

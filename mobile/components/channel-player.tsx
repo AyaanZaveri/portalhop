@@ -231,7 +231,7 @@ export function ChannelPlayer({
   if (!canPlay) {
     return (
       <View className="mx-3 aspect-video items-center justify-center rounded-xl bg-black px-6">
-        <Text className="text-center text-sm text-white/70">
+        <Text className="font-sans text-center text-sm text-white/70">
           This channel has no stream to resolve.
         </Text>
       </View>
@@ -285,7 +285,7 @@ export function ChannelPlayer({
             {/* The player's own message, not just ours. A generic "try again"
                 hid the one detail that mattered when release builds refused
                 every plain-HTTP stream: Android names that failure exactly. */}
-            <Text className="text-center text-sm text-white">
+            <Text className="font-sans text-center text-sm text-white">
               {link.error?.message ??
                 error?.message ??
                 "This channel would not play."}

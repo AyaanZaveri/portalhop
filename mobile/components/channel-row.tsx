@@ -74,7 +74,7 @@ export const ChannelRow = memo(function ChannelRow({
             />
             <Text
               numberOfLines={1}
-              className="text-muted-foreground flex-1 text-xs"
+              className="font-sans text-muted-foreground flex-1 text-xs"
               style={{ lineHeight: 15, includeFontPadding: false }}
             >
               {channel.genre || "Uncategorized"}

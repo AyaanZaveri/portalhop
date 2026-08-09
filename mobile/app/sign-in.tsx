@@ -40,7 +40,7 @@ export default function SignInScreen() {
       <Text className="font-heading text-foreground text-xl">Sign in</Text>
 
       <View className="gap-2">
-        <Text className="text-muted-foreground text-sm">Email</Text>
+        <Text className="font-sans text-muted-foreground text-sm">Email</Text>
         <TextInput
           value={email}
           onChangeText={setEmail}
@@ -54,7 +54,7 @@ export default function SignInScreen() {
       </View>
 
       <View className="gap-2">
-        <Text className="text-muted-foreground text-sm">Password</Text>
+        <Text className="font-sans text-muted-foreground text-sm">Password</Text>
         <TextInput
           value={password}
           onChangeText={setPassword}

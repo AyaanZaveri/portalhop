@@ -31,7 +31,7 @@ export const GroupsSheet = forwardRef<
         keyExtractor={(group) => String(group.id)}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         ListEmptyComponent={
-          <Text className="text-muted-foreground py-6 text-center text-sm">
+          <Text className="font-sans text-muted-foreground py-6 text-center text-sm">
             No groups yet. Create one on the web app.
           </Text>
         }

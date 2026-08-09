@@ -383,7 +383,7 @@ export default function ChannelListScreen() {
         <Text className="font-heading text-foreground text-lg">
           Sign in to Portal Hop
         </Text>
-        <Text className="text-muted-foreground text-center text-sm">
+        <Text className="font-sans text-muted-foreground text-center text-sm">
           Your sources and favourites live on your account.
         </Text>
         <PressableScale
@@ -541,7 +541,7 @@ export default function ChannelListScreen() {
             <Text className="text-destructive text-center font-medium">
               Couldn&apos;t load channels
             </Text>
-            <Text className="text-muted-foreground text-center text-xs">
+            <Text className="font-sans text-muted-foreground text-center text-xs">
               {(portalsError ?? channelsError)?.message}
             </Text>
           </View>
@@ -552,7 +552,7 @@ export default function ChannelListScreen() {
         ) : visible.length === 0 ? (
           <View className="flex-1 items-center justify-center gap-2 px-8">
             <Tv size={28} color={colors["muted-foreground"]} />
-            <Text className="text-muted-foreground text-center text-sm">
+            <Text className="font-sans text-muted-foreground text-center text-sm">
               {query
                 ? "No channels match."
                 : portals?.length

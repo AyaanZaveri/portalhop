@@ -62,7 +62,7 @@ export const CategoriesSheet = forwardRef<
         keyExtractor={(entry) => `${entry.sourceId} ${entry.genre}`}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
         ListEmptyComponent={
-          <Text className="text-muted-foreground py-6 text-center text-sm">
+          <Text className="font-sans text-muted-foreground py-6 text-center text-sm">
             No categories match.
           </Text>
         }

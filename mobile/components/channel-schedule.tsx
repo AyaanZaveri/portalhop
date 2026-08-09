@@ -93,7 +93,7 @@ export function ChannelSchedule({
 
   if (query.error) {
     return (
-      <Text className="text-muted-foreground px-4 py-8 text-center text-sm">
+      <Text className="font-sans text-muted-foreground px-4 py-8 text-center text-sm">
         {query.error.message}
       </Text>
     )
@@ -101,7 +101,7 @@ export function ChannelSchedule({
 
   if (!days.length) {
     return (
-      <Text className="text-muted-foreground px-4 py-8 text-center text-sm">
+      <Text className="font-sans text-muted-foreground px-4 py-8 text-center text-sm">
         No guide data for this channel.
       </Text>
     )
@@ -113,7 +113,7 @@ export function ChannelSchedule({
     <View className="gap-5 px-4">
       {days.map(([day, programmes]) => (
         <View key={day} className="gap-2">
-          <Text className="text-muted-foreground text-xs">
+          <Text className="font-sans text-muted-foreground text-xs">
             {new Date(day).toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",
@@ -192,7 +192,7 @@ export function ChannelSchedule({
                     {programme.description ? (
                       <Text
                         numberOfLines={3}
-                        className="text-muted-foreground text-[13px]"
+                        className="font-sans text-muted-foreground text-[13px]"
                         style={{ lineHeight: 18 }}
                       >
                         {programme.description}

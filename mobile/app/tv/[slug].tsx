@@ -97,7 +97,7 @@ export default function ChannelDetailScreen() {
               />
               <Text
                 numberOfLines={1}
-                className="text-muted-foreground shrink text-xs"
+                className="font-sans text-muted-foreground shrink text-xs"
                 style={{ lineHeight: 15, includeFontPadding: false }}
               >
                 {genre || "Uncategorized"}
@@ -111,7 +111,7 @@ export default function ChannelDetailScreen() {
                 >
                   <Text
                     numberOfLines={1}
-                    className="text-muted-foreground text-[10px]"
+                    className="font-sans text-muted-foreground text-[10px]"
                     // The line height is what sized this badge before: 15pt of
                     // box around 10pt text, against 6pt of side padding, read as
                     // though the horizontal padding had gone missing. The box now
