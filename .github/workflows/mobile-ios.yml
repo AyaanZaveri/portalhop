@@ -1,0 +1,208 @@
+name: Mobile iOS IPA
+
+# Builds the Expo app in mobile/ into an unsigned .ipa.
+#
+# Unsigned is the only thing this can produce without an Apple Developer
+# account, because signing needs a certificate and a provisioning profile issued
+# by Apple, and neither can be faked. What comes out is a real, complete app
+# bundle that simply carries no signature, so it will not install by being tapped
+# the way the Android APKs do. Getting it onto a device means re-signing it
+# locally — Sideloadly or AltStore will do that with a free Apple ID, for seven
+# days at a time — or adding signing credentials here, which is the note at the
+# bottom of this file.
+#
+# It is still worth building. It proves the iOS project configures, the pods
+# resolve and the native modules compile, which is exactly what silently rots in
+# an Android-only repository, and it is the artifact any signing method starts
+# from.
+on:
+  push:
+    branches: [master]
+    # The web app shares this repository and cannot affect an IPA.
+    paths:
+      - "mobile/**"
+      - "packages/shared/**"
+      - ".github/workflows/mobile-ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # macOS 15 rather than macos-latest. Expo SDK 57 wants Xcode 26.4 or newer,
+    # which this image has; macos-latest is macOS 26, whose Xcode is a preview
+    # release and not what React Native 0.86 is tested against. Free for public
+    # repositories, where the ten-times minute multiplier does not apply.
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+
+      # Expo SDK 57 pins Node 22.13.x, and the CLI runs on Node even though the
+      # install is bun's.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Show the toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: bun install --frozen-lockfile
+
+      # mobile/ios is generated, not committed, exactly as mobile/android is —
+      # the same continuous-native-generation flow EAS uses. --no-install because
+      # bun has already installed and pods are run explicitly below, where they
+      # can be cached and timed separately.
+      - name: Generate the native project
+        working-directory: mobile
+        run: bunx expo prebuild --platform ios --no-install
+        env:
+          EXPO_NO_TELEMETRY: "1"
+
+      # Keyed on the lockfile rather than on Podfile.lock, which does not exist
+      # until prebuild has run and so cannot be hashed before this step.
+      - name: Cache pods
+        uses: actions/cache@v4
+        with:
+          path: |
+            mobile/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('mobile/bun.lock') }}
+          restore-keys: pods-${{ runner.os }}-
+
+      - name: Install pods
+        working-directory: mobile/ios
+        run: pod install
+
+      # CODE_SIGNING_ALLOWED=NO is what makes this possible without an Apple
+      # account, and it has to be set for every target — the pods are built here
+      # too and would otherwise each demand an identity. The other two are
+      # belt-and-braces for targets that ask for signing explicitly.
+      #
+      # A generic destination rather than a device or a simulator: this is
+      # archiving for "some arm64 iPhone", and naming a concrete device would
+      # make the build depend on what the runner happens to have.
+      - name: Archive
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace ios/PortalHop.xcworkspace \
+            -scheme PortalHop \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/PortalHop.xcarchive" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      # An .ipa is a zip with the .app inside a directory called Payload and
+      # nothing else to it. xcodebuild's own -exportArchive cannot be used
+      # here: exporting is the step that signs, so it fails without an identity,
+      # which is precisely what this build does not have.
+      - name: Package the IPA
+        id: ipa
+        run: |
+          set -euo pipefail
+          app=$(find "$RUNNER_TEMP/PortalHop.xcarchive/Products/Applications" \
+                     -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$app" ]; then
+            echo "the archive produced no .app" >&2
+            exit 1
+          fi
+
+          work="$RUNNER_TEMP/pack"
+          mkdir -p "$work/Payload"
+          cp -R "$app" "$work/Payload/"
+
+          mkdir -p dist
+          # Named for the commit, so a downloaded file stays identifiable once it
+          # is sitting in a Downloads folder next to the APKs.
+          dest="$PWD/dist/portalhop-${GITHUB_SHA::7}.ipa"
+          (cd "$work" && zip -qry "$dest" Payload)
+          echo "path=dist/portalhop-${GITHUB_SHA::7}.ipa" >> "$GITHUB_OUTPUT"
+          ls -lh "$dest"
+
+      # archive: false so this downloads as the .ipa itself rather than as a zip
+      # containing one. Needs upload-artifact v7 or later; see the Android
+      # workflow for the longer note.
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.ipa.outputs.path }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: portalhop-*.ipa
+          merge-multiple: true
+
+      # A release asset is only replaced by one of the same name, so the commit
+      # comes out of the filename here or every push would add another IPA to a
+      # release meant to hold the latest. The commit is in the body instead.
+      - name: Use a stable asset name
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          src=$(find . -name "portalhop-*.ipa" -type f | head -1)
+          if [ -z "$src" ]; then
+            echo "no IPA found" >&2
+            exit 1
+          fi
+          mv "$src" portalhop.ipa
+          ls -la
+
+      # Its own tag rather than the mobile-latest one the APKs use. Both
+      # workflows fire on the same push, and two jobs publishing to one tag race
+      # each other — the loser's asset goes missing from the release.
+      - name: Publish to the rolling iOS release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-latest
+          name: Latest iOS build
+          body: >
+            Unsigned IPA built from ${{ github.sha }}. Replaced on every push.
+
+
+            This will not install by tapping it. It carries no signature, so it
+            has to be re-signed against an Apple ID first — Sideloadly or AltStore
+            do that on a Mac or PC, and the result lasts seven days on a free
+            account before it needs redoing. A paid Apple Developer account is
+            what removes that limit, and would also let this workflow sign the
+            build itself.
+          files: dist/portalhop.ipa
+          fail_on_unmatched_files: true
+
+# Signing this properly, when there is an Apple Developer account to do it with:
+# add the distribution certificate as a base64 secret, import it into a keychain
+# created in the job, add the provisioning profile, then drop the
+# CODE_SIGNING_ALLOWED=NO flags and replace the manual Payload step with
+# `xcodebuild -exportArchive -exportOptionsPlist`. The archive step above does
+# not otherwise change.
