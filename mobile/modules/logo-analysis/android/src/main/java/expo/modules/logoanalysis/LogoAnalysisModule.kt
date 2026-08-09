@@ -161,7 +161,7 @@ class LogoAnalysisModule : Module() {
      * fill the holes in a whitened mark, and those holes have to match the tile
      * behind them or they read as grey blocks rather than as cutouts.
      */
-    const val TILE_BASE = 0xFF18181B.toInt()
+    const val TILE_BASE = 0xFF181A14.toInt()
   }
 
   override fun definition() = ModuleDefinition {

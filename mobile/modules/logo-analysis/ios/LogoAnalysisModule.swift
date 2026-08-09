@@ -48,7 +48,7 @@ public final class LogoAnalysisModule: Module {
   private static let darkInkLightness = 0.45
 
   private static let tilePaper: UInt32 = 0xFF_FA_FA_FA
-  private static let tileBase: UInt32 = 0xFF_18_18_1B
+  private static let tileBase: UInt32 = 0xFF_18_1A_14
 
   public func definition() -> ModuleDefinition {
     Name("LogoAnalysis")

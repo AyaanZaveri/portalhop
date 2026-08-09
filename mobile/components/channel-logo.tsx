@@ -62,6 +62,13 @@ const INNER_RADIUS = OUTER_RADIUS - PAD_Y
 /**
  * The tile when a logo offers no colour of its own.
  *
+ * An olive, taken from the primary's own hue at almost no saturation. It was
+ * zinc-900, which carries three points of blue the rest of the palette does not
+ * — the theme's neutrals are Tailwind neutral, which is flat — so the tile read
+ * cool against everything around it. Tailwind has no olive to reach for and
+ * Radix's is two points of green, which is not visible at this lightness; taken
+ * from the lime instead, it is six, which is.
+ *
  * Colouring this from the logo unconditionally was tried at length and
  * abandoned. A logo is usually a coloured mark on transparency, so any colour
  * drawn from it is a colour the mark itself contains — and putting the two
@@ -80,7 +87,7 @@ const INNER_RADIUS = OUTER_RADIUS - PAD_Y
  * it means changing TILE_BASE in the Kotlin and the Swift together and
  * discarding every image already written against the old one.
  */
-const TILE_BASE = "#18181b"
+const TILE_BASE = "#181a14"
 
 /**
  * Where to draw the image so its artwork fills the box.
