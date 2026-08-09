@@ -181,7 +181,11 @@ export function ChannelSchedule({
                     {/* A step up across the card. At 14 and 12 this read as
                         fine print next to the rest of the app, and a guide is
                         meant to be skimmed. */}
-                    <Text className="text-muted-foreground font-mono text-xs">
+                    {/* Medium, matching the times on a channel row. Same job,
+                        same relationship to the title under it, so the guide
+                        should not set them a weight lighter than the list the
+                        user just came from. */}
+                    <Text className="text-muted-foreground font-mono-medium text-xs">
                       {formatRange(startAt, stopAt)}
                     </Text>
 
