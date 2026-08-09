@@ -10,6 +10,15 @@ export function progressOf(programme: NowPlaying, now: number) {
   return Math.min(1, Math.max(0, (now - programme.startAt) / span))
 }
 
+/** The space either side of the bar, before optical correction. */
+const GAP = 6
+
+/**
+ * How much of that to take back on the left when the start time ends on a
+ * period. Roughly the empty part of a monospace period's cell at 10pt.
+ */
+const TRAILING_PERIOD = 3
+
 export function formatTime(at: number) {
   return new Date(at).toLocaleTimeString(undefined, {
     hour: "numeric",
@@ -42,6 +51,9 @@ export function EpgStrip({
   // picks the clock up here — one less prop to thread through a recycled row.
   const progress = progressOf(programme, Date.now())
 
+  const start = formatTime(programme.startAt)
+  const trailingSpace = start.endsWith(".") ? TRAILING_PERIOD : 0
+
   return (
     <>
       <Text
@@ -65,7 +77,6 @@ export function EpgStrip({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 6,
           marginTop: 3,
         }}
       >
@@ -87,12 +98,21 @@ export function EpgStrip({
             fontVariant: ["tabular-nums"],
           }}
         >
-          {formatTime(programme.startAt)}
+          {start}
         </Text>
 
         <View
           style={{
             flex: 1,
+            // Not the same gap either side, because they do not look the same.
+            // "11:00 p.m." ends on a period, and in a monospace face that
+            // period takes a whole character cell for about a pixel and a half
+            // of ink -- so the left of the bar carried four points of apparent
+            // space the right, starting on a digit, did not. Only applied when
+            // there is actually a period to answer for: a 24-hour locale ends
+            // the start time on a digit and needs no correction.
+            marginLeft: GAP - trailingSpace,
+            marginRight: GAP,
             // The times either side sit on a 12pt line, so the bar has room to
             // grow without moving anything: the row's height is set by the text,
             // not by this.
