@@ -85,14 +85,23 @@ class LogoAnalysisModule : Module() {
     const val SURROUNDED_ABOVE = 0.55
 
     /**
-     * How light the tile is allowed to get.
+     * How far white must stand off the tile, as WCAG counts contrast.
      *
      * The mark is drawn white on it, so a pale accent leaves white on white.
-     * Star Gold's is a light pink and its tile came out barely tinted, with the
-     * logo invisible against it. Darkening keeps the hue — it still reads as
-     * pink — while giving the white something to sit on.
+     * This was a ceiling on HSL lightness instead, 0.42, and lightness is not
+     * brightness: every tile came out at that exact figure while white read
+     * against them at anything from 5.71:1 for BBC One's red down to 1.72:1 for
+     * the Tennis Channel's lime, which is no contrast at all. A yellow-green at
+     * 0.42 carries four times the luminance of a red at 0.42 and HSL calls them
+     * the same, so no lightness exists that suits every hue. Measuring what
+     * actually matters settles all of them at once.
+     *
+     * 4:1 rather than the 3:1 WCAG asks of a graphical object, because these
+     * wordmarks carry small lettering — "CHANNEL" beneath "TENNIS" — and rather
+     * than the 4.5:1 it asks of body text, which took Tennis and Comedy Central
+     * far enough down that the brand's own colour stopped being recognisable.
      */
-    const val TILE_LIGHTNESS_MAX = 0.42f
+    const val WHITE_CONTRAST_MIN = 4.0
 
     /**
      * How much of an opaque logo's outer ring must be its dominant colour before
@@ -568,12 +577,48 @@ class LogoAnalysisModule : Module() {
     return if (near.toDouble() / ring.size >= BORDER_MAJORITY_ABOVE) dominant else null
   }
 
-  /** Pulls a colour down to the tile ceiling, keeping its hue and saturation. */
+  /** WCAG relative luminance: linearised channels, weighted for the eye. */
+  private fun relativeLuminance(color: Int): Double {
+    fun channel(value: Int): Double {
+      val c = value / 255.0
+      return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(Color.red(color)) +
+      0.7152 * channel(Color.green(color)) +
+      0.0722 * channel(Color.blue(color))
+  }
+
+  /** How far white stands off a colour. White's own luminance is 1.0. */
+  private fun whiteContrast(color: Int) = 1.05 / (relativeLuminance(color) + 0.05)
+
+  /**
+   * The lightest a colour may be while a white mark still reads on it.
+   *
+   * Found by halving rather than solved, because luminance runs through a gamma
+   * curve and a weighted sum of three channels -- there is no lightness to
+   * rearrange for. Contrast rises as lightness falls, so the answer is the
+   * largest lightness that still passes, and twenty-four halvings settle it far
+   * past what eight bits can tell apart.
+   */
   private fun darken(color: Int): Int {
+    if (whiteContrast(color) >= WHITE_CONTRAST_MIN) return color
+
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(color, hsl)
-    if (hsl[2] <= TILE_LIGHTNESS_MAX) return color
-    hsl[2] = TILE_LIGHTNESS_MAX
+
+    var low = 0f
+    var high = hsl[2]
+    repeat(24) {
+      val middle = (low + high) / 2
+      hsl[2] = middle
+      if (whiteContrast(ColorUtils.HSLToColor(hsl)) >= WHITE_CONTRAST_MIN) {
+        low = middle
+      } else {
+        high = middle
+      }
+    }
+
+    hsl[2] = low
     return ColorUtils.HSLToColor(hsl)
   }
 

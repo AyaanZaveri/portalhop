@@ -38,7 +38,7 @@ public final class LogoAnalysisModule: Module {
   private static let multiHueAbove = 0.25
   private static let needsColorAbove = 0.04
   private static let surroundedAbove = 0.55
-  private static let tileLightnessMax = 0.42
+  private static let whiteContrastMin = 4.0
   private static let borderMajorityAbove = 0.60
   private static let borderTolerance = 28
   private static let borderBucket = 24
@@ -119,11 +119,41 @@ public final class LogoAnalysisModule: Module {
     return argb(255, byte(r), byte(g), byte(b))
   }
 
-  /// Pulls a colour down to the tile ceiling, keeping its hue and saturation.
+  /// WCAG relative luminance: linearised channels, weighted for the eye.
+  private static func relativeLuminance(_ color: UInt32) -> Double {
+    func channel(_ value: Int) -> Double {
+      let c = Double(value) / 255
+      return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(red(color))
+      + 0.7152 * channel(green(color))
+      + 0.0722 * channel(blue(color))
+  }
+
+  /// How far white stands off a colour. White's own luminance is 1.0.
+  private static func whiteContrast(_ color: UInt32) -> Double {
+    1.05 / (relativeLuminance(color) + 0.05)
+  }
+
+  /// The lightest a colour may be while a white mark still reads on it.
   private static func darken(_ color: UInt32) -> UInt32 {
+    if whiteContrast(color) >= whiteContrastMin { return color }
+
     let hsl = toHSL(color)
-    if hsl.l <= tileLightnessMax { return color }
-    return fromHSL(h: hsl.h, s: hsl.s, l: tileLightnessMax)
+    var low = 0.0
+    var high = hsl.l
+    // Halved rather than solved: luminance runs through a gamma curve and a
+    // weighted sum, so there is no lightness to rearrange for.
+    for _ in 0..<24 {
+      let middle = (low + high) / 2
+      if whiteContrast(fromHSL(h: hsl.h, s: hsl.s, l: middle)) >= whiteContrastMin {
+        low = middle
+      } else {
+        high = middle
+      }
+    }
+
+    return fromHSL(h: hsl.h, s: hsl.s, l: low)
   }
 
   // MARK: - Loading
