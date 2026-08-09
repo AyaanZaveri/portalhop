@@ -1,6 +1,5 @@
 import { useCallback, useState, type ReactNode } from "react"
 import {
-  ActivityIndicator,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -18,6 +17,8 @@ import * as Haptics from "expo-haptics"
 import { RefreshCw } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
+
+import { Orb } from "@/components/ui/orb"
 
 /** How far the finger travels before letting go actually refreshes. */
 const THRESHOLD = 72
@@ -198,7 +199,10 @@ export function PullToRefresh({
         ]}
       >
         {refreshing ? (
-          <ActivityIndicator size="small" color={colors.primary} />
+          // 20 is one of the two sizes the orb's dot layout is tuned for, and
+          // it is what the icon it replaces measured, so the indicator does not
+          // change size when the pull tips over into a refresh.
+          <Orb size={20} />
         ) : (
           <RefreshCw size={20} color={colors["muted-foreground"]} />
         )}

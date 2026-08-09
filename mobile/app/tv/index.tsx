@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, Text, TextInput, View } from "react-native"
+import { Text, TextInput, View } from "react-native"
 import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList, type FlashListRef } from "@shopify/flash-list"
 import { useQueryClient } from "@tanstack/react-query"
@@ -46,6 +46,7 @@ import { CategoriesSheet } from "@/components/categories-sheet"
 import { GroupsSheet } from "@/components/groups-sheet"
 import { PortalFilterSheet } from "@/components/portal-filter-sheet"
 import { Chip } from "@/components/ui/chip"
+import { Orb } from "@/components/ui/orb"
 import { TopGlow } from "@/components/top-glow"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
@@ -370,7 +371,7 @@ export default function ChannelListScreen() {
   if (sessionPending) {
     return (
       <View className="bg-background flex-1 items-center justify-center">
-        <ActivityIndicator />
+        <Orb />
       </View>
     )
   }
@@ -552,7 +553,7 @@ export default function ChannelListScreen() {
           </View>
         ) : channelsPending ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator />
+            <Orb />
           </View>
         ) : visible.length === 0 ? (
           <View className="flex-1 items-center justify-center gap-2 px-8">
