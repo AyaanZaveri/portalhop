@@ -64,7 +64,7 @@ export const ChannelRow = memo(function ChannelRow({
               flexDirection: "row",
               alignItems: "center",
               gap: 5,
-              marginTop: 2,
+              marginTop: 1,
             }}
           >
             <CategoryVisual
