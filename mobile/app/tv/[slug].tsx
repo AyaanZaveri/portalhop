@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/auth"
 import { usePortals } from "@/lib/channels"
+import { useLogoStyle } from "@/lib/logo-style"
 
 import { CategoryVisual } from "@/components/category-visual"
+import { ChannelGlow } from "@/components/channel-glow"
 import { ChannelLogo } from "@/components/channel-logo"
 import { ChannelPlayer } from "@/components/channel-player"
 import { ChannelSchedule } from "@/components/channel-schedule"
@@ -51,11 +53,21 @@ export default function ChannelDetailScreen() {
   const { data: portals } = usePortals(Boolean(session?.user))
   const portal = portals?.find((entry) => entry.id === Number(portalId))
 
+  // The same verdict the tile uses, so the glow is the colour of the logo
+  // sitting in front of it rather than a second guess at the channel's colour.
+  // Already resolved and cached by the row the user tapped, so this costs
+  // nothing here.
+  const logoStyle = useLogoStyle(logo)
+
   return (
     <View
       className="bg-background flex-1"
       style={{ paddingTop: fullscreen ? 0 : insets.top }}
     >
+      {/* Behind the header, and gone in fullscreen along with it — the point of
+          fullscreen is that nothing but the video is on screen. Drawn before
+          the header so it sits under it without needing a z-index. */}
+      {fullscreen ? null : <ChannelGlow color={logoStyle.color} />}
       {/* Logo, name, category and source — the same block the web's channel
           header carries, and the same logo treatment as a list row so a
           channel looks like itself on both screens. Stood down in fullscreen,
