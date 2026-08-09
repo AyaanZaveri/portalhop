@@ -67,6 +67,18 @@ const INNER_RADIUS = OUTER_RADIUS - PAD_Y
  * drawn from it is a colour the mark itself contains — and putting the two
  * together is how a mark disappears. It is only safe once the mark has been
  * redrawn white, which is what the native pass decides.
+ *
+ * Fixed rather than taken from the palette, and dark in both themes. That looks
+ * like an oversight and is the opposite: no colour is exactly what the native
+ * pass returns when the ink is light. A colourless mark that is dark gets
+ * whitened, and a dark wordmark beside colour gets the paper tile, so what is
+ * left here is overwhelmingly white artwork — CP24, HBO, NFL Network. On muted
+ * those are barely there in light mode, and on card they are gone.
+ *
+ * It is also not free to move. A whitened mark has this exact value painted
+ * into its holes, so they read as cutouts rather than as grey blocks; changing
+ * it means changing TILE_BASE in the Kotlin and the Swift together and
+ * discarding every image already written against the old one.
  */
 const TILE_BASE = "#18181b"
 
