@@ -43,10 +43,17 @@ const MAX_SCALE = 1.8
  * straight edges and right angles -- a logo is a rectangle of its own, and the
  * corner should agree with the artwork more than with the container.
  *
- * The inner corner is what softens a logo that fills its own canvas. Artwork
- * like Sony SAB or Game Show Network is a hard-edged rectangle, and set against
- * a rounded tile it reads as a photograph pinned to a card rather than as part
- * of it. Rounding the box it is clipped to rounds the artwork with it.
+ * ARTWORK is what softens a logo that fills its own canvas. Sony SAB or Game
+ * Show Network is a hard-edged rectangle, and set against a rounded tile it
+ * reads as a photograph pinned to a card rather than as part of one.
+ *
+ * It goes on the image and not on the box, which was the first attempt and did
+ * nothing visible. A logo is fitted to the box by whichever edge runs out
+ * first, and for artwork this shape that is the height — so it stands 4 to 6
+ * points clear of the box on either side, and a radius on the box only ever
+ * bit into the empty tile beside it. What it did reach was the flush top and
+ * bottom edge, which is why it read as a slice taken off rather than as a
+ * corner turned.
  *
  * It costs nothing on every other kind of logo, which is why no rule is needed
  * to decide who gets it. A mark on transparency has nothing in its corners to
@@ -55,16 +62,12 @@ const MAX_SCALE = 1.8
  * the tile behind. Only artwork that reaches its own edge in a colour of its own
  * can tell the difference, and that is exactly the artwork this is for.
  *
- * The two are set apart rather than one derived from the other. INNER was OUTER
- * minus the vertical padding, which is the usual way to keep two corners
- * concentric — but concentric was never reachable here, because the padding
- * differs by axis, and the formula meant taking a point off the tile's corner
- * quietly took one off the artwork's too. They answer different questions: OUTER
- * is how the tile sits in its row, INNER is how a logo that fills its own canvas
- * sits in the tile.
+ * The two are set apart rather than one derived from the other. They answer
+ * different questions: OUTER is how the tile sits in its row, ARTWORK is how a
+ * logo that fills its own canvas sits in the tile.
  */
 const OUTER_RADIUS = 10
-const INNER_RADIUS = 6
+const ARTWORK_RADIUS = 6
 
 /**
  * The tile when a logo offers no colour of its own.
@@ -175,23 +178,27 @@ export function ChannelLogo({
         // The box is its own view so the overhang is clipped to it rather than
         // to the tile, which would let a scaled-up logo run under the border.
         <View
-          style={{
-            width: boxWidth,
-            height: boxHeight,
-            overflow: "hidden",
-            borderRadius: INNER_RADIUS,
-          }}
+          style={{ width: boxWidth, height: boxHeight, overflow: "hidden" }}
         >
           <Image
             source={{ uri: style.uri ?? uri }}
-            // No radius of its own: the box it is clipped to carries it. Put
-            // here it would round the image rather than what is on screen — the
-            // image is usually larger than the box and its corners are already
-            // outside it, so the corner that shows is the box's either way.
+            // The radius belongs here, on the artwork, because the artwork's
+            // corners are the ones on screen. Where the image is scaled past
+            // the box — artwork whose own background the tile continues — its
+            // corners are outside the clip and rounding them shows nothing,
+            // which is the right answer for those.
             style={
               placement
-                ? { position: "absolute", ...placement }
-                : { width: "100%", height: "100%" }
+                ? {
+                    position: "absolute",
+                    borderRadius: ARTWORK_RADIUS,
+                    ...placement,
+                  }
+                : {
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: ARTWORK_RADIUS,
+                  }
             }
             contentFit="contain"
             // The image is deliberately drawn larger than the view it sits in
