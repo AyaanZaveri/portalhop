@@ -12,10 +12,20 @@ import { useTheme } from "@/lib/theme"
  * The orb draws through Skia on the UI thread, so it keeps animating while the
  * JavaScript thread is busy — which is exactly what a loader is for, since the
  * work it is covering is what would otherwise stall a JS-driven spinner.
+ *
+ * Searching, of the six the library offers, because it is the only one that
+ * describes what is actually happening: every place this appears, the app is
+ * out over the network looking for channels, and a light sweeping the sphere
+ * reads as looking. Solving suggests a computation nothing here is doing, and
+ * shaping suggests something being built rather than fetched.
+ *
+ * It also survives being small. A sweep is one continuous motion, so it still
+ * reads at the 20pt the pull-to-refresh uses, where shaping's morph and
+ * solving's facets need more dots than that size has to give.
  */
 export function Orb({
   size = 64,
-  state = "working",
+  state = "searching",
 }: {
   /**
    * The library tunes its dot layout for two sizes, 64 and 20, and interpolates
