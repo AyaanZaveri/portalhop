@@ -1237,7 +1237,7 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                        <span className="truncate font-medium">
+                        <span className="truncate font-semibold">
                           {channel.name ||
                             `Channel ${channel.number || index + 1}`}
                         </span>
@@ -1403,7 +1403,7 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                        <span className="truncate font-medium">
+                        <span className="truncate font-semibold">
                           {channel.name ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
@@ -1412,13 +1412,14 @@ export function ChannelList({
                             pushing the row to four. */}
                         {nowPlaying ? (
                           <>
-                            {/* Semibold and at full strength, where it was
-                                regular at 80% — it is the line that decides
-                                whether the channel is worth opening, and it was
-                                set as fine print under the name. The name keeps
-                                the top line on size, which is what the eye
-                                sorts them by. */}
-                            <span className="truncate text-[13px] font-semibold">
+                            {/* Medium at full strength, where it was regular
+                                at 80% — it was fine print under the name, and
+                                it is the line that decides whether the channel
+                                is worth opening. The weight above it is the
+                                name's: semibold at the top, medium here, so the
+                                two are ordered by weight as well as by size
+                                rather than competing at the same one. */}
+                            <span className="truncate text-[13px] font-medium">
                               {nowPlaying.title}
                             </span>
                             <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[10px] tabular-nums">
@@ -1609,7 +1610,7 @@ export function ChannelList({
                   )}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                  <span className="truncate font-medium">
+                  <span className="truncate font-semibold">
                     {contextChannel.name || "Channel"}
                   </span>
                   <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
