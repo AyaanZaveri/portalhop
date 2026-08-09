@@ -72,10 +72,15 @@ export function EpgStrip({
         // should read as the second line of a pair rather than as a caption
         // under a heading. At 12 and 0.8 against a 15-point name it was fine
         // print; at 13 and full strength it is a sentence you actually read.
+        // 0.8 rather than a foreground/80 colour: the same result against an
+        // opaque row, without taking the theme's oklch token apart to put an
+        // alpha on it. The name above is at full strength, and that difference
+        // is what keeps two lines of the same weight from reading as one block.
         style={{
           lineHeight: 16,
           includeFontPadding: false,
           marginTop: 2,
+          opacity: 0.8,
         }}
       >
         {programme.title}

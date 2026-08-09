@@ -1237,7 +1237,7 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                        <span className="truncate font-semibold">
+                        <span className="truncate font-medium">
                           {channel.name ||
                             `Channel ${channel.number || index + 1}`}
                         </span>
@@ -1403,7 +1403,7 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                        <span className="truncate font-semibold">
+                        <span className="truncate font-medium">
                           {channel.name ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
@@ -1412,17 +1412,20 @@ export function ChannelList({
                             pushing the row to four. */}
                         {nowPlaying ? (
                           <>
-                            {/* Medium at full strength, where it was regular
-                                at 80% — it was fine print under the name, and
-                                it is the line that decides whether the channel
-                                is worth opening. The weight above it is the
-                                name's: semibold at the top, medium here, so the
-                                two are ordered by weight as well as by size
-                                rather than competing at the same one. */}
-                            <span className="truncate text-[13px] font-medium">
+                            {/* The mobile row's treatment, figure for figure:
+                                13 points, medium, and dimmed against a name at
+                                full strength. Both lines carry the same weight,
+                                so it is size and colour that order them — and
+                                the colour is what stops two lines of one weight
+                                reading as a single block. */}
+                            <span className="text-foreground/80 truncate text-[13px] font-medium">
                               {nowPlaying.title}
                             </span>
-                            <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[10px] tabular-nums">
+                            {/* Mono and medium, as the mobile row has them.
+                                Even digits keep the bar between the two times
+                                from twitching as the clock advances, and medium
+                                is what stops ten-point mono going spidery. */}
+                            <span className="text-muted-foreground flex min-w-0 items-center gap-2 font-mono text-[10px] font-medium tabular-nums">
                               <span className="shrink-0">
                                 {formatClockTime(nowPlaying.startAt)}
                               </span>
@@ -1610,7 +1613,7 @@ export function ChannelList({
                   )}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                  <span className="truncate font-semibold">
+                  <span className="truncate font-medium">
                     {contextChannel.name || "Channel"}
                   </span>
                   <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
