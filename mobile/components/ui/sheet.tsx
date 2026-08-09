@@ -35,8 +35,16 @@ import { blurAvailable, useBlurTarget } from "@/components/ui/blur-target"
  */
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
 
-/** Intensity at rest, before Android divides it by blurReductionFactor (4). */
-const BLUR_DARK = 26
+/**
+ * Intensity at rest, before Android divides it by blurReductionFactor (4).
+ *
+ * Dark carries more than light, and by more than it looks: 26 was arriving as
+ * an effective radius of six and a half, which is barely a blur -- enough to
+ * take the edge off a row and not enough to say the list is behind something.
+ * Light needs less, because a light scrim over light content already separates
+ * the two; a dark one over dark content has only the blur to do it with.
+ */
+const BLUR_DARK = 42
 const BLUR_LIGHT = 22
 
 /**

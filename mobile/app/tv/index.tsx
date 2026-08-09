@@ -401,10 +401,11 @@ export default function ChannelListScreen() {
   return (
     <EpgProvider channels={withSource} portals={portals} visible={visibleRows}>
       <View className="bg-background flex-1" style={{ paddingTop: insets.top }}>
-        {/* The app's own colour, the way a channel page wears the channel's.
-            Drawn first so the header sits over it without a z-index, and deaf
-            to touches so it cannot swallow the search field under it. */}
-        <TopGlow color={colors.primary} />
+        {/* The app's own colour, which is what TopGlow falls back to, the way
+            a channel page wears the channel's. Drawn first so the header sits
+            over it without a z-index, and deaf to touches so it cannot swallow
+            the search field under it. */}
+        <TopGlow />
         {/* The wordmark is gone: a native app does not need to tell you which app
           you just opened, and the space is better spent on content. The bunny
           stays as a small brand mark. */}

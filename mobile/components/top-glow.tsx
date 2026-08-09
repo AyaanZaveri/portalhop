@@ -7,8 +7,10 @@ import { useTheme } from "@/lib/theme"
  * A wash of colour falling from the top of a screen.
  *
  * The channel page passes the colour its logo reported, so a channel's page
- * looks like that channel; the list passes the app's primary, so the app's own
- * screen looks like the app.
+ * looks like that channel. Where it has none to give -- a logo left plain, or
+ * one on the paper tile whose near-white is a tile rather than an identity --
+ * it falls back to the app's primary, which is also what the list uses. So
+ * every screen has a glow; the only question is whose colour it is.
  *
  * Drawn with react-native-svg rather than a gradient package, for two reasons.
  * It is already a dependency, so this needs no new native build to appear —
@@ -70,18 +72,21 @@ function luminance(hex: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-export function TopGlow({ color }: { color: string | undefined }) {
+export function TopGlow({ color }: { color?: string }) {
   const { width } = useWindowDimensions()
-  const { isDark } = useTheme()
+  const { isDark, colors } = useTheme()
 
-  if (!color || luminance(color) > TOO_PALE) return null
+  // Too pale counts as nothing offered rather than as a reason to draw nothing:
+  // a wash that light is a haze on a dark page and invisible on a light one,
+  // and the app's own colour is a better answer than no glow at all.
+  const wash = color && luminance(color) <= TOO_PALE ? color : colors.primary
 
   // Scaled by how bright the colour already is, so a bright one is not louder
   // than a dark one at the same alpha. Square-rooted because perceived
   // strength does not track luminance one for one, and never above 1, so this
   // only ever quietens a bright colour and never amplifies a dark one past
   // what was judged to look right.
-  const scale = Math.min(1, Math.sqrt(REFERENCE / Math.max(luminance(color), 0.05)))
+  const scale = Math.min(1, Math.sqrt(REFERENCE / Math.max(luminance(wash), 0.05)))
   const peak = (isDark ? PEAK_DARK : PEAK_LIGHT) * scale
 
   return (
@@ -105,12 +110,12 @@ export function TopGlow({ color }: { color: string | undefined }) {
               rather than a disc sitting on the page. Wider than it is tall so
               it spreads across the header instead of pooling in the middle. */}
           <RadialGradient id="glow" cx="50%" cy="0%" rx="75%" ry="100%">
-            <Stop offset="0" stopColor={color} stopOpacity={peak} />
+            <Stop offset="0" stopColor={wash} stopOpacity={peak} />
             {/* A middle stop, because two stops band visibly on Android at
                 these alphas. SVG has no dither to fall back on, so the ramp
                 has to be gentle enough not to need one. */}
-            <Stop offset="0.45" stopColor={color} stopOpacity={peak * 0.35} />
-            <Stop offset="1" stopColor={color} stopOpacity={0} />
+            <Stop offset="0.45" stopColor={wash} stopOpacity={peak * 0.35} />
+            <Stop offset="1" stopColor={wash} stopOpacity={0} />
           </RadialGradient>
         </Defs>
         <Rect x="0" y="0" width={width} height={HEIGHT} fill="url(#glow)" />

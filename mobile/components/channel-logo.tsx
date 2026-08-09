@@ -38,7 +38,10 @@ const MAX_SCALE = 1.8
 /**
  * The tile's corner, and the corner of the box holding the artwork.
  *
- * The tile matches the row it sits in, which is rounded-xl.
+ * A notch tighter than the row it sits in, which is rounded-xl. Matching it
+ * exactly was tried and the tile read soft against artwork that is mostly
+ * straight edges and right angles -- a logo is a rectangle of its own, and the
+ * corner should agree with the artwork more than with the container.
  *
  * The inner corner is what softens a logo that fills its own canvas. Artwork
  * like Sony SAB or Game Show Network is a hard-edged rectangle, and set against
@@ -56,7 +59,7 @@ const MAX_SCALE = 1.8
  * corners concentric. It cannot be exact here because the padding differs by
  * axis, and the vertical is the one the eye follows on a tile this shape.
  */
-const OUTER_RADIUS = 12
+const OUTER_RADIUS = 10
 const INNER_RADIUS = OUTER_RADIUS - PAD_Y
 
 /**
