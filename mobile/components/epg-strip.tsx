@@ -58,15 +58,24 @@ export function EpgStrip({
     <>
       <Text
         numberOfLines={1}
-        className="font-rounded text-foreground text-xs"
-        // 0.8 opacity rather than a foreground/80 colour: it is the same result
-        // against an opaque row, and it does not need the theme's oklch token
-        // taken apart to apply an alpha to it. Matches the web's text-foreground/80.
+        className="font-rounded text-foreground text-[13px]"
+        // Full strength, and a point larger than the web's fine print.
+        //
+        // The channel keeps the top line: a logo does not identify a channel
+        // here, whatever it looks like it should do. 71% of the catalogue
+        // shares its logo with another channel — 4,848 of them behind one ESPN
+        // picon — and even among favourites the four TSN rows differ by a
+        // numeral a few points wide. The name is the only thing on the row that
+        // says which of them this is.
+        //
+        // But what is on decides whether the channel is worth opening, so it
+        // should read as the second line of a pair rather than as a caption
+        // under a heading. At 12 and 0.8 against a 15-point name it was fine
+        // print; at 13 and full strength it is a sentence you actually read.
         style={{
-          lineHeight: 15,
+          lineHeight: 16,
           includeFontPadding: false,
           marginTop: 2,
-          opacity: 0.8,
         }}
       >
         {programme.title}
