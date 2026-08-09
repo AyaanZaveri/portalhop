@@ -55,12 +55,16 @@ const MAX_SCALE = 1.8
  * the tile behind. Only artwork that reaches its own edge in a colour of its own
  * can tell the difference, and that is exactly the artwork this is for.
  *
- * INNER is OUTER minus the vertical padding, which is the usual way to keep two
- * corners concentric. It cannot be exact here because the padding differs by
- * axis, and the vertical is the one the eye follows on a tile this shape.
+ * The two are set apart rather than one derived from the other. INNER was OUTER
+ * minus the vertical padding, which is the usual way to keep two corners
+ * concentric — but concentric was never reachable here, because the padding
+ * differs by axis, and the formula meant taking a point off the tile's corner
+ * quietly took one off the artwork's too. They answer different questions: OUTER
+ * is how the tile sits in its row, INNER is how a logo that fills its own canvas
+ * sits in the tile.
  */
 const OUTER_RADIUS = 10
-const INNER_RADIUS = OUTER_RADIUS - PAD_Y
+const INNER_RADIUS = 6
 
 /**
  * The tile when a logo offers no colour of its own.
