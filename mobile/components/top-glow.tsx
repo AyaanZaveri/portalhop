@@ -4,7 +4,11 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg"
 import { useTheme } from "@/lib/theme"
 
 /**
- * A wash of the channel's own colour, falling from the top of its page.
+ * A wash of colour falling from the top of a screen.
+ *
+ * The channel page passes the colour its logo reported, so a channel's page
+ * looks like that channel; the list passes the app's primary, so the app's own
+ * screen looks like the app.
  *
  * Drawn with react-native-svg rather than a gradient package, for two reasons.
  * It is already a dependency, so this needs no new native build to appear —
@@ -23,7 +27,8 @@ import { useTheme } from "@/lib/theme"
 const HEIGHT = 260
 
 /**
- * The strongest the wash gets, at its centre.
+ * The strongest the wash gets, at its centre, for a colour of ordinary
+ * brightness.
  *
  * Low on purpose, and lower again in light mode. On the near-black background
  * a colour at this alpha reads as light; on a white one the same wash reads as
@@ -32,6 +37,17 @@ const HEIGHT = 260
  */
 const PEAK_DARK = 0.3
 const PEAK_LIGHT = 0.16
+
+/**
+ * The brightness these peaks were judged against.
+ *
+ * A tile colour is pulled down to lightness 0.42 before it is ever used, so
+ * every channel arrives in roughly this range -- TSN's red measures 0.25. The
+ * primary does not: the lime measures 0.77, and at the same alpha it was three
+ * times louder than any channel's glow rather than the same glow in a different
+ * hue.
+ */
+const REFERENCE = 0.25
 
 /**
  * Above this the colour is too pale to wash anything.
@@ -54,13 +70,19 @@ function luminance(hex: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-export function ChannelGlow({ color }: { color: string | undefined }) {
+export function TopGlow({ color }: { color: string | undefined }) {
   const { width } = useWindowDimensions()
   const { isDark } = useTheme()
 
   if (!color || luminance(color) > TOO_PALE) return null
 
-  const peak = isDark ? PEAK_DARK : PEAK_LIGHT
+  // Scaled by how bright the colour already is, so a bright one is not louder
+  // than a dark one at the same alpha. Square-rooted because perceived
+  // strength does not track luminance one for one, and never above 1, so this
+  // only ever quietens a bright colour and never amplifies a dark one past
+  // what was judged to look right.
+  const scale = Math.min(1, Math.sqrt(REFERENCE / Math.max(luminance(color), 0.05)))
+  const peak = (isDark ? PEAK_DARK : PEAK_LIGHT) * scale
 
   return (
     // Behind everything and deaf to touches: the header's back button sits over

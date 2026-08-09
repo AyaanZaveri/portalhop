@@ -46,6 +46,7 @@ import { CategoriesSheet } from "@/components/categories-sheet"
 import { GroupsSheet } from "@/components/groups-sheet"
 import { PortalFilterSheet } from "@/components/portal-filter-sheet"
 import { Chip } from "@/components/ui/chip"
+import { TopGlow } from "@/components/top-glow"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { CategoryVisual } from "@/components/category-visual"
@@ -399,6 +400,10 @@ export default function ChannelListScreen() {
   return (
     <EpgProvider channels={withSource} portals={portals} visible={visibleRows}>
       <View className="bg-background flex-1" style={{ paddingTop: insets.top }}>
+        {/* The app's own colour, the way a channel page wears the channel's.
+            Drawn first so the header sits over it without a z-index, and deaf
+            to touches so it cannot swallow the search field under it. */}
+        <TopGlow color={colors.primary} />
         {/* The wordmark is gone: a native app does not need to tell you which app
           you just opened, and the space is better spent on content. The bunny
           stays as a small brand mark. */}
