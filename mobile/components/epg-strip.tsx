@@ -93,7 +93,10 @@ export function EpgStrip({
         <View
           style={{
             flex: 1,
-            height: 4,
+            // The times either side sit on a 12pt line, so the bar has room to
+            // grow without moving anything: the row's height is set by the text,
+            // not by this.
+            height: 5,
             borderRadius: 999,
             overflow: "hidden",
             backgroundColor: colors.border,
