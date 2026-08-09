@@ -1,39 +1,10 @@
 import { useEffect, useState } from "react"
-import { requireOptionalNativeModule } from "expo"
+
+import { LogoAnalysis, type LogoStyle } from "@/modules/logo-analysis/src"
 
 import { db } from "./db"
 
-/**
- * How a channel's logo should be presented.
- *
- * Every field is optional and every one is independent, because the answers are
- * independent: a logo can be redrawn without offering a colour, offer a colour
- * without being redrawn, and report its shape either way. An empty object is
- * the honest description of "draw it as it came", so there is no separate kind
- * for it.
- */
-export type LogoStyle = {
-  /** A redrawn copy to draw instead of the original, where one was made. */
-  uri?: string
-  /** The colour the tile should take, where the logo offers one. */
-  color?: string
-  /** The image's own width over its height, needed to lay the artwork out. */
-  aspect?: number
-  /**
-   * Where the artwork sits inside the image, in fractions of it.
-   *
-   * Logo files carry wildly different amounts of their own margin, and fitting
-   * the image rather than the artwork passes that straight through: Mississauga
-   * is 30% flat blue above and below its mark and came out a postage stamp,
-   * while CP24 is drawn edge to edge and came out enormous. Given the
-   * rectangle, the tile can size the artwork instead and the two agree.
-   */
-  content?: { x: number; y: number; width: number; height: number }
-}
-
-const native = requireOptionalNativeModule<{
-  prepare: (url: string) => Promise<(LogoStyle & { kind: string }) | null>
-}>("LogoAnalysis")
+export type { LogoStyle }
 
 const PLAIN: LogoStyle = {}
 
@@ -122,7 +93,7 @@ async function resolve(url: string): Promise<LogoStyle> {
     // The native side still labels its verdicts, but nothing here reads the
     // label any more — the fields say everything — and storing it would put a
     // dead key in every row.
-    const { kind, ...prepared } = (await native!.prepare(url)) ?? {}
+    const { kind, ...prepared } = (await LogoAnalysis!.prepare(url)) ?? {}
     void kind
     style = prepared
   } catch {
@@ -143,7 +114,7 @@ async function resolve(url: string): Promise<LogoStyle> {
 
 export function useLogoStyle(url: string | undefined): LogoStyle {
   const [style, setStyle] = useState<LogoStyle>(
-    () => (native && url ? memory.get(url) : undefined) ?? PLAIN,
+    () => (LogoAnalysis && url ? memory.get(url) : undefined) ?? PLAIN,
   )
   const [seen, setSeen] = useState(url)
 
@@ -152,11 +123,11 @@ export function useLogoStyle(url: string | undefined): LogoStyle {
   // previous channel's treatment for a frame before correcting it.
   if (url !== seen) {
     setSeen(url)
-    setStyle((native && url ? memory.get(url) : undefined) ?? PLAIN)
+    setStyle((LogoAnalysis && url ? memory.get(url) : undefined) ?? PLAIN)
   }
 
   useEffect(() => {
-    if (!native || !url || memory.has(url)) return
+    if (!LogoAnalysis || !url || memory.has(url)) return
 
     let cancelled = false
     const task =
