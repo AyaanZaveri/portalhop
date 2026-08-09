@@ -65,6 +65,7 @@ import {
   SortableItem,
   SortableItemHandle,
 } from "@/components/reui/sortable"
+import { ChannelLogo } from "@/components/tv/channel-logo"
 import { CategoryVisual } from "@/components/category-visual"
 import {
   ChannelEpgMatchDrawer,
@@ -1225,20 +1226,16 @@ export function ChannelList({
                       just the grip. */}
                   <SortableItemHandle className="flex h-full w-full cursor-grab items-center gap-1 rounded-xl pr-1 pl-2 active:cursor-grabbing">
                     <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
-                      <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
-                        {logoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                          <img
-                            src={logoUrl}
-                            alt=""
-                            className="size-full rounded-[6px] object-contain"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <TvIcon className="text-muted-foreground" />
-                        )}
-                      </div>
+                      {logoUrl ? (
+                        <ChannelLogo url={logoUrl} />
+                      ) : (
+                        <div
+                          className="border-border/60 flex h-11 w-[66px] shrink-0 items-center justify-center border bg-[#181a14]"
+                          style={{ borderRadius: 10 }}
+                        >
+                          <TvIcon className="text-muted-foreground size-[18px]" />
+                        </div>
+                      )}
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="truncate font-medium">
                           {channel.name ||
@@ -1395,20 +1392,16 @@ export function ChannelList({
                       </>
                     ) : null}
                     <div className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm">
-                      <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
-                        {logoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- Portal/EPG logos can come from arbitrary hosts.
-                          <img
-                            src={logoUrl}
-                            alt=""
-                            className="size-full rounded-[6px] object-contain"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <TvIcon className="text-muted-foreground" />
-                        )}
-                      </div>
+                      {logoUrl ? (
+                        <ChannelLogo url={logoUrl} />
+                      ) : (
+                        <div
+                          className="border-border/60 flex h-11 w-[66px] shrink-0 items-center justify-center border bg-[#181a14]"
+                          style={{ borderRadius: 10 }}
+                        >
+                          <TvIcon className="text-muted-foreground size-[18px]" />
+                        </div>
+                      )}
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="truncate font-medium">
                           {channel.name ||
