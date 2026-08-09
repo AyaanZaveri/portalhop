@@ -34,7 +34,7 @@ export function ChannelSchedule({
   channelName: string | undefined
   xmltvId: string | undefined
 }) {
-  const { colors } = useTheme()
+  const { colors, isDark } = useTheme()
 
   const query = useQuery({
     queryKey: ["channel-epg", portal?.id, channelId, xmltvId],
@@ -133,6 +133,36 @@ export function ChannelSchedule({
                 key={programme.id}
                 className="gap-1.5 overflow-hidden rounded-xl p-3"
               >
+                {/* The poster again, blurred, so the card takes the colours of
+                    what is on it. The web does the same and fades it leftward
+                    with a mask; there is no mask here, so it washes the whole
+                    card instead and runs quieter to make up for it.
+
+                    blurRadius rather than a blur drawn at runtime. This one is
+                    a decode-time transformation, cached as its own bitmap, so
+                    it costs once per poster — where a Skia or SVG blur would
+                    cost per card per frame, and this guide mounts every card
+                    at once rather than virtualising them. */}
+                {programme.posterUrl ? (
+                  <Image
+                    source={{ uri: proxyImageUrl(programme.posterUrl) }}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      left: 0,
+                      opacity: isDark ? 0.24 : 0.14,
+                    }}
+                    contentFit="cover"
+                    blurRadius={28}
+                    // Slower than the poster's own fade, so the colour arrives
+                    // after the picture rather than with it.
+                    transition={220}
+                    pointerEvents="none"
+                  />
+                ) : null}
+
                 {/* A fill layer rather than a colour on the card itself: the
                     alpha cannot be applied to the theme's oklch token without
                     taking it apart, and putting opacity on the card would fade
