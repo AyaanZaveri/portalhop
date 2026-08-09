@@ -34,11 +34,19 @@ permissions:
 
 jobs:
   build:
-    # macOS 15 rather than macos-latest. Expo SDK 57 wants Xcode 26.4 or newer,
-    # which this image has; macos-latest is macOS 26, whose Xcode is a preview
-    # release and not what React Native 0.86 is tested against. Free for public
-    # repositories, where the ten-times minute multiplier does not apply.
-    runs-on: macos-15
+    # macOS 26, because the toolchain is what decides this and not preference.
+    # The runner images carry one major Xcode per macOS version, so macos-15 is
+    # Xcode 16 and nothing newer can be selected on it. That was tried first and
+    # the archive failed on a Swift package that needs tools 6.2 against the
+    # 6.1 that Xcode 16.4 ships:
+    #
+    #   package 'apple' is using Swift tools version 6.2.0
+    #   but the installed version is 6.1.0
+    #
+    # Swift 6.2 means Xcode 26 or newer, which only the macOS 26 image has.
+    # Free either way: the ten-times minute multiplier is for private
+    # repositories.
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v5
@@ -53,9 +61,14 @@ jobs:
         with:
           node-version: "22"
 
+      # Printed rather than assumed. The Xcode a runner defaults to is the
+      # thing most likely to change under this workflow, and it is what the
+      # first failure turned out to be.
       - name: Show the toolchain
         run: |
+          ls -d /Applications/Xcode*.app
           xcodebuild -version
+          swift --version
           pod --version
 
       - name: Install dependencies
