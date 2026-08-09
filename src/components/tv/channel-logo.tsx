@@ -19,6 +19,7 @@ const PAD_Y = 6
 const OUTER_RADIUS = 10
 const MAX_SCALE = 1.8
 
+/** What is left for the artwork once the inset is taken off both sides. */
 const BOX_WIDTH = WIDTH - PAD_X * 2
 const BOX_HEIGHT = HEIGHT - PAD_Y * 2
 
@@ -74,7 +75,13 @@ export function ChannelLogo({
   return (
     <div
       className={cn(
-        "border-border/60 relative shrink-0 overflow-clip border",
+        // Centred rather than inset by hand. The tile carries a border, and
+        // box-sizing puts that inside its width — so an absolute box at
+        // left: PAD_X sat against 64 points of usable width rather than 66, and
+        // came out a point right of centre and a point low. Letting flex place
+        // it means the border is taken off both sides equally, which is what
+        // the mobile tile does and why it never had the problem.
+        "border-border/60 relative flex shrink-0 items-center justify-center overflow-clip border",
         className,
       )}
       style={{
@@ -89,13 +96,8 @@ export function ChannelLogo({
         // than to the tile, which would let a scaled-up logo run under the
         // border.
         <div
-          className="absolute overflow-clip"
-          style={{
-            left: PAD_X,
-            top: PAD_Y,
-            width: BOX_WIDTH,
-            height: BOX_HEIGHT,
-          }}
+          className="relative overflow-clip"
+          style={{ width: BOX_WIDTH, height: BOX_HEIGHT }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- Portal and EPG logos come from arbitrary hosts. */}
           <img
