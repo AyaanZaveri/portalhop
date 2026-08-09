@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { ActivityIndicator, Text, View } from "react-native"
 import { useQuery } from "@tanstack/react-query"
 import { Image } from "expo-image"
@@ -278,22 +278,8 @@ export function ChannelSchedule({
                       proxy resizes them rather than pulling a full-size still
                       down for a thumbnail. */}
                   {programme.posterUrl ? (
-                    <Image
-                      source={{ uri: proxyImageUrl(programme.posterUrl) }}
-                      style={{
-                        width: 60,
-                        height: 84,
-                        borderRadius: 8,
-                        backgroundColor: colors.muted,
-                        // Centred against the text beside it rather than
-                        // top-aligned with it, which is the web's self-center.
-                        // The text block is one to four lines depending on the
-                        // description, so aligning to its top left the poster
-                        // hanging off a short card and floating on a tall one.
-                        alignSelf: "center",
-                      }}
-                      contentFit="cover"
-                      transition={140}
+                    <ProgrammePoster
+                      uri={proxyImageUrl(programme.posterUrl)}
                     />
                   ) : null}
                 </View>
@@ -303,6 +289,75 @@ export function ChannelSchedule({
         </View>
       ))}
     </View>
+  )
+}
+
+/**
+ * The width every poster shares, so the text beside them all ends in the same
+ * place. Only the height moves.
+ */
+const POSTER_WIDTH = 60
+
+/**
+ * What the height may become, and where it starts.
+ *
+ * The fallback is the web's 5:7, which is what to draw before the picture has
+ * arrived and said otherwise. The bounds keep a row of cards from going ragged:
+ * a landscape still would otherwise come out a 34-point strip, and a very tall
+ * one would push the card taller than its own text.
+ */
+const POSTER_FALLBACK_HEIGHT = 84
+const POSTER_MIN_HEIGHT = 46
+const POSTER_MAX_HEIGHT = 92
+
+/**
+ * A programme's poster, at the shape the poster actually is.
+ *
+ * XMLTV allows an icon to declare width and height, and this feed never does:
+ * of 97,164 icons in the Canadian guide, none carries either attribute. Nor is
+ * there one shape to assume. TSN alone serves SportsCentre at 600x900, a true
+ * 2:3, and most of the rest at 680x907, which is 3:4 — so a single 5:7 box
+ * crops the first top and bottom and the second at the sides, and a wide still
+ * loses most of itself.
+ *
+ * The picture knows, even though the feed does not, so the box asks it on load
+ * and takes its shape. Nothing is cropped, and a poster that is square arrives
+ * square.
+ */
+function ProgrammePoster({ uri }: { uri: string }) {
+  const { colors } = useTheme()
+  const [height, setHeight] = useState(POSTER_FALLBACK_HEIGHT)
+
+  return (
+    <Image
+      source={{ uri }}
+      style={{
+        width: POSTER_WIDTH,
+        height,
+        borderRadius: 8,
+        backgroundColor: colors.muted,
+        // Centred against the text beside it rather than top-aligned with it,
+        // which is the web's self-center. The text block is one to four lines
+        // depending on the description, so aligning to its top left the poster
+        // hanging off a short card and floating on a tall one.
+        alignSelf: "center",
+      }}
+      contentFit="cover"
+      transition={140}
+      onLoad={({ source }) => {
+        if (!source.width || !source.height) return
+        const next = Math.round(
+          Math.min(
+            POSTER_MAX_HEIGHT,
+            Math.max(
+              POSTER_MIN_HEIGHT,
+              (POSTER_WIDTH * source.height) / source.width,
+            ),
+          ),
+        )
+        setHeight((current) => (current === next ? current : next))
+      }}
+    />
   )
 }
 
