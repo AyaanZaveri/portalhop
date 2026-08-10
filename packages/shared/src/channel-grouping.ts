@@ -136,6 +136,31 @@ export function trustedGuideIds(channels: Iterable<GroupableChannel>) {
   return trusted
 }
 
+/**
+ * The identity a stored preference may be attached to, or null.
+ *
+ * Not the same question as which row a channel appears in, and the difference
+ * is the point. Grouping is a heuristic being actively tuned: ID_NAME_LIMIT is
+ * a measured number, and the tokenizer changed last week. Anything keyed on the
+ * result of a heuristic moves when the heuristic does.
+ *
+ * So storage anchors on the guide id being *present*, and never on it being
+ * trusted. Trust is a whole-catalogue statistic — an id is trusted only
+ * relative to every other channel wearing it — which means adding a portal can
+ * demote an id in portals it never touched. Gate storage on that and a user's
+ * source ordering evaporates because they subscribed to something new.
+ *
+ * Returning null is the honest answer for a channel with no guide id. It still
+ * groups, and it still fails over at runtime, but there is nothing stable to
+ * hang a saved preference from: a name key moves the moment a portal renames
+ * the channel, and the preference would detach with nothing to show for it. The
+ * interface says so rather than saving something that quietly stops applying.
+ */
+export function identityKeyFor(channel: GroupableChannel): string | null {
+  const id = normalizeXmltvId(channel.xmltvId)
+  return id ? `id:${id}` : null
+}
+
 export type GroupKey = {
   key: string
   /** Which rule produced it, so the interface can say how sure it is. */
@@ -170,21 +195,64 @@ export type ChannelGroup<T> = {
 }
 
 /**
+ * A correction the user made to where one portal's copy of a channel sits.
+ *
+ * Keyed on the individual channel rather than on the group, because that is
+ * what the statement is about: this copy does not belong with those, or this
+ * copy belongs with that identity whatever the key says. Grouping is a guess
+ * and will sometimes be wrong; this is how someone tells it so, and it has to
+ * outlive any retuning of the guess.
+ */
+export type GroupOverride =
+  /** Stand alone, whatever the key says. Undoes a false merge. */
+  | { mode: "detach" }
+  /** Join this identity, whatever the key says. Must be an id: key. */
+  | { mode: "attach"; identityKey: string }
+
+/**
  * Groups a catalogue, preserving the order channels arrived in.
  *
  * Order matters because it is the caller's: the list is already sorted by
  * whatever the user chose, and a group takes the position of its first member
  * so grouping never reshuffles the page underneath them.
+ *
+ * Overrides are consulted before the key is computed rather than applied to
+ * the finished groups. Applied afterwards, detaching a channel would leave it
+ * ordered by where its old group sat instead of where it belongs on its own,
+ * and the fix would be to re-sort — which is the one thing this function must
+ * not do.
  */
 export function groupChannels<T extends GroupableChannel>(
   channels: readonly T[],
+  /** Per-channel corrections, looked up by whatever key the caller stores. */
+  overrides?: {
+    get: (channel: T) => GroupOverride | undefined
+  },
 ): ChannelGroup<T>[] {
   const trusted = trustedGuideIds(channels)
   const groups: ChannelGroup<T>[] = []
   const byKey = new Map<string, ChannelGroup<T>>()
 
   for (const channel of channels) {
-    const identity = groupKeyFor(channel, trusted)
+    const override = overrides?.get(channel)
+
+    if (override?.mode === "detach") {
+      // Solo, and deliberately under a key nothing else can reach: a detached
+      // channel that kept its computed key would be re-merged by the next one
+      // to arrive.
+      groups.push({
+        key: `solo:${groups.length}`,
+        by: "name",
+        members: [channel],
+      })
+      continue
+    }
+
+    const identity =
+      override?.mode === "attach"
+        ? { key: override.identityKey, by: "id" as const }
+        : groupKeyFor(channel, trusted)
+
     if (!identity) {
       // No id and no usable name. On its own rather than lumped with every
       // other nameless channel, which is what an empty key would do.
