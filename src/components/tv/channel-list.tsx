@@ -576,6 +576,51 @@ export function ChannelList({
    * the representative's own channel key, so nothing stored changes shape and
    * this can be turned off without a migration.
    */
+  /**
+   * Guide names for the channels on screen.
+   *
+   * epgChannels from the provider is an empty object and stays that way on
+   * purpose: the directory is 5.8MB and belongs on the server. This asks for
+   * the ids this catalogue actually holds, which is a few thousand rather than
+   * twenty-eight, and the answer is the name every portal should have used.
+   *
+   * Falls silent on failure. A missing name shows the portal's own, which is
+   * what the row showed before.
+   */
+  const [guideNames, setGuideNames] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const ids = [
+      ...new Set(
+        channels
+          .map((entry) => normalizeXmltvId(entry.xmltvId))
+          .filter(Boolean),
+      ),
+    ]
+    if (!ids.length) return
+
+    let current = true
+    void apiFetch("/api/epg/names", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    })
+      .then((response) => (response.ok ? response.json() : { names: {} }))
+      .then((data: { names?: Record<string, { name?: string }> }) => {
+        if (!current) return
+        const flat: Record<string, string> = {}
+        for (const [id, entry] of Object.entries(data.names ?? {})) {
+          if (entry?.name) flat[id] = entry.name
+        }
+        setGuideNames(flat)
+      })
+      .catch(() => {})
+
+    return () => {
+      current = false
+    }
+  }, [channels])
+
   const { groupedChannels, sourcesByKey } = useMemo(() => {
     const groups = groupChannels(visibleChannels)
     const sources = new Map<string, typeof visibleChannels>()
@@ -1364,6 +1409,7 @@ export function ChannelList({
               // for several portals, taking one arbitrarily means the list
               // reads in whichever happened to sort first.
               const displayName =
+                guideNames[normalizeXmltvId(channel.xmltvId)] ||
                 epgChannels[normalizeXmltvId(channel.xmltvId)]?.name ||
                 channel.name
               const channelBadgeId = channel.xmltvId ?? ""

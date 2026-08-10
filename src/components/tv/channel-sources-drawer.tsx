@@ -104,9 +104,19 @@ export function ChannelSourcesDrawer({
                         <span className="truncate text-sm font-medium">
                           {channel.name || "Unnamed channel"}
                         </span>
-                        <span className="text-muted-foreground truncate text-xs">
-                          {channel.portalSource?.name ?? "Manual source"}
-                          {channel.number ? ` · #${channel.number}` : ""}
+                        {/* The source as a badge, the way the player header
+                            wears it. Same fact in the same treatment, so a row
+                            here reads as the thing that will appear up there
+                            once it plays. */}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <Badge variant="outline" className="h-5 shrink-0">
+                            {channel.portalSource?.name ?? "Manual"}
+                          </Badge>
+                          {channel.number ? (
+                            <span className="text-muted-foreground truncate font-mono text-[10px] tabular-nums">
+                              #{channel.number}
+                            </span>
+                          ) : null}
                         </span>
                       </span>
 
