@@ -39,12 +39,12 @@ export const LOGOS = {
 /** The line-up at the top, chosen so every branch of the pass appears once. */
 export const ROSTER: { name: string; url: string }[] = [
   { name: "TSN 1", url: LOGOS.tsn },
-  { name: "Tennis Channel", url: LOGOS.tennis },
-  { name: "Food Network", url: LOGOS.foodNetwork },
-  { name: "CNN", url: LOGOS.cnn },
   { name: "ESPN", url: LOGOS.espn },
   { name: "HGTV", url: LOGOS.hgtv },
+  { name: "CNN", url: LOGOS.cnn },
+  { name: "Tennis Channel", url: LOGOS.tennis },
   { name: "Sky Sports F1", url: LOGOS.skyF1 },
+  { name: "Food Network", url: LOGOS.foodNetwork },
   { name: "FOX Sports 1", url: LOGOS.fs1 },
   { name: "NHL Network", url: LOGOS.nhl },
   { name: "CityNews", url: LOGOS.cityNews },
