@@ -18,6 +18,7 @@ import {
   Perimeter,
   Roster,
 } from "./demos"
+import { TryIt } from "./try-it"
 
 export const metadata: Metadata = {
   title: "Tiles, and how Portal Hop draws a channel logo",
@@ -100,6 +101,19 @@ export default function TilesPage() {
             </div>
           </div>
           <Roster />
+        </section>
+
+        {/* Ahead of the explanation on purpose. The roster above is twelve
+            logos somebody else picked, and the fastest way to stop reading a
+            claim and start believing it is to run it on something the page did
+            not choose. */}
+        <section className="t-section">
+          <h2 className="t-h2">Try it yourself</h2>
+          <p className="t-lede">
+            Drop in a logo of your own and watch the rest of this page happen to
+            it. The same code the app ships, running on your file, in this tab.
+          </p>
+          <TryIt />
         </section>
 
         <Section

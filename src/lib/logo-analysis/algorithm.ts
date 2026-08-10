@@ -10,6 +10,11 @@
  * bytes, non-premultiplied, so there is none of the unpicking iOS needs. What
  * it does need is a canvas the pixels can legally be read out of — see
  * decode() in ./worker, and the note there about CORS.
+ *
+ * ONE DELIBERATE DIVERGENCE, and it is not yet ported. This file ranks the
+ * accent by chroma; Kotlin and Swift still rank it by HSL saturation. See
+ * accent selection below for why. Until the other two follow, the same logo can
+ * take a different tile here than it does on a device.
  */
 
 /** How a channel's logo should be presented. Mirrors LogoStyle on mobile. */
@@ -46,7 +51,7 @@ export type Trace = {
   achromaticDark: number
   /** The dominant edge colour and how much of the ring agrees with it. */
   border: { color: string; share: number } | null
-  /** The most saturated pixel, and the tile it became. */
+  /** The most chromatic pixel, and the tile it became. */
   accent: string | null
   tile: string | null
   /** White against the accent, before and after darkening. */
@@ -383,7 +388,25 @@ export function analyse(image: ImageData, url: string, trace?: Partial<Trace>): 
   let hueX = 0
   let hueY = 0
   let hueCount = 0
-  let bestSaturation = 0
+  /*
+   * The accent is ranked by chroma, not by the saturation that qualified it.
+   *
+   * HSL saturation cannot tell one red from another. #ff0000, #ff5c5c, #ff8080
+   * and #ffcccc all sit at exactly 1.00, so "the most saturated pixel" names a
+   * set rather than a colour, and a strict > hands it to whichever member the
+   * scan reaches first. Which pixels are in that set depends on how the image
+   * was downsampled: Android subsamples and keeps original values, a browser
+   * interpolates and hands over blends of red and white. Sky Sports F1 is where
+   * that showed: the device found the real red, the browser found a lightened
+   * one, and darken() only ever caps lightness, so the pale accent survived as
+   * a salmon tile at exactly the 3:1 floor.
+   *
+   * Chroma separates what saturation flattens. The same four reds measure 255,
+   * 163, 127 and 51, and because a blended pixel is always nearer neutral than
+   * the pixel it came from, its chroma is always lower. The argmax stops being
+   * a tie, so resampling stops deciding the answer.
+   */
+  let bestChroma = 0
   let accent: Rgb | null = null
 
   // Uncoloured ink, split by lightness. This is the wordmark next to a coloured
@@ -410,8 +433,10 @@ export function analyse(image: ImageData, url: string, trace?: Partial<Trace>): 
       hueX += Math.cos(radians)
       hueY += Math.sin(radians)
       hueCount++
-      if (s > bestSaturation) {
-        bestSaturation = s
+      const chroma =
+        Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b)
+      if (chroma > bestChroma) {
+        bestChroma = chroma
         accent = rgb
       }
     } else {

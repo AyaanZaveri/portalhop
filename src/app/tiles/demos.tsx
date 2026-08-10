@@ -273,7 +273,7 @@ export function Contrast() {
     <>
       <Stats>
         <Stat
-          label="The most saturated pixel in the logo"
+          label="The most chromatic pixel in the logo"
           value={t?.accent ? <Swatch color={t.accent} /> : "–"}
         />
         <Stat

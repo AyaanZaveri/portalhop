@@ -93,6 +93,25 @@ function Waiting({ scale }: { scale: number }) {
   )
 }
 
+/**
+ * The step from one tile to the other.
+ *
+ * Sized off the tile like everything else here rather than fixed. At a constant
+ * 16 pixels it reads as a caret between two roster rows and as a speck between
+ * two tiles three times that size, and it is the only thing on the page saying
+ * these two squares are one operation.
+ */
+export function Arrow({ scale }: { scale: number }) {
+  return (
+    <ArrowRightIcon
+      aria-hidden
+      className="t-arrow"
+      strokeWidth={1.5}
+      size={Math.round(11 * scale)}
+    />
+  )
+}
+
 /** The logo as it was drawn before any of this: fitted whole, on the base tile. */
 export function Before({ url, scale = TILE_SCALE }: { url: string; scale?: number }) {
   return (
@@ -157,7 +176,7 @@ export function After({ pass, scale = TILE_SCALE }: { pass: Pass; scale?: number
  * treatment would say the wrong thing twice: that these labels head something,
  * or that they were measured.
  */
-const ROUTE: Record<string, { label: string; Icon: LucideIcon }> = {
+export const ROUTE: Record<string, { label: string; Icon: LucideIcon }> = {
   border: { label: "Edge continued", Icon: FrameIcon },
   paper: { label: "Light tile", Icon: SunIcon },
   whitened: { label: "Whitened", Icon: PaintBucketIcon },
@@ -183,7 +202,7 @@ export function Pair({
     // neighbour.
     <div className="t-pair" style={{ ["--tile" as string]: `${W * scale}px` }}>
       <Before url={url} scale={scale} />
-      <ArrowRightIcon aria-hidden className="t-arrow" strokeWidth={1.5} size={16} />
+      <Arrow scale={scale} />
       <After pass={pass} scale={scale} />
       {name ? (
         <div className="min-w-0">
@@ -197,16 +216,9 @@ export function Pair({
             ) : (
               /* The route is the answer to a measurement, so while it is being
                  measured the line shimmers rather than sitting there as flat
-                 text pretending to be one. Spinner in the icon's slot, which is
-                 how the settings screens pair the two. */
-              <>
-                <Loader2Icon
-                  className="t-pair-icon animate-spin"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <ShimmeringText text="Measuring" duration={1.4} />
-              </>
+                 text pretending to be one. No spinner beside it: the tile above
+                 is already turning one, and the shimmer says the same thing. */
+              <ShimmeringText text="Measuring" duration={1.4} />
             )}
           </div>
         </div>

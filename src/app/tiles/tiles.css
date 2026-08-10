@@ -141,6 +141,104 @@
   .t-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* Try it yourself --------------------------------------------------- */
+/* The one place on the page that gets a border. Everywhere else grouping is
+   done with space, but a drop target has to say where it ends before anything
+   is dropped on it, and space cannot draw an edge. Dashed so it reads as a
+   target rather than as a card, and kept dashed after a file lands, because it
+   is still one. */
+.t-try-panel {
+  --t-try-gap: 0.625rem;
+
+  position: relative;
+  margin-top: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--t-try-gap);
+  padding: clamp(1.75rem, 4.5vw, 2.75rem) clamp(1rem, 4vw, 2rem);
+  border: 1px dashed var(--t-hair);
+  border-radius: 14px;
+  text-align: center;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+.t-try-panel[data-dragging] {
+  border-color: var(--t-accent);
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+}
+.t-try-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--t-faint);
+  margin-bottom: 0.25rem;
+}
+.t-try-lead { font-size: 0.9375rem; line-height: 1.4; color: var(--t-ink); }
+.t-try-hint {
+  max-width: 44ch;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--t-dim);
+  text-wrap: pretty;
+}
+.t-try-error { font-size: 0.8125rem; line-height: 1.5; color: var(--destructive); }
+/* The error is a live region, so it stays in the DOM with nothing in it rather
+   than appearing alongside its own text, which screen readers routinely miss.
+   Empty it has no height, but it is still a flex item, so the panel's gap was
+   landing under the last visible line and making the bottom padding read deeper
+   than the top. Cancelled exactly, which keeps the region announceable where
+   display: none would not. */
+.t-try-error:empty { margin-block-start: calc(-1 * var(--t-try-gap)); }
+.t-try-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  max-width: 100%;
+}
+/* A backstop under the media query that picks the tile size. The stage is laid
+   out in pixels, so if it ever does outrun its container it scrolls rather than
+   spilling off the side of the page. */
+.t-try-scroll { max-width: 100%; overflow-x: auto; }
+/* Two labelled columns with the arrow between them. Its own grid rather than
+   the roster's, which carries a fourth column for the channel name. */
+.t-try-stage {
+  display: grid;
+  grid-template-columns: var(--tile) auto var(--tile);
+  align-items: center;
+  justify-items: center;
+  column-gap: clamp(0.75rem, 2vw, 1.5rem);
+  row-gap: 0.625rem;
+}
+/* The roster's column headers, in the roster's treatment, because they are the
+   same two words over the same two tiles. */
+.t-try-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-faint);
+}
+/* Third row, third column. Stated rather than left to auto-placement, which
+   would drop it under the before tile instead of the one it describes. */
+.t-try-verdict { grid-column: 3; margin-top: 0.125rem; }
+/* Out of the flow entirely, so it cannot push the tiles off centre. Uppercase
+   and mono, the page's own treatment for a measured value, at the faintest ink
+   on it: the claim it supports is worth making and is nobody's reason for
+   being here. */
+.t-try-timing {
+  position: absolute;
+  inset-block-start: clamp(0.75rem, 2vw, 1rem);
+  inset-inline-end: clamp(0.75rem, 2vw, 1.25rem);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--t-faint);
+}
+
 /* Sections ---------------------------------------------------------- */
 /* One column, starting at the same edge as the roster above. The numbered gutter
    this replaced cost 6rem of every line's width to label seven things that were

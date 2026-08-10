@@ -18,6 +18,17 @@ export type Pass = {
   flattened?: string
   enclosedMap?: string
   ring?: string
+  /**
+   * How long the pass itself took, in milliseconds.
+   *
+   * The pass, and nothing around it. Not the fetch, which is the network; not
+   * the yields this file inserts to keep the page painting; not the four debug
+   * renders below, which cost more than the analysis and exist only for this
+   * page. Timing any of those would make the number a measure of the demo
+   * rather than of the algorithm, and it is on screen next to a claim that the
+   * work happened here.
+   */
+  ms?: number
 }
 
 const cache = new Map<string, Pass>()
@@ -54,7 +65,15 @@ const paint = () =>
 
 async function run(url: string): Promise<Pass> {
   try {
-    const response = await fetch(url, { mode: "cors", credentials: "omit" })
+    // The CORS options are for logo hosts, and only they should get them. A
+    // file the reader dropped in arrives as a blob: URL, which is same-origin
+    // and has no headers to negotiate, so it is fetched plainly rather than
+    // asked to satisfy a cross-origin handshake it is not part of.
+    const remote = /^https?:/i.test(url)
+    const response = await fetch(
+      url,
+      remote ? { mode: "cors", credentials: "omit" } : undefined,
+    )
     if (!response.ok) return { state: "failed" }
 
     await paint()
@@ -79,7 +98,9 @@ async function run(url: string): Promise<Pass> {
     // the redrawn pixels.
     const original = new Uint8ClampedArray(image.data)
     const trace = {} as Trace
+    const started = performance.now()
     const verdict = analyse(image, url, trace)
+    const ms = performance.now() - started
 
     let after: string | undefined
     if (verdict.redrawn) {
@@ -182,6 +203,7 @@ async function run(url: string): Promise<Pass> {
       state: "ready",
       before: url,
       after,
+      ms,
       style: verdict.style,
       trace,
       classes,
