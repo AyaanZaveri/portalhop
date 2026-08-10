@@ -34,6 +34,53 @@ export function getChannelKey(channel: ChannelWithSourceId) {
   ])
 }
 
+/**
+ * The key a favourite is stored under.
+ *
+ * A favourite is a statement about a channel, not about one portal's copy of
+ * it. Keyed per copy — which is what getChannelKey gives — favouriting TSN 1
+ * from two portals makes two favourites, and dropping the portal the favourite
+ * happened to be made from loses it even though four others still carry the
+ * channel. That is the failure AGENTS.md describes as looking like favourites
+ * not syncing.
+ *
+ * So a channel with a guide id is favourited under that id. It survives a
+ * portal being removed, refreshed away, or renamed, because none of those
+ * touch the guide.
+ *
+ * A channel without one falls back to the per-copy key, unchanged. That is 62%
+ * of a real catalogue, so this is a fallback in the ordinary case rather than
+ * an edge: there is nothing else stable to hang it from, and inventing one from
+ * the name would detach the moment a portal renamed the channel.
+ *
+ * Readers must accept both. A channel that later gains a guide id — from the
+ * enrichment pass, or someone picking the match by hand — changes key, and a
+ * reader that only knew the new one would drop the favourite at exactly that
+ * moment. See isFavoriteKeyed.
+ */
+export function getFavoriteKey(
+  channel: ChannelWithSourceId,
+  identityKey: string | null,
+) {
+  return identityKey ?? getChannelKey(channel)
+}
+
+/**
+ * Whether a channel is favourited, under either key it might carry.
+ *
+ * Both are checked on every read rather than migrating rows once, because the
+ * two keys are not alternatives in time — a catalogue holds channels of both
+ * kinds permanently, and any one channel can move between them.
+ */
+export function isFavoriteKeyed(
+  channel: ChannelWithSourceId,
+  identityKey: string | null,
+  has: (key: string) => boolean,
+) {
+  if (identityKey && has(identityKey)) return true
+  return has(getChannelKey(channel))
+}
+
 export function getLegacyChannelKey(channel: ChannelWithSourceId) {
   return [
     channel.portalSource?.id ?? "manual",

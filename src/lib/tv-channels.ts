@@ -5,13 +5,22 @@ import {
   buildChannelIndex,
   channelSlug,
   getChannelKey,
+  getFavoriteKey,
   getLegacyChannelKey,
+  isFavoriteKeyed,
 } from "@portalhop/shared/channel-keys"
 
 // Channel identity lives in the shared package so the Expo app computes the
 // same favourite keys and deep links. Re-exported here so existing call sites
 // keep importing from where they always have.
-export { buildChannelIndex, channelSlug, getChannelKey, getLegacyChannelKey }
+export {
+  buildChannelIndex,
+  channelSlug,
+  getChannelKey,
+  getFavoriteKey,
+  getLegacyChannelKey,
+  isFavoriteKeyed,
+}
 
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {

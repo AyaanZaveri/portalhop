@@ -73,7 +73,11 @@ import {
   SortableItem,
   SortableItemHandle,
 } from "@/components/reui/sortable"
-import { groupChannels } from "@portalhop/shared/channel-grouping"
+import {
+  groupChannels,
+  identityKeyFor,
+} from "@portalhop/shared/channel-grouping"
+import { isFavoriteKeyed } from "@portalhop/shared/channel-keys"
 import { ChannelLogo } from "@/components/tv/channel-logo"
 import { ChannelSourcesDrawer } from "@/components/tv/channel-sources-drawer"
 import { CategoryVisual } from "@/components/category-visual"
@@ -176,6 +180,7 @@ export function ChannelList({
     setCategorySearch,
     favorites,
     isChannelFavorited,
+    favoriteKeyFor,
     toggleFavorite,
     epgChannels,
     customEpgChannels,
@@ -542,7 +547,12 @@ export function ChannelList({
     if (browseFilter.type === "favoriteGroup") {
       return sortByKeyOrder(
         visibleCategoryChannels.filter((channel) =>
-          selectedFavoriteGroupKeys.has(getChannelKey(channel)),
+          // Both keys, for the same reason favourites check both: a
+          // membership added before this change carries the per-copy key,
+          // and a channel can gain a guide id later.
+          isFavoriteKeyed(channel, identityKeyFor(channel), (key) =>
+            selectedFavoriteGroupKeys.has(key),
+          ),
         ),
         selectedFavoriteGroup?.channelKeys ?? [],
       )
@@ -1640,7 +1650,7 @@ export function ChannelList({
                             ) : null}
                             <DropdownMenuItem
                               className="py-1.5 whitespace-nowrap"
-                              onClick={() => toggleFavorite(channelKey)}
+                              onClick={() => toggleFavorite(favoriteKeyFor(channel))}
                             >
                               <StarIcon
                                 className={cn(
@@ -1798,7 +1808,7 @@ export function ChannelList({
                   className="w-full justify-center gap-2"
                   onClick={() => {
                     const isFavorited = isChannelFavorited(contextChannel)
-                    toggleFavorite(getChannelKey(contextChannel))
+                    toggleFavorite(favoriteKeyFor(contextChannel))
                     if (!isFavorited) {
                       triggerHaptic("medium")
                     }
@@ -1893,7 +1903,10 @@ export function ChannelList({
         channel={
           groupMembershipChannel
             ? {
-                key: getChannelKey(groupMembershipChannel),
+                // Same key a favourite uses, so a group membership
+                // belongs to the channel rather than to whichever
+                // portal it was added from.
+                key: favoriteKeyFor(groupMembershipChannel),
                 name: groupMembershipChannel.name || "Channel",
               }
             : null

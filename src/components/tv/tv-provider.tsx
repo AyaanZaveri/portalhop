@@ -16,6 +16,7 @@ import { toast } from "sonner"
 import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
 import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import { identityKeyFor } from "@portalhop/shared/channel-grouping"
 import {
   browseFilterCookieName,
   parseBrowseFilter,
@@ -34,6 +35,8 @@ import {
   channelSlug as channelSlugFor,
   defaultSourceRequest,
   getChannelKey,
+  getFavoriteKey,
+  isFavoriteKeyed,
   getLegacyChannelKey,
   getPortalSource,
   loadPortalChannels,
@@ -112,6 +115,8 @@ type TvContextValue = {
   // Favorites
   favorites: Set<string>
   isChannelFavorited: (channel: PortalChannelWithSource) => boolean
+  /** The key a new favourite for this channel should be written under. */
+  favoriteKeyFor: (channel: PortalChannelWithSource) => string
   toggleFavorite: (key: string) => void
 
   // Add-portal sheet
@@ -459,12 +464,29 @@ export function TvProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded, enabledKey, portalsNonce])
 
-  // Favorites: consider a channel favorited under the new or legacy key.
+  /**
+   * Favorites: consider a channel favorited under any key it might carry.
+   *
+   * Three now, not two. A channel with a guide id is favourited under that id
+   * so the favourite belongs to the channel rather than to whichever portal it
+   * was made from, but the per-copy key stays readable: existing favourites
+   * were written under it, and 62% of a real catalogue has no guide id and
+   * never will. A channel can also move between the two when the enrichment
+   * pass or a hand-picked match gives it an id, so neither replaces the other
+   * in time and both are checked on every read.
+   */
   const isChannelFavorited = useCallback(
     (channel: PortalChannelWithSource) =>
-      isFavorite(getChannelKey(channel)) ||
+      isFavoriteKeyed(channel, identityKeyFor(channel), isFavorite) ||
       isFavorite(getLegacyChannelKey(channel)),
     [isFavorite],
+  )
+
+  /** The key a new favourite is written under. */
+  const favoriteKeyFor = useCallback(
+    (channel: PortalChannelWithSource) =>
+      getFavoriteKey(channel, identityKeyFor(channel)),
+    [],
   )
 
   // Migrate legacy favorite keys once channels are loaded. A legacy key can map
@@ -622,6 +644,7 @@ export function TvProvider({
       setCategorySearch,
       favorites,
       isChannelFavorited,
+      favoriteKeyFor,
       toggleFavorite,
       sheetOpen,
       setSheetOpen,
@@ -659,6 +682,7 @@ export function TvProvider({
       categorySearch,
       favorites,
       isChannelFavorited,
+      favoriteKeyFor,
       toggleFavorite,
       sheetOpen,
       onSheetSaved,
