@@ -235,6 +235,45 @@ export async function queryNowPlaying(
   return found
 }
 
+/**
+ * Guide ids whose programme right now matches a query.
+ *
+ * Answered in SQL rather than by reading the now-playing map the list already
+ * holds, because that map belongs to the provider the list renders, and the
+ * list cannot consume a context it supplies. This is also the cheaper of the
+ * two: the time predicate cuts the table to roughly one row per channel before
+ * a single title is compared, so the LIKE never sees the whole schedule.
+ *
+ * Titles only, and only what is on right now. Both limits are the same idea:
+ * a row shows the current programme's title and nothing else, so a match on a
+ * description, or on something starting in three hours, returns a channel with
+ * no visible reason to be in the results. That reads as a broken filter rather
+ * than as a wider one.
+ */
+export async function searchNowPlaying(
+  query: string,
+  now: number,
+): Promise<Set<string>> {
+  const term = query.trim()
+  if (term.length < 2) return new Set()
+
+  const handle = await db
+  // LIKE is case-insensitive for ASCII in SQLite by default. Underscore and
+  // percent are its wildcards, so they are escaped rather than left to match
+  // everything.
+  const escaped = term.replace(/[\\%_]/g, (character) => `\\${character}`)
+
+  const rows = await handle.getAllAsync<{ xmltv_id: string }>(
+    `SELECT DISTINCT xmltv_id FROM epg_slot
+     WHERE start_at <= ? AND stop_at > ? AND title LIKE ? ESCAPE '\\'`,
+    now,
+    now,
+    `%${escaped}%`,
+  )
+
+  return new Set(rows.map((row) => row.xmltv_id))
+}
+
 /** The whole stored schedule for one channel, in order — what the detail screen lists. */
 export async function querySchedule(
   xmltvId: string,

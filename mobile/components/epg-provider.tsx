@@ -16,6 +16,7 @@ import {
   ensureFeed,
   feedKeyFor,
   queryNowPlaying,
+  searchNowPlaying,
   type NowPlaying,
 } from "@/lib/epg"
 
@@ -32,6 +33,59 @@ const NowPlayingContext = createContext<Map<string, NowPlaying>>(new Map())
 export function useNowPlaying(xmltvId: string | undefined) {
   const map = useContext(NowPlayingContext)
   return xmltvId ? map.get(normalizeXmltvId(xmltvId)) : undefined
+}
+
+/** Long enough that a word is typed before the guide is asked about it. */
+const SEARCH_DEBOUNCE_MS = 220
+
+/** One identity, so a caller memoising on this does not rerun every render. */
+const NO_MATCHES: ReadonlySet<string> = new Set()
+
+/**
+ * Guide ids whose programme right now matches what is being typed.
+ *
+ * Deliberately not read from the context above. The list screen renders the
+ * provider, so it cannot also consume it, and this is the one place that needs
+ * the answer for every channel at once rather than for one row.
+ *
+ * Returns an empty set until the query settles and the read comes back, which
+ * is what makes this safe to merge into a filter: name matches are already on
+ * screen, and guide matches only ever add to them. Nothing a user can see
+ * disappears when the promise lands.
+ */
+export function useNowPlayingSearch(query: string): ReadonlySet<string> {
+  const [result, setResult] = useState<{
+    term: string
+    ids: Set<string>
+  } | null>(null)
+
+  const term = query.trim()
+
+  useEffect(() => {
+    if (term.length < 2) return
+
+    let current = true
+    const timer = setTimeout(() => {
+      void searchNowPlaying(term, Date.now()).then((ids) => {
+        // A slower read for an earlier query must not overwrite a later one.
+        if (current) setResult({ term, ids })
+      })
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => {
+      current = false
+      clearTimeout(timer)
+    }
+  }, [term])
+
+  // The stored term is checked rather than trusted, which is what makes the
+  // effect above able to do nothing on a short query instead of clearing state
+  // from inside its own body. It also fixes the case that version got wrong:
+  // typing "news" and deleting back to "new" kept showing the results for
+  // "news" until the next read landed. A result that does not belong to the
+  // query on screen is not shown, so the stale ones go the moment the letter
+  // does.
+  return result && result.term === term ? result.ids : NO_MATCHES
 }
 
 export function EpgProvider({

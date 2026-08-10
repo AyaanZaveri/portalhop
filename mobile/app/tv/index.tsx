@@ -57,7 +57,7 @@ import { ChannelReorderList } from "@/components/channel-reorder-list"
 import { invalidateFeeds } from "@/lib/epg"
 import { ChannelActionsSheet } from "@/components/channel-actions-sheet"
 import { GroupMembershipSheet } from "@/components/group-membership-sheet"
-import { EpgProvider } from "@/components/epg-provider"
+import { EpgProvider, useNowPlayingSearch } from "@/components/epg-provider"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
 // Module scope so FlashList sees the same function and object every render.
@@ -252,6 +252,11 @@ export default function ChannelListScreen() {
   // shows — otherwise picking a category would empty the category list.
   const categories = useCategories(withSource)
 
+  // Asked of SQLite rather than of the catalogue, debounced, and additive: it
+  // arrives after the name matches are already on screen and only ever widens
+  // the list.
+  const programmeMatches = useNowPlayingSearch(query)
+
   const visible = useMemo(() => {
     const filtered = applyBrowseFilter(
       withSource,
@@ -262,8 +267,24 @@ export default function ChannelListScreen() {
     )
     const q = query.trim().toLowerCase()
     if (!q) return filtered
-    return filtered.filter((channel) => channel.searchName.includes(q))
-  }, [withSource, byKey, filter, favorites, groups, query])
+
+    // Three ways to match, and the order they come back in is the ranking.
+    // Someone typing "tsn" wants the channel called TSN before every channel
+    // showing a programme with "tsn" in the title, so name and id matches keep
+    // their catalogue order at the front and guide matches follow.
+    const named: PortalChannelWithSource[] = []
+    const onNow: PortalChannelWithSource[] = []
+
+    for (const channel of filtered) {
+      if (channel.searchName.includes(q) || channel.searchId.includes(q)) {
+        named.push(channel)
+      } else if (channel.searchId && programmeMatches.has(channel.searchId)) {
+        onNow.push(channel)
+      }
+    }
+
+    return onNow.length ? named.concat(onNow) : named
+  }, [withSource, byKey, filter, favorites, groups, query, programmeMatches])
 
   // The guide id and name ride along as params rather than being looked up
   // again on the other side: resolving a slug back to a channel would mean

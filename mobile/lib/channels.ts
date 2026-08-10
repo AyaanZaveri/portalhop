@@ -5,6 +5,7 @@ import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
 import type { UserSettingsData } from "@portalhop/shared/user-settings"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 import { apiJson } from "./api"
 
@@ -21,6 +22,12 @@ export type PortalChannelWithSource = PortalChannel & {
    */
   key: string
   searchName: string
+  /**
+   * The guide id, normalized, so search can match it without normalizing tens
+   * of thousands of ids per keystroke. Empty when the channel has no id, which
+   * is common enough that search has to expect it.
+   */
+  searchId: string
 }
 
 export function usePortals(enabled: boolean) {
@@ -87,6 +94,7 @@ export function usePortalChannels(portals: SavedSourceRecord[]) {
             ...withSource,
             key: getChannelKey(withSource),
             searchName: (channel.name ?? "").toLowerCase(),
+            searchId: normalizeXmltvId(channel.xmltvId),
           }
         })
       }),
