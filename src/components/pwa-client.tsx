@@ -14,6 +14,37 @@ export function PwaClient() {
     window.addEventListener("online", updateNetworkStatus)
     window.addEventListener("offline", updateNetworkStatus)
 
+    /**
+     * In development, tear down any worker that is still registered.
+     *
+     * Not registering one here was never enough. A service worker is scoped to
+     * the origin, not to the build, so one registered by a production build
+     * that was ever run on localhost keeps controlling the dev server on the
+     * same port indefinitely.
+     *
+     * What that costs is specific: sw.js serves /_next/static/ cache-first,
+     * which is safe in production because those paths are content-hashed, and
+     * actively wrong under Turbopack, which reuses those paths across rebuilds.
+     * The page navigates fine — navigations are network-first — and then runs
+     * yesterday's JavaScript, so an edit appears to do nothing.
+     *
+     * The caches go too. Unregistering stops the worker controlling future
+     * loads but leaves its stored responses behind, and the next production
+     * build on this origin would adopt them.
+     */
+    if (process.env.NODE_ENV !== "production" && "serviceWorker" in navigator) {
+      void navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) void registration.unregister()
+      })
+      if ("caches" in window) {
+        void caches.keys().then((keys) => {
+          for (const key of keys) {
+            if (key.startsWith("portal-hop")) void caches.delete(key)
+          }
+        })
+      }
+    }
+
     // The packaged app already serves its assets from disk, so a service
     // worker adds nothing and would cache against the webview's internal
     // origin. The offline banner above still applies.

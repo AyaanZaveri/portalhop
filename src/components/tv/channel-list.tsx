@@ -1,6 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api-fetch"
@@ -22,6 +29,7 @@ import {
   ScanSearchIcon,
   SearchIcon,
   ShapesIcon,
+  LayersIcon,
   StarIcon,
   TvIcon,
 } from "lucide-react"
@@ -65,7 +73,9 @@ import {
   SortableItem,
   SortableItemHandle,
 } from "@/components/reui/sortable"
+import { groupChannels } from "@portalhop/shared/channel-grouping"
 import { ChannelLogo } from "@/components/tv/channel-logo"
+import { ChannelSourcesDrawer } from "@/components/tv/channel-sources-drawer"
 import { CategoryVisual } from "@/components/category-visual"
 import {
   ChannelEpgMatchDrawer,
@@ -554,13 +564,58 @@ export function ChannelList({
     selectedPortalIds,
   ])
 
+  /**
+   * One row per channel rather than one per stream.
+   *
+   * The same channel arrives once from every portal that carries it, so a
+   * catalogue of fifteen sources holds fifteen Nickelodeons. Grouped, the row
+   * is the channel and the streams sit behind it, which is what makes a source
+   * something the app picks rather than something the list makes you pick.
+   *
+   * Only the display groups. Favourites, ordering and deep links still key on
+   * the representative's own channel key, so nothing stored changes shape and
+   * this can be turned off without a migration.
+   */
+  const { groupedChannels, sourcesByKey } = useMemo(() => {
+    const groups = groupChannels(visibleChannels)
+    const sources = new Map<string, typeof visibleChannels>()
+
+    const representatives = groups.map((group) => {
+      const representative = group.members[0]
+      const key = getChannelKey(representative)
+
+      if (group.members.length > 1) {
+        sources.set(key, group.members)
+      }
+
+      return representative
+    })
+
+    return { groupedChannels: representatives, sourcesByKey: sources }
+  }, [visibleChannels])
+
+  // The group whose sources are open in the drawer, and the order they are in.
+  const [sourcesFor, setSourcesFor] = useState<{
+    name: string
+    channels: typeof visibleChannels
+  } | null>(null)
+  const [sourceOrder, setSourceOrder] = useState<string[]>([])
+
+  const openSources = useCallback(
+    (name: string, members: typeof visibleChannels) => {
+      setSourcesFor({ name, channels: members })
+      setSourceOrder(members.map(getChannelKey))
+    },
+    [],
+  )
+
   // While reordering, the dragged order wins until the saved order catches up.
   const orderedChannels =
     isReordering && reorderedChannels ? reorderedChannels : visibleChannels
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
-    count: visibleChannels.length,
+    count: groupedChannels.length,
     getScrollElement: () =>
       scrollAreaRef.current?.querySelector<HTMLElement>(
         "[data-slot='scroll-area-viewport']",
@@ -571,13 +626,13 @@ export function ChannelList({
 
   useEffect(() => {
     rowVirtualizer.scrollToIndex(0)
-  }, [visibleChannels, rowVirtualizer])
+  }, [groupedChannels, rowVirtualizer])
 
   const renderedEpgChannels = useMemo(
     () =>
       rowVirtualizer
         .getVirtualItems()
-        .map((row) => visibleChannels[row.index])
+        .map((row) => groupedChannels[row.index])
         .filter(Boolean)
         .map((channel) => ({
           xmltvId: channel.xmltvId ?? "",
@@ -589,7 +644,7 @@ export function ChannelList({
         .filter((entry) => entry.xmltvId),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- virtual items change identity every scroll frame.
     [
-      visibleChannels,
+      groupedChannels,
       rowVirtualizer.getVirtualItems().length,
       rowVirtualizer.scrollOffset,
     ],
@@ -1290,7 +1345,7 @@ export function ChannelList({
             style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const channel = visibleChannels[virtualRow.index]
+              const channel = groupedChannels[virtualRow.index]
               const channelKey = getChannelKey(channel)
               const canResolve = canResolveChannel(channel)
               const slug = channelSlug(channel)
@@ -1304,6 +1359,13 @@ export function ChannelList({
                 customEpgChannels,
                 useImageProxy,
               )
+              // The guide's name, where the guide knows it. A portal's
+              // name is whatever its operator typed, and once a row stands
+              // for several portals, taking one arbitrarily means the list
+              // reads in whichever happened to sort first.
+              const displayName =
+                epgChannels[normalizeXmltvId(channel.xmltvId)]?.name ||
+                channel.name
               const channelBadgeId = channel.xmltvId ?? ""
               const nowPlaying = nowPlayingById.get(
                 normalizeXmltvId(channel.xmltvId),
@@ -1404,7 +1466,7 @@ export function ChannelList({
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
                         <span className="truncate font-medium">
-                          {channel.name ||
+                          {displayName ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
                         {/* What is on now beats what genre the portal filed the
@@ -1494,8 +1556,17 @@ export function ChannelList({
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
-                              aria-label={`Actions for ${channel.name || "channel"}`}
+                              // Hover-only everywhere else, but a row carrying
+                              // several sources has something behind it that
+                              // cannot be guessed at, and hover does not exist
+                              // on touch at all. Those rows keep the control on
+                              // screen; the rest stay quiet.
+                              className={cn(
+                                "focus-visible:opacity-100 aria-expanded:opacity-100",
+                                !sourcesByKey.has(channelKey) &&
+                                  "opacity-0 group-hover:opacity-100",
+                              )}
+                              aria-label={`Actions for ${displayName || "channel"}`}
                             />
                           }
                         >
@@ -1503,6 +1574,24 @@ export function ChannelList({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-64">
                           <DropdownMenuGroup>
+                            {/* Only where there is a choice to make. A row
+                                carried by one portal has nothing to pick
+                                between, and an item that opens a list of one
+                                is a dead end wearing a menu entry. */}
+                            {sourcesByKey.has(channelKey) ? (
+                              <DropdownMenuItem
+                                className="py-1.5 whitespace-nowrap"
+                                onClick={() =>
+                                  openSources(
+                                    displayName || "this channel",
+                                    sourcesByKey.get(channelKey) ?? [],
+                                  )
+                                }
+                              >
+                                <LayersIcon />
+                                {sourcesByKey.get(channelKey)?.length} sources
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuItem
                               className="py-1.5 whitespace-nowrap"
                               onClick={() => toggleFavorite(channelKey)}
@@ -1767,6 +1856,17 @@ export function ChannelList({
         onOpenChange={(open) => {
           if (!open) setGroupMembershipChannel(null)
         }}
+      />
+      <ChannelSourcesDrawer
+        name={sourcesFor?.name ?? ""}
+        sources={sourcesFor?.channels ?? []}
+        order={sourceOrder}
+        onOrderChange={setSourceOrder}
+        open={Boolean(sourcesFor)}
+        onOpenChange={(open) => {
+          if (!open) setSourcesFor(null)
+        }}
+        isMobileLayout={isMobileLayout}
       />
     </div>
   )
