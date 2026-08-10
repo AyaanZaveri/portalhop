@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageUpIcon, RotateCcwIcon } from "lucide-react"
+import { ArrowUpIcon, ImageUpIcon, RotateCcwIcon } from "lucide-react"
 import { useEffect } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -80,7 +80,7 @@ function Result({
           <div className="t-try-verdict">
             {route ? (
               <Badge variant="outline" className="gap-1.5">
-                <route.Icon className="size-3" strokeWidth={1.75} aria-hidden />
+                <route.Icon className="size-3" strokeWidth={2} aria-hidden />
                 {route.label}
               </Badge>
             ) : (
@@ -156,10 +156,10 @@ export function TryIt() {
         <Result url={chosen.preview} scale={isWide ? 3 : 1.5} onReset={actions.clearFiles} />
       ) : (
         <>
-          <ImageUpIcon className="t-try-icon" strokeWidth={1.5} aria-hidden />
+          <ImageUpIcon className="t-try-icon" strokeWidth={1.75} aria-hidden />
           <p className="t-try-lead">Drop a channel logo here</p>
           <p className="t-try-hint">
-            Or paste an image anywhere on this page. Nothing is uploaded: the
+            Or paste an image anywhere on this page. Nothing is uploaded, the
             pass runs on the file in your browser.
           </p>
           <Button
@@ -168,6 +168,7 @@ export function TryIt() {
             className="mt-1"
             onClick={actions.openFileDialog}
           >
+            <ArrowUpIcon data-icon="inline-start" />
             Choose a file
           </Button>
         </>

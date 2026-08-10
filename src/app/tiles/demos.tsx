@@ -37,13 +37,13 @@ export function Classes() {
         <Figure src={pass.before} caption="TSN 1, straight from the source." />
         <Figure
           src={pass.classes}
-          caption="The same pixels sorted. White is mark, grey is light, and nothing drawn is transparent."
+          caption="A map of the three piles, not the logo. White is mark, grey is light, blank is transparent."
         />
       </Figures>
       <Stats>
-        <Stat label="Canvas" value={t ? `${t.width} × ${t.height}` : "–"} />
-        <Stat label="Transparent" value={pct(t?.transparent)} />
-        <Stat label="Carrying a hue" value={pct(t?.colorful)} />
+        <Stat label="Image size, after downscaling" value={t ? `${t.width} × ${t.height}` : "–"} />
+        <Stat label="In the transparent pile" value={pct(t?.transparent)} />
+        <Stat label="Carrying a hue, so counted as mark" value={pct(t?.colorful)} />
       </Stats>
     </>
   )
@@ -69,27 +69,27 @@ export function Perimeter() {
       </Figures>
       <Stats>
         <Stat
-          label="CityNews, share of the canvas that is transparent"
+          label="CityNews, share of the image that is transparent"
           value={pct(t?.transparent)}
           verdict={t && t.transparent < 0.12 ? "pass" : "fail"}
         />
         <Stat
-          label="CityNews, share of the ring agreeing on one colour"
+          label="CityNews, share of the band within 28 of the winning colour"
           value={t?.border ? pct(t.border.share) : "–"}
           verdict={t?.border && t.border.share >= 0.6 ? "pass" : "fail"}
         />
         <Stat
-          label="CityNews, the colour the tile takes"
+          label="CityNews, the winning colour, which the tile takes"
           value={t?.border ? <Swatch color={t.border.color} /> : "–"}
         />
         <Stat
-          label="CP24, share of the canvas that is transparent"
+          label="CP24, share of the image that is transparent"
           value={pct(w?.transparent)}
           verdict={w && w.transparent < 0.12 ? "pass" : "fail"}
         />
       </Stats>
       <div className="t-demo">
-        <Pair url={LOGOS.cityNews} name="CityNews" />
+        <Pair url={LOGOS.cityNews} scale={2.4} />
       </div>
     </>
   )
@@ -103,19 +103,19 @@ export function Hues() {
     <>
       <Stats>
         <Stat
-          label="Game Show Network, hue spread"
+          label="Game Show Network, hue spread (0 is one colour, 1 is every colour)"
           value={two(many.trace?.hueSpread)}
           verdict={many.trace && many.trace.hueSpread > 0.25 ? "fail" : "pass"}
         />
         <Stat
-          label="ESPN, hue spread"
+          label="ESPN, hue spread (0 is one colour, 1 is every colour)"
           value={two(one.trace?.hueSpread)}
           verdict={one.trace && one.trace.hueSpread > 0.25 ? "fail" : "pass"}
         />
       </Stats>
       <div className="t-demo t-demo-stack">
-        <Pair url={LOGOS.gameShow} name="Game Show Network" />
-        <Pair url={LOGOS.espn} name="ESPN" />
+        <Pair url={LOGOS.gameShow} scale={2.4} />
+        <Pair url={LOGOS.espn} scale={2.4} />
       </div>
     </>
   )
@@ -129,24 +129,24 @@ export function Paper() {
     <>
       <Stats>
         <Stat
-          label="Hue spread, so the mark keeps its colours"
+          label="Hue spread, above 0.25, so the mark keeps its colours"
           value={two(t?.hueSpread)}
           verdict={t && t.hueSpread > 0.25 ? "pass" : "fail"}
         />
         <Stat
-          label="Share of the ink carrying no hue at all"
+          label="Share of the logo that is colourless"
           value={pct(t?.achromatic)}
           verdict={t && t.achromatic >= 0.15 ? "pass" : "fail"}
         />
         <Stat
-          label="How much of that colourless ink is dark"
+          label="How much of that colourless part is dark"
           value={pct(t?.achromaticDark)}
           verdict={t && t.achromaticDark >= 0.4 ? "pass" : "fail"}
         />
         <Stat label="The colour the tile takes" value={t?.tile ? <Swatch color={t.tile} /> : "–"} />
       </Stats>
       <div className="t-demo">
-        <Pair url={LOGOS.kfor} name="KFOR" scale={2.4} />
+        <Pair url={LOGOS.kfor} scale={2.4} />
       </div>
     </>
   )
@@ -193,15 +193,22 @@ export function Flood() {
 
       <Beat step="3" title="Ask each region who its neighbours are.">
         <p className="t-beat-text">
-          So the pass floods outward from every light pixel, gathering the region
-          it belongs to, and asks one question: how much of this region&rsquo;s
-          border touches the mark? A hole is almost entirely ringed by it. A
-          background is not.
+          So each region is asked one question: <em>walk its outline, and what
+          fraction of that outline has mark on the other side of it?</em> Count
+          every pixel just outside the region. Some are mark, some are anything
+          else, and the edge of the image counts as anything else. That fraction
+          is the region&rsquo;s <em>surroundedness</em>, and it runs from 0 to 1.
+        </p>
+        <p className="t-beat-text">
+          A hole is ringed by the mark on every side, so it scores at or near 1.
+          The space around a logo runs off the edge of the image, so it scores
+          low. Anything above 0.55 is treated as a hole and painted the tile
+          colour; everything else is left as background.
         </p>
         <Figures>
           <Figure
             src={tsn.enclosedMap}
-            caption="Lime is what came back enclosed. The 1 is in. The arrow and the space around the logo are not."
+            caption="Lime is every region that scored above 0.55, and so counts as a hole. The 1 is in. The arrow and the space around the logo are not."
           />
           <Figure
             src={tsn.after}
@@ -222,7 +229,7 @@ export function Flood() {
         <Figures>
           <Figure
             src={food.enclosedMap}
-            caption="Food Network. Both letters come back enclosed despite touching the edge of the disc."
+            caption="Food Network. The f and the d each touch the rim of the disc at a single point. Reachability calls that an escape route and leaves them white; surroundedness sees an outline that is otherwise entirely mark, scores them near 1, and fills them."
           />
           <Figure
             src={food.after}
@@ -255,11 +262,11 @@ export function Colourless() {
       </Figures>
       <Stats>
         <Stat
-          label="Share of the ink carrying a hue"
+          label="Share of the logo carrying any colour"
           value={pct(t?.colorful)}
           verdict={t && t.colorful < 0.04 ? "pass" : "fail"}
         />
-        <Stat label="Share of the ink that is dark" value={pct(t?.achromaticDark)} />
+        <Stat label="Share of the logo that is dark" value={pct(t?.achromaticDark)} />
       </Stats>
     </>
   )
@@ -292,13 +299,13 @@ export function Contrast() {
         />
       </Stats>
       <div className="t-demo">
-        <Pair url={LOGOS.tennis} name="Tennis Channel" scale={2.4} />
+        <Pair url={LOGOS.tennis} scale={2.4} />
       </div>
     </>
   )
 }
 
-/* 7. fitting the artwork rather than the canvas */
+/* 7. fitting the artwork rather than the whole image */
 export function Fit() {
   const pass = usePass(LOGOS.fs1)
   const c = pass.style?.content
@@ -307,7 +314,7 @@ export function Fit() {
       <div className="t-demo t-fit">
         <div>
           <Before url={LOGOS.fs1} scale={3} />
-          <p className="t-figure-caption">Fitted to the canvas, margin and all.</p>
+          <p className="t-figure-caption">Fitted to the whole image, margin and all.</p>
         </div>
         <div>
           <After pass={pass} scale={3} />
@@ -316,7 +323,7 @@ export function Fit() {
       </div>
       <Stats>
         <Stat
-          label="The artwork, as a share of its own canvas"
+          label="The artwork, as a share of the whole image"
           value={c ? `${pct(c.width)} wide, ${pct(c.height)} tall` : "–"}
         />
         <Stat

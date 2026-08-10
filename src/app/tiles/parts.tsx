@@ -210,7 +210,9 @@ export function Pair({
           <div className="t-pair-note">
             {route ? (
               <>
-                <route.Icon className="t-pair-icon" strokeWidth={1.75} aria-hidden />
+                {/* Carried up with the label's weight. A 1.75 stroke beside
+                    medium text reads as the icon fading out from under it. */}
+                <route.Icon className="t-pair-icon" strokeWidth={2} aria-hidden />
                 <span className="truncate">{route.label}</span>
               </>
             ) : (
