@@ -24,6 +24,42 @@ export type LogoStyle = {
   content?: { x: number; y: number; width: number; height: number }
 }
 
+/**
+ * Everything the pass measured on the way to its verdict.
+ *
+ * Filled only when a caller asks for it, and read by nothing in the app — it
+ * exists so /tiles can show the real numbers rather than describing them, which
+ * is the difference between a page that explains the algorithm and a page that
+ * claims to.
+ */
+export type Trace = {
+  width: number
+  height: number
+  /** Share of the canvas that is transparent. Below 0.12 the artwork is a tile. */
+  transparent: number
+  /** How far the coloured pixels spread around the hue circle. Above 0.25, several hues. */
+  hueSpread: number
+  /** Share of opaque pixels carrying a usable hue. */
+  colorful: number
+  /** Share of opaque pixels with no hue, and how much of that is dark. */
+  achromatic: number
+  achromaticDark: number
+  /** The dominant edge colour and how much of the ring agrees with it. */
+  border: { color: string; share: number } | null
+  /** The most saturated pixel, and the tile it became. */
+  accent: string | null
+  tile: string | null
+  /** White against the accent, before and after darkening. */
+  contrastBefore: number | null
+  contrastAfter: number | null
+  /** Which branch decided it. */
+  route: "border" | "paper" | "whitened" | "redraw" | "plain"
+  /** Per pixel: 0 clear, 1 mark, 2 light. */
+  kind: Uint8Array
+  /** Per pixel: 1 where a light region was found enclosed and repainted. */
+  enclosed: Uint8Array
+}
+
 /** What the pass decides, before a redrawn copy has been turned into a URL. */
 export type Verdict = {
   style: LogoStyle
@@ -204,8 +240,8 @@ function dominantBorder(data: Uint8ClampedArray, width: number, height: number) 
     b: Math.round(b / members),
   }
 
-  const near = ring.filter((c) => distance(c, dominant) < BORDER_TOLERANCE).length
-  return near / ring.length >= BORDER_MAJORITY_ABOVE ? dominant : null
+  const share = ring.filter((c) => distance(c, dominant) < BORDER_TOLERANCE).length / ring.length
+  return { rgb: dominant, share }
 }
 
 /**
@@ -273,6 +309,7 @@ function recolorEnclosed(
   width: number,
   height: number,
   accent: Rgb,
+  enclosed?: Uint8Array,
 ) {
   const seen = new Uint8Array(kind.length)
   const queue = new Int32Array(kind.length)
@@ -327,11 +364,12 @@ function recolorEnclosed(
       data[p] = accent.r
       data[p + 1] = accent.g
       data[p + 2] = accent.b
+      if (enclosed) enclosed[i] = 1
     }
   }
 }
 
-export function analyse(image: ImageData, url: string): Verdict {
+export function analyse(image: ImageData, url: string, trace?: Partial<Trace>): Verdict {
   const { width, height } = image
   const data = image.data
   const count = width * height
@@ -389,6 +427,22 @@ export function analyse(image: ImageData, url: string): Verdict {
       : 1 - Math.hypot(hueX / hueCount, hueY / hueCount)
   const colorfulFraction = opaque === 0 ? 0 : hueCount / opaque
 
+  if (trace) {
+    trace.width = width
+    trace.height = height
+    trace.transparent = transparentFraction
+    trace.hueSpread = hueSpread
+    trace.colorful = colorfulFraction
+    trace.achromatic = opaque === 0 ? 0 : achromatic / opaque
+    trace.achromaticDark = achromatic === 0 ? 0 : achromaticDark / achromatic
+    trace.accent = accent ? hex(accent) : null
+    trace.contrastBefore = accent ? whiteContrast(accent) : null
+    trace.kind = kind
+    trace.border = null
+    trace.tile = null
+    trace.contrastAfter = null
+  }
+
   const plain = (background: Rgb | null = null): Verdict => ({
     style: frame(data, width, height, background),
   })
@@ -397,8 +451,17 @@ export function analyse(image: ImageData, url: string): Verdict {
   // but where its edge is a flat colour the tile can continue it, so the two
   // read as one shape instead of a square sitting inside a box.
   if (transparentFraction < OPAQUE_BELOW) {
-    const border = dominantBorder(data, width, height)
-    if (!border) return plain()
+    const found = dominantBorder(data, width, height)
+    if (trace && found) trace.border = { color: hex(found.rgb), share: found.share }
+    const border = found && found.share >= BORDER_MAJORITY_ABOVE ? found.rgb : null
+    if (!border) {
+      if (trace) trace.route = "plain"
+      return plain()
+    }
+    if (trace) {
+      trace.route = "border"
+      trace.tile = hex(border)
+    }
     return {
       style: {
         uri: url,
@@ -416,10 +479,15 @@ export function analyse(image: ImageData, url: string): Verdict {
     const darkWordmark =
       achromatic > 0 && achromaticDark / achromatic >= WORDMARK_DARK_ABOVE
     if (hasWordmark && darkWordmark) {
+      if (trace) {
+        trace.route = "paper"
+        trace.tile = TILE_PAPER
+      }
       return {
         style: { color: TILE_PAPER, ...frame(data, width, height, null) },
       }
     }
+    if (trace) trace.route = "plain"
     return plain()
   }
 
@@ -437,16 +505,27 @@ export function analyse(image: ImageData, url: string): Verdict {
         dark++
       }
     }
-    if (opaque === 0 || dark / opaque < DARK_INK_ABOVE) return plain()
+    if (opaque === 0 || dark / opaque < DARK_INK_ABOVE) {
+      if (trace) trace.route = "plain"
+      return plain()
+    }
     tile = { r: 0x18, g: 0x1a, b: 0x14 }
     neutral = true
+    if (trace) trace.route = "whitened"
   } else {
     // Darkened before it is used anywhere: the holes are painted with it and
     // the tile is set to it, and both need the white mark to read against them.
     tile = darken(accent)
+    if (trace) trace.route = "redraw"
   }
 
-  recolorEnclosed(data, kind, width, height, tile)
+  if (trace) {
+    trace.tile = hex(tile)
+    trace.contrastAfter = whiteContrast(tile)
+    trace.enclosed = new Uint8Array(count)
+  }
+
+  recolorEnclosed(data, kind, width, height, tile, trace?.enclosed)
 
   for (let i = 0; i < count; i++) {
     if (kind[i] !== MARK) continue

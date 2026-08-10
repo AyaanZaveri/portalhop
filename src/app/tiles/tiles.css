@@ -1,0 +1,277 @@
+/* Every colour on this page is one of the app's own tokens, so the page follows
+   the theme without knowing anything about it. Nothing here is a literal: the
+   previous version kept its own near-black and its own off-white, which meant
+   switching to light re-themed the control and left the page behind. */
+.tiles {
+  --t-bg: var(--background);
+  --t-ink: var(--foreground);
+  --t-dim: var(--muted-foreground);
+  --t-faint: color-mix(in oklab, var(--muted-foreground) 62%, var(--background));
+  --t-hair: var(--border);
+  /* Knocked back against a light background, the way the app treats its own
+     accent icons. The lime is a light one and sits badly on white at full
+     value. */
+  --t-accent: color-mix(in oklab, var(--primary) 78%, black);
+
+  /* One step for every boundary between the page's top-level blocks: header,
+     roster, each section. Each block pads by this on the side it meets another,
+     so the gap on screen is always twice the value.
+
+     Sized against what it has to beat. The largest gap inside a section is the
+     2.25rem above a beat, and with no rule left to draw the line, space is the
+     only thing saying where one section ends, which takes at least double or
+     the two readings compete. 2.25rem here puts the tightest viewport at
+     exactly 4.5rem, and the widest at 6.5rem rather than the 9rem it was. */
+  --t-gap: clamp(2.25rem, 4.5vw, 3.25rem);
+
+  position: relative;
+  background: var(--t-bg);
+  color: var(--t-ink);
+  min-height: 100dvh;
+  padding: clamp(2.5rem, 7vw, 6rem) clamp(1.25rem, 5vw, 3rem) 7rem;
+}
+.dark .tiles {
+  --t-accent: var(--primary);
+}
+
+.t-wrap { position: relative; z-index: 1; max-width: 60rem; margin: 0 auto; }
+
+/* The backdrop's own fade is a radial one, sized for a panel that is roughly as
+   tall as it is wide. Across a band this shape the circle never reaches the
+   bottom edge, so the mesh would end on a hard line just under the header. The
+   mask takes it out downward instead, and leaves the radial to soften the
+   sides. Held clear of the copy: full strength to just past the mark, gone by
+   the time the roster starts. */
+.t-glow {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: clamp(20rem, 42vw, 32rem);
+  z-index: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 100%);
+}
+
+.t-theme {
+  position: fixed;
+  top: clamp(0.75rem, 2.5vw, 1.25rem);
+  right: clamp(0.75rem, 2.5vw, 1.25rem);
+  z-index: 10;
+}
+
+/* Header ------------------------------------------------------------ */
+/* The mark stands in for the wordmark, so it carries the space a line of text
+   would have carried. Pulled left by the shader's own transparent margin, so
+   the rabbit lines up with the heading under it rather than the canvas edge. */
+.t-bunny {
+  margin: -0.5rem 0 1.25rem -0.75rem;
+  line-height: 0;
+}
+/* Mounts only once the mask has been solved, so this runs at the moment there
+   is something to show rather than over an empty canvas. */
+.t-bunny-mark { animation: t-bunny-in 400ms ease-out both; }
+@keyframes t-bunny-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.t-h1 {
+  font-size: clamp(2rem, 5.4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.t-h1 em { font-style: italic; color: var(--t-dim); }
+.t-standfirst {
+  margin-top: 1.5rem;
+  max-width: 48ch;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--t-dim);
+  text-wrap: pretty;
+}
+.t-head { padding-bottom: var(--t-gap); }
+
+/* Before and after -------------------------------------------------- */
+.t-roster { padding-bottom: var(--t-gap); }
+.t-pair {
+  display: grid;
+  grid-template-columns: var(--tile, 99px) 1.25rem var(--tile, 99px) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75rem;
+}
+.t-arrow { color: var(--t-faint); justify-self: center; }
+/* Both lines set the way the channel list sets a row: the name at medium, the
+   qualifier under it smaller, dimmed, and led by an icon. Same weights, same
+   step down, so a pair here reads as the row it is explaining. */
+.t-pair-name { font-size: 0.875rem; font-weight: 500; line-height: 1.3; }
+.t-pair-note {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--t-dim);
+  margin-top: 0.1875rem;
+}
+.t-pair-icon { width: 0.75rem; height: 0.75rem; flex-shrink: 0; }
+/* Built from the same grid as the pairs, so each label sits over the tile it
+   names rather than over a guessed offset. */
+.t-roster-head {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-faint);
+  padding-bottom: 1rem;
+  row-gap: 0;
+}
+.t-roster-head .t-pair > span { display: block; }
+/* The second column of labels has nothing to sit over until the grid splits. */
+.t-roster-head > div:nth-child(2) { display: none; }
+@media (min-width: 900px) {
+  .t-roster-head > div:nth-child(2) { display: grid; }
+}
+.t-roster-grid {
+  display: grid;
+  gap: 1.75rem 3rem;
+}
+@media (min-width: 900px) {
+  .t-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Sections ---------------------------------------------------------- */
+/* One column, starting at the same edge as the roster above. The numbered gutter
+   this replaced cost 6rem of every line's width to label seven things that were
+   already in order on the page. No rule between sections either: the heading is
+   now the only thing marking a new one, and a hairline sitting directly above a
+   heading competes with it for that job. Space carries the break instead. */
+.t-section { padding: var(--t-gap) 0; }
+.t-h2 {
+  font-size: clamp(1.6rem, 3.2vw, 2.1rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.t-lede, .t-note, .t-beat-text {
+  max-width: 56ch;
+  font-size: 0.9875rem;
+  line-height: 1.65;
+  color: var(--t-dim);
+  text-wrap: pretty;
+}
+.t-lede { margin-top: 0.85rem; }
+.t-lede em, .t-note em, .t-beat-text em { font-style: italic; color: var(--t-ink); }
+.t-note { margin-top: 1.75rem; }
+
+/* Figures ----------------------------------------------------------- */
+.t-figures {
+  margin-top: 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem 1.5rem;
+}
+.t-figure { min-width: 0; }
+.t-figure-caption {
+  margin-top: 0.75rem;
+  max-width: 30ch;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--t-dim);
+  text-wrap: pretty;
+}
+
+/* Measurements ------------------------------------------------------ */
+.t-stats { margin-top: 1.75rem; max-width: 40rem; }
+.t-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 0.5rem 0;
+}
+.t-stat + .t-stat { border-top: 1px solid var(--t-hair); }
+.t-stat-label {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--t-dim);
+}
+.t-stat-value {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--t-ink);
+}
+.t-stat-value[data-verdict="pass"] { color: var(--t-accent); }
+.t-stat-value[data-verdict="fail"] { color: var(--destructive); }
+.t-swatch { display: inline-flex; align-items: center; gap: 0.5rem; }
+.t-swatch-chip {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--t-hair);
+}
+
+/* Demos and beats --------------------------------------------------- */
+.t-demo { margin-top: 1.75rem; }
+.t-demo-stack { display: grid; gap: 1.5rem; }
+.t-fit { display: flex; flex-wrap: wrap; gap: 2rem; }
+.t-fit .t-figure-caption { margin-top: 0.75rem; max-width: 22ch; }
+
+.t-beat { margin-top: 2.25rem; }
+.t-beat-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--t-ink);
+  font-weight: 500;
+}
+.t-beat-step {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--t-accent);
+  font-variant-numeric: tabular-nums;
+}
+.t-beat-text { margin-top: 0.625rem; }
+.t-beat .t-figures { margin-top: 1.25rem; }
+.t-beat .t-beat-text + .t-beat-text { margin-top: 1rem; }
+
+/* Footer ------------------------------------------------------------ */
+/* Given room. Two lines of centred text stacked tight read as one squashed
+   block, and the three places the pass runs are the point of the paragraph, so
+   they get to be their own row rather than a list inside a sentence. */
+/* No measure cap here, unlike the body copy. These are two short centred lines
+   rather than a paragraph to read, and holding them to 46 characters was what
+   broke the last one across two lines and left "just now" on its own. */
+.t-foot {
+  padding-top: clamp(4rem, 9vw, 6rem);
+  text-align: center;
+  text-wrap: balance;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--t-dim);
+}
+.t-langs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.875rem 1.75rem;
+  margin: 1.75rem 0;
+}
+.t-lang {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  color: var(--t-ink);
+  white-space: nowrap;
+}
+.t-lang img { flex-shrink: 0; }
+.t-lang-where { color: var(--t-dim); margin-left: 0.375rem; }
+.t-foot-dim { color: var(--t-faint); margin-top: 1.75rem; }
