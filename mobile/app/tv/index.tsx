@@ -4,7 +4,6 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { FlashList, type FlashListRef } from "@shopify/flash-list"
 import { useQueryClient } from "@tanstack/react-query"
 import { router } from "expo-router"
-import * as Haptics from "expo-haptics"
 import {
   FolderHeart,
   LayoutGrid,
@@ -43,6 +42,7 @@ import {
   saveBrowseFilter,
   saveSelectedPortalIds,
 } from "@/lib/preferences"
+import { longPress, select } from "@/lib/haptics"
 import { useTheme } from "@/lib/theme"
 import { CategoriesSheet } from "@/components/categories-sheet"
 import { GroupsSheet } from "@/components/groups-sheet"
@@ -355,7 +355,10 @@ export default function ChannelListScreen() {
   )
 
   const openActions = useCallback((channel: ChannelWithStreams) => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    // The platform's own long-press feedback, not an impact. Nothing has
+    // landed — a row has been picked out — and impactAsync comes out of Android
+    // as a buzz where the packaged web build gives a tick for the same gesture.
+    longPress()
     setActionChannel(channel)
     actionsSheet.current?.present()
   }, [])
@@ -556,7 +559,7 @@ export default function ChannelListScreen() {
                 hitSlop={10}
                 className="size-8 items-center justify-center rounded-lg"
                 onPress={() => {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                  select()
                   setReordering((current) => !current)
                 }}
               >

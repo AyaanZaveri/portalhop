@@ -4,7 +4,6 @@ import {
   BottomSheetFlatList,
   type BottomSheetModal,
 } from "@gorhom/bottom-sheet"
-import * as Haptics from "expo-haptics"
 import { Check } from "lucide-react-native"
 
 import {
@@ -14,6 +13,7 @@ import {
 } from "@/lib/channels"
 import type { FavoriteGroup } from "@/lib/filters"
 import { useToggleGroupMembership } from "@/lib/mutations"
+import { select } from "@/lib/haptics"
 import { useTheme } from "@/lib/theme"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { GroupIcon } from "@/components/group-icon"
@@ -58,7 +58,7 @@ export const GroupMembershipSheet = forwardRef<
               className="h-12 flex-row items-center gap-2 rounded-md px-2"
               onPress={() => {
                 if (!channel) return
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                select()
                 toggleMembership.mutate({
                   groupId: item.id,
                   channelKey: favoriteKeyFor(channel),

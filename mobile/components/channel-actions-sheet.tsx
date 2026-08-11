@@ -1,12 +1,12 @@
 import { forwardRef } from "react"
 import { Text, View } from "react-native"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
-import * as Haptics from "expo-haptics"
 import { FolderHeart, FolderPlus, Layers, Star } from "lucide-react-native"
 
 import { favoriteKeyFor, isFavorited, type ChannelWithStreams } from "@/lib/channels"
 import type { FavoriteGroup } from "@/lib/filters"
 import { useToggleFavorite } from "@/lib/mutations"
+import { confirm } from "@/lib/haptics"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
 import { ChannelLogo } from "@/components/channel-logo"
@@ -103,7 +103,7 @@ export const ChannelActionsSheet = forwardRef<
                 // Only on the way in. A confirming tap when something is
                 // removed reads as though the removal failed.
                 if (!favorited) {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+                  confirm()
                 }
                 toggleFavorite.mutate({
                   channelKey: favoriteKeyFor(channel),

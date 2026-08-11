@@ -4,9 +4,9 @@ import {
   BottomSheetFlatList,
   type BottomSheetModal,
 } from "@gorhom/bottom-sheet"
-import * as Haptics from "expo-haptics"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
+import { select } from "@/lib/haptics"
 import { useTheme } from "@/lib/theme"
 import { ChannelLogo } from "@/components/channel-logo"
 import { PressableScale } from "@/components/ui/pressable-scale"
@@ -52,7 +52,7 @@ export const ChannelSourcesSheet = forwardRef<
               preset="row"
               className="flex-row items-center gap-3 rounded-xl px-2 py-2"
               onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                select()
                 onChoose(item)
               }}
             >

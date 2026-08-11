@@ -1,37 +1,15 @@
 import { useCallback, useState } from "react"
-import { Platform, ScrollView, Text, View } from "react-native"
+import { ScrollView, Text, View } from "react-native"
 import Sortable from "react-native-sortables"
-import * as Haptics from "expo-haptics"
 import { GripVertical } from "lucide-react-native"
 
 import { favoriteKeyFor, type ChannelWithStreams } from "@/lib/channels"
+import { dragStart, tick } from "@/lib/haptics"
 import { useReorderChannels } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
 import { ChannelLogo } from "@/components/channel-logo"
 import { CHANNEL_ROW_HEIGHT } from "@/components/channel-row"
-
-/**
- * The tick felt as one row passes another.
- *
- * Android gets Segment_Frequent_Tick, the constant the platform reserves for
- * moving through a series of choices — a clock face, a list being scrubbed. It
- * is specified to be very soft precisely because it fires in quick succession,
- * and a device that cannot produce something that soft is allowed to produce
- * nothing. selectionAsync sounds like the right call and is not: on Android it
- * comes out as a short vibration rather than a tick.
- *
- * iOS keeps selectionAsync, which is already that platform's selection tick.
- */
-function tick() {
-  if (Platform.OS === "android") {
-    void Haptics.performAndroidHapticsAsync(
-      Haptics.AndroidHaptics.Segment_Frequent_Tick,
-    )
-    return
-  }
-  void Haptics.selectionAsync()
-}
 
 /**
  * The favourites list, in drag-to-reorder mode.
@@ -171,9 +149,7 @@ export function ChannelReorderList({
           // where it was and follow from there.
           enableActiveItemSnap={false}
           onDragEnd={onDragEnd}
-          onDragStart={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-          }}
+          onDragStart={dragStart}
           // A tick each time the row passes another, so the reordering is felt
           // as it happens rather than only confirmed at the drop.
           onOrderChange={tick}
