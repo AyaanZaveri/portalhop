@@ -127,6 +127,28 @@ export function channelSlug(
   channel: ChannelWithSourceId,
   userId: string | null,
 ) {
+  /**
+   * A channel with a guide id is addressed by it.
+   *
+   * The URL then names the channel rather than one portal's copy of it, which
+   * is what makes it survive: reordering sources, dropping the portal it was
+   * first opened from, or a refresh renumbering the catalogue all leave it
+   * pointing at the same thing. The old form hashed the user, the portal and
+   * the row, so it broke on all three.
+   *
+   * No hash, because the guide id is already unique and already readable. A
+   * hash would only hide which channel the link is for.
+   */
+  const guideId = normalizeXmltvId(channel.xmltvId)
+  if (guideId) {
+    const name = slugify(channel.name || "channel") || "channel"
+    return `${name}-${slugify(guideId) || "id"}`
+  }
+
+  // No guide id, so there is nothing stable to address it by and the old form
+  // stands: scoped to this user and this portal, because that is genuinely all
+  // this channel is. A link to one is not shareable and should not pretend to
+  // be.
   const name = slugify(channel.name || channel.number || "channel") || "channel"
   const hash = shortHash(
     [
@@ -147,6 +169,35 @@ export function buildChannelIndex<T extends ChannelWithSourceId>(
   for (const channel of channels) {
     const id = channelSlug(channel, userId)
     if (!index.has(id)) index.set(id, channel)
+
+    /**
+     * Old links keep working.
+     *
+     * Every channel with a guide id used to have a per-user, per-portal slug,
+     * and those are in bookmarks and in whatever anyone pasted somewhere. They
+     * are indexed alongside the new form rather than migrated, because there is
+     * nothing to migrate: a URL someone saved is not ours to rewrite.
+     */
+    if (normalizeXmltvId(channel.xmltvId)) {
+      const legacy = legacyChannelSlug(channel, userId)
+      if (!index.has(legacy)) index.set(legacy, channel)
+    }
   }
   return index
+}
+
+/** The slug a guide-id channel had before it was addressed by that id. */
+function legacyChannelSlug(
+  channel: ChannelWithSourceId,
+  userId: string | null,
+) {
+  const name = slugify(channel.name || channel.number || "channel") || "channel"
+  const hash = shortHash(
+    [
+      userId ?? "anon",
+      channel.portalSource?.id ?? "manual",
+      channelIdentity(channel),
+    ].join("|"),
+  )
+  return `${name}-${hash}`
 }

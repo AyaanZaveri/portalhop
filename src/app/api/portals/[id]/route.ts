@@ -13,7 +13,7 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
-import { getEpgChannelLogos } from "@/lib/epg-store"
+import { getEpgChannelLogos, getEpgChannelNames } from "@/lib/epg-store"
 import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 import {
   nullableString,
@@ -67,6 +67,12 @@ export async function GET(
     .where(eq(savedChannels.sourceId, sourceId))
 
   const channelIds = channels.map((channel) => channel.xmltvId)
+  // Names come from the directory whatever the source's epgMode, unlike logos.
+  // Which feed supplies programmes is a different question from what a channel
+  // is called, and resolving the name here rather than in the browser is what
+  // stops the list painting the portal's name and correcting itself a moment
+  // later.
+  const epgNames = await getEpgChannelNames(channelIds)
   const epgLogos = portal.epgMode === "iptv-org"
     ? await getEpgChannelLogos(channelIds)
     : {}
@@ -82,9 +88,18 @@ export async function GET(
       id: channel.channelId,
       xmltvId: channel.xmltvId,
       number: channel.number,
-      name: channel.name,
       genreId: channel.genreId,
       genre: channel.genre,
+      /**
+       * What the channel is called, and separately what this stream is called.
+       *
+       * name is the directory's, so a row reads the same whichever portal it
+       * came from. sourceName is the portal's own, kept because it is the only
+       * thing distinguishing one stream from another once several sit behind
+       * one row -- "SKY SPORTS F1 UHD" against "4K| SKY SPORTS F1".
+       */
+      name: epgNames[normalizeXmltvId(channel.xmltvId)] || channel.name,
+      sourceName: channel.name,
       // Stream commands can be very large and are only needed after the user
       // chooses a channel. They stay in Postgres until /api/channel-link
       // resolves this specific saved-channel id.

@@ -102,7 +102,7 @@ export function ChannelSourcesDrawer({
                       <span className="flex min-w-0 flex-1 flex-col">
                         {/* The portal's own name, untouched. */}
                         <span className="truncate text-sm font-medium">
-                          {channel.name || "Unnamed channel"}
+                          {channel.sourceName || channel.name || "Unnamed channel"}
                         </span>
                         {/* The source as a badge, the way the player header
                             wears it. Same fact in the same treatment, so a row

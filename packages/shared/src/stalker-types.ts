@@ -14,7 +14,17 @@ export type PortalChannel = {
   savedChannelId?: number
   id: string
   number: string
+  /**
+   * What the channel is called. The guide's name where there is one, so a row
+   * reads the same whichever portal supplied it.
+   */
   name: string
+  /**
+   * What this portal calls it. The only thing distinguishing one stream from
+   * another once several sit behind one row, and the reason the source list is
+   * worth reading at all.
+   */
+  sourceName?: string
   genreId: string
   genre: string
   cmd: string

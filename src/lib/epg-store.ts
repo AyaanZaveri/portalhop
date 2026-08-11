@@ -6,6 +6,7 @@ import type { NewEpgChannelRow } from "@/db/schema";
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources";
 import type { EpgChannel } from "@/lib/epg-parser";
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id";
+import { stripCountryPrefix } from "@portalhop/shared/epg-search";
 
 export interface EpgManifest {
   lastFetchedAt: number | null;
@@ -115,6 +116,41 @@ export async function getEpgChannels(): Promise<
   }
 
   return merged;
+}
+
+/**
+ * Guide names for a set of channels, country prefix already removed.
+ *
+ * Unlike the logo lookup below, this is not gated on a source's epgMode. A
+ * portal's name for a channel is whatever its operator typed — "TSN 1 - NO
+ * EVENT TODAY", "4K| SKY SPORTS F1 UHD" — and once a row stands for several
+ * portals there is no reason to prefer one of those over the directory, which
+ * names the channel the same way for everybody. Which feed supplies programmes
+ * is a separate question from what the channel is called.
+ *
+ * Batched the same way and for the same reason: a large portal would otherwise
+ * blow past Postgres' bind-parameter cap.
+ */
+export async function getEpgChannelNames(channelIds: string[]) {
+  const ids = [...new Set(channelIds.map(normalizeXmltvId).filter(Boolean))]
+  const result: Record<string, string> = {}
+
+  for (let index = 0; index < ids.length; index += 2_000) {
+    const rows = await getDb()
+      .select({
+        channelIdLower: epgChannels.channelIdLower,
+        name: epgChannels.name,
+      })
+      .from(epgChannels)
+      .where(inArray(epgChannels.channelIdLower, ids.slice(index, index + 2_000)))
+
+    for (const row of rows) {
+      const stripped = stripCountryPrefix(row.name)
+      if (stripped) result[row.channelIdLower] = stripped
+    }
+  }
+
+  return result
 }
 
 /** Returns logo metadata only for channel ids the UI is actually displaying. */
