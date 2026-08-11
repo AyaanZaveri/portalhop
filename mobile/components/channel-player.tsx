@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -9,10 +9,19 @@ import {
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { useEvent } from "expo"
 import { useNavigation } from "expo-router"
-import { VideoView, useVideoPlayer } from "expo-video"
+import {
+  VideoView,
+  useVideoPlayer,
+  type SubtitleTrack,
+  type VideoSource,
+} from "expo-video"
 import { useQuery } from "@tanstack/react-query"
 import * as Haptics from "expo-haptics"
+
+import { tick } from "@/lib/haptics"
 import {
+  Captions,
+  CaptionsOff,
   Maximize,
   Minimize,
   Pause,
@@ -23,6 +32,8 @@ import {
   VolumeX,
 } from "lucide-react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
+
+import { useTheme } from "@/lib/theme"
 import { StatusBar } from "expo-status-bar"
 import { BackHandler } from "react-native"
 
@@ -31,6 +42,35 @@ import { PressableScale } from "@/components/ui/pressable-scale"
 
 /** How long the controls stay up after a tap. */
 const HIDE_AFTER_MS = 3500
+
+/**
+ * Off, then each track in turn, then off again.
+ *
+ * A list of tracks would need a surface to put it on, and a live stream almost
+ * always carries one caption track -- where cycling is just a toggle. With
+ * several, the control shows which one is on, so a second tap is an obvious way
+ * to reach the next rather than a guess.
+ */
+function nextSubtitleTrack(
+  tracks: SubtitleTrack[],
+  current: SubtitleTrack | null,
+) {
+  if (!tracks.length) return null
+
+  // id is Android-only, so the two have to be compared by what both platforms
+  // report when it is absent.
+  const sameTrack = (a: SubtitleTrack, b: SubtitleTrack) =>
+    a.id !== undefined && b.id !== undefined
+      ? a.id === b.id
+      : a.language === b.language && a.label === b.label
+
+  const index = current
+    ? tracks.findIndex((track) => sameTrack(track, current))
+    : -1
+  const next = index + 1
+
+  return next >= tracks.length ? null : tracks[next]
+}
 
 export function ChannelPlayer({
   sourceId,
@@ -43,6 +83,11 @@ export function ChannelPlayer({
   fullscreen: boolean
   onFullscreenChange: (next: boolean) => void
 }) {
+  // The one palette value this overlay uses. Everything else here is white on
+  // video rather than a themed surface, but an active control has to read as
+  // active, and the app's lime is what says that everywhere else.
+  const { iconPrimary } = useTheme()
+
   // Both must be real ids. The route hands these over as strings, and an absent
   // one becomes Number("") — which is 0, not NaN, so a plain isFinite check
   // would happily ask the server for channel zero.
@@ -67,7 +112,23 @@ export function ChannelPlayer({
       resolveChannelLink(sourceId!, savedChannelId!, signal),
   })
 
-  const player = useVideoPlayer(link.data ?? null, (instance) => {
+  /**
+   * Labelled as HLS where the URL says so, and left alone otherwise.
+   *
+   * iOS only exposes a stream's tracks -- subtitles included -- once it knows
+   * it is looking at a playlist, which it works out from the .m3u8 extension or
+   * from being told. Portals hand back plenty of URLs that are HLS without
+   * looking it, and the label costs nothing where it is already obvious. Where
+   * the URL is not a playlist at all, saying so would be a lie the player would
+   * act on, so it stays a bare string.
+   */
+  const source = useMemo<VideoSource>(() => {
+    const uri = link.data
+    if (!uri) return null
+    return uri.includes(".m3u8") ? { uri, contentType: "hls" } : uri
+  }, [link.data])
+
+  const player = useVideoPlayer(source, (instance) => {
     instance.loop = false
     // Live television: there is nothing behind the live edge worth keeping, and
     // a deep buffer only widens the gap to it.
@@ -86,6 +147,25 @@ export function ChannelPlayer({
     isPlaying: player.playing,
   })
   const { muted } = useEvent(player, "mutedChange", { muted: player.muted })
+
+  /**
+   * Subtitles, as the stream carries them.
+   *
+   * Nothing is decoded here, unlike the web build, which pulls CEA-608 cues out
+   * of the HLS segments itself and draws them over the video. ExoPlayer and
+   * AVPlayer already do that and already render the result inside the video
+   * surface, so the whole job is choosing a track and letting the platform draw
+   * it -- which also means the captions stay put in fullscreen and in
+   * picture-in-picture, where an overlay of our own would not.
+   */
+  const { availableSubtitleTracks } = useEvent(
+    player,
+    "availableSubtitleTracksChange",
+    { availableSubtitleTracks: player.availableSubtitleTracks },
+  )
+  const { subtitleTrack } = useEvent(player, "subtitleTrackChange", {
+    subtitleTrack: player.subtitleTrack,
+  })
 
   const viewRef = useRef<VideoView>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
@@ -400,6 +480,44 @@ export function ChannelPlayer({
                     <Volume2 size={18} color="#fff" />
                   )}
                 </PressableScale>
+
+                {/* Only where the stream has any. A control that does nothing
+                    is worse than an absent one, and most portals carry no
+                    caption track at all. */}
+                {availableSubtitleTracks.length ? (
+                  <PressableScale
+                    preset="icon"
+                    hitSlop={8}
+                    className="h-9 flex-row items-center justify-center gap-1.5 rounded-lg bg-black/50 px-2.5"
+                    onPress={() => {
+                      player.subtitleTrack = nextSubtitleTrack(
+                        player.availableSubtitleTracks,
+                        player.subtitleTrack,
+                      )
+                      tick()
+                      setControlsVisible(true)
+                    }}
+                  >
+                    {subtitleTrack ? (
+                      <Captions size={18} color={iconPrimary} />
+                    ) : (
+                      <CaptionsOff size={18} color="#fff" />
+                    )}
+                    {/* Named only when there is a choice to be confused about.
+                        One track needs no label; several do, or the second tap
+                        is a guess. */}
+                    {subtitleTrack && availableSubtitleTracks.length > 1 ? (
+                      <Text
+                        className="text-[11px] font-medium text-white"
+                        style={{ includeFontPadding: false }}
+                      >
+                        {(subtitleTrack.language || subtitleTrack.label)
+                          .slice(0, 3)
+                          .toUpperCase()}
+                      </Text>
+                    ) : null}
+                  </PressableScale>
+                ) : null}
 
                 <PressableScale
                   preset="icon"
