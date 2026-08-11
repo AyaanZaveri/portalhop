@@ -75,7 +75,10 @@ import {
 } from "@/components/reui/sortable"
 import {
   groupChannels,
+  groupKeyFor,
   identityKeyFor,
+  orderByChosenSource,
+  trustedGuideIds,
 } from "@portalhop/shared/channel-grouping"
 import { isFavoriteKeyed } from "@portalhop/shared/channel-keys"
 import { ChannelLogo } from "@/components/tv/channel-logo"
@@ -190,6 +193,8 @@ export function ChannelList({
     setCategoryHidden,
     applyChannelXmltvId,
     userId,
+    sourceOrder,
+    setChannelSourceOrder,
   } = useTv()
 
   const router = useRouter()
@@ -587,81 +592,134 @@ export function ChannelList({
    * this can be turned off without a migration.
    */
   /**
-   * Guide names for the channels on screen.
+   * Every stream carrying each channel, from the whole catalogue.
    *
-   * epgChannels from the provider is an empty object and stays that way on
-   * purpose: the directory is 5.8MB and belongs on the server. This asks for
-   * the ids this catalogue actually holds, which is a few thousand rather than
-   * twenty-eight, and the answer is the name every portal should have used.
-   *
-   * Falls silent on failure. A missing name shows the portal's own, which is
-   * what the row showed before.
+   * Deliberately not from the visible list. Favourites are the case that
+   * proves it: a favourite made before favourites were keyed on the channel
+   * belongs to one portal's copy, so filtering to favourites leaves exactly
+   * that copy on screen and grouping it finds no company — the row has five
+   * other streams behind it and the menu said it had none. The streams a
+   * channel has are a fact about the catalogue, not about what is filtered.
    */
-  const [guideNames, setGuideNames] = useState<Record<string, string>>({})
+  const catalogueGroups = useMemo(() => {
+    // Which ids can be grouped on is a statistic over the whole catalogue, so
+    // it is computed once here and reused for every lookup below rather than
+    // recomputed per row.
+    const trusted = trustedGuideIds(allChannels)
+    const streams = new Map<string, PortalChannelWithSource[]>()
 
-  useEffect(() => {
-    const ids = [
-      ...new Set(
-        channels
-          .map((entry) => normalizeXmltvId(entry.xmltvId))
-          .filter(Boolean),
-      ),
-    ]
-    if (!ids.length) return
-
-    let current = true
-    void apiFetch("/api/epg/names", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    })
-      .then((response) => (response.ok ? response.json() : { names: {} }))
-      .then((data: { names?: Record<string, { name?: string }> }) => {
-        if (!current) return
-        const flat: Record<string, string> = {}
-        for (const [id, entry] of Object.entries(data.names ?? {})) {
-          if (entry?.name) flat[id] = entry.name
-        }
-        setGuideNames(flat)
-      })
-      .catch(() => {})
-
-    return () => {
-      current = false
+    for (const channel of allChannels) {
+      const key = groupKeyFor(channel, trusted)?.key
+      if (!key) continue
+      const members = streams.get(key)
+      if (members) members.push(channel)
+      else streams.set(key, [channel])
     }
-  }, [channels])
+
+    return { trusted, streams }
+  }, [allChannels])
+
+  /** The streams behind one channel, most preferred first, and its group key. */
+  const sourcesFor = useCallback(
+    (channel: PortalChannelWithSource) => {
+      const key = groupKeyFor(channel, catalogueGroups.trusted)?.key
+      const members = (key && catalogueGroups.streams.get(key)) || [channel]
+      return { key, streams: orderByChosenSource(members, sourceOrder) }
+    },
+    [catalogueGroups, sourceOrder],
+  )
 
   const { groupedChannels, sourcesByKey } = useMemo(() => {
     const groups = groupChannels(visibleChannels)
     const sources = new Map<string, typeof visibleChannels>()
 
     const representatives = groups.map((group) => {
-      const representative = group.members[0]
-      const key = getChannelKey(representative)
+      // The stream the user chose leads the row, so what the list plays and
+      // what the drawer calls Default are one decision rather than two.
+      const members = orderByChosenSource(group.members, sourceOrder)
+      const representative = members[0]
+      const { streams } = sourcesFor(representative)
 
-      if (group.members.length > 1) {
-        sources.set(key, group.members)
+      if (streams.length > 1) {
+        sources.set(getChannelKey(representative), streams)
       }
 
       return representative
     })
 
     return { groupedChannels: representatives, sourcesByKey: sources }
-  }, [visibleChannels])
+  }, [sourcesFor, sourceOrder, visibleChannels])
 
-  // The group whose sources are open in the drawer, and the order they are in.
-  const [sourcesFor, setSourcesFor] = useState<{
+  /**
+   * The row whose sources are open, held as the row itself rather than as the
+   * list of streams it had when it opened. The list is derived below, so
+   * choosing a source reorders the open drawer under the user's finger instead
+   * of leaving a stale snapshot claiming the old one is still first.
+   */
+  const [sourcesOpenFor, setSourcesOpenFor] = useState<{
     name: string
-    channels: typeof visibleChannels
+    channel: PortalChannelWithSource
   } | null>(null)
-  const [sourceOrder, setSourceOrder] = useState<string[]>([])
+
+  const openSourcesGroup = useMemo(() => {
+    if (!sourcesOpenFor) return null
+
+    const { key, streams } = sourcesFor(sourcesOpenFor.channel)
+
+    return {
+      name: sourcesOpenFor.name,
+      channels: streams,
+      // Only an id: group can be remembered. A name group's key is its
+      // channels' name reduced to letters and digits, so a portal renaming one
+      // moves the key and the choice would silently stop applying — see
+      // identityKeyFor.
+      identityKey: key?.startsWith("id:") ? key : null,
+    }
+  }, [sourcesFor, sourcesOpenFor])
 
   const openSources = useCallback(
-    (name: string, members: typeof visibleChannels) => {
-      setSourcesFor({ name, channels: members })
-      setSourceOrder(members.map(getChannelKey))
+    (name: string, channel: PortalChannelWithSource) => {
+      setSourcesOpenFor({ name, channel })
     },
     [],
+  )
+
+  const chooseSourceOrder = useCallback(
+    (channels: PortalChannelWithSource[]) => {
+      const identityKey = openSourcesGroup?.identityKey
+      if (!identityKey) return
+
+      // What is stored is a saved channel row, so a stream that was never saved
+      // — the built-in iptv-org catalogue, or a portal being previewed before
+      // it is added — cannot hold a position. Those always follow the saved
+      // ones rather than silently accepting a choice that would not survive the
+      // next load.
+      if (channels[0]?.savedChannelId == null) {
+        toast.error(
+          "Only a channel from a saved portal can be the default source.",
+        )
+        return
+      }
+
+      setChannelSourceOrder(
+        identityKey,
+        channels
+          .map((channel) => channel.savedChannelId)
+          .filter((id): id is number => typeof id === "number"),
+      )
+      triggerHaptic()
+    },
+    [openSourcesGroup, setChannelSourceOrder, triggerHaptic],
+  )
+
+  const playSource = useCallback(
+    (channel: PortalChannelWithSource) => {
+      // A source choice is intentionally ephemeral. Its saved-channel id names
+      // the exact server-side stream without exposing its command in the URL.
+      router.push(channelHref(channelSlug(channel), channel.savedChannelId))
+      setSourcesOpenFor(null)
+    },
+    [channelSlug, router],
   )
 
   // While reordering, the dragged order wins until the saved order catches up.
@@ -1414,14 +1472,11 @@ export function ChannelList({
                 customEpgChannels,
                 useImageProxy,
               )
-              // The guide's name, where the guide knows it. A portal's
-              // name is whatever its operator typed, and once a row stands
-              // for several portals, taking one arbitrarily means the list
-              // reads in whichever happened to sort first.
-              const displayName =
-                guideNames[normalizeXmltvId(channel.xmltvId)] ||
-                epgChannels[normalizeXmltvId(channel.xmltvId)]?.name ||
-                channel.name
+              // Already the guide's name where the guide knows it:
+              // /api/portals/[id] overlays it before the row ever exists.
+              // Nothing to resolve here, which is the point — a name worked
+              // out after the row is drawn is a name the row has to correct.
+              const displayName = channel.name
               const channelBadgeId = channel.xmltvId ?? ""
               const nowPlaying = nowPlayingById.get(
                 normalizeXmltvId(channel.xmltvId),
@@ -1640,7 +1695,7 @@ export function ChannelList({
                                 onClick={() =>
                                   openSources(
                                     displayName || "this channel",
-                                    sourcesByKey.get(channelKey) ?? [],
+                                    channel,
                                   )
                                 }
                               >
@@ -1650,7 +1705,9 @@ export function ChannelList({
                             ) : null}
                             <DropdownMenuItem
                               className="py-1.5 whitespace-nowrap"
-                              onClick={() => toggleFavorite(favoriteKeyFor(channel))}
+                              onClick={() =>
+                                toggleFavorite(favoriteKeyFor(channel))
+                              }
                             >
                               <StarIcon
                                 className={cn(
@@ -1917,13 +1974,14 @@ export function ChannelList({
         }}
       />
       <ChannelSourcesDrawer
-        name={sourcesFor?.name ?? ""}
-        sources={sourcesFor?.channels ?? []}
-        order={sourceOrder}
-        onOrderChange={setSourceOrder}
-        open={Boolean(sourcesFor)}
+        name={openSourcesGroup?.name ?? ""}
+        sources={openSourcesGroup?.channels ?? []}
+        canRemember={Boolean(openSourcesGroup?.identityKey)}
+        onSelect={playSource}
+        onOrderChange={chooseSourceOrder}
+        open={Boolean(sourcesOpenFor)}
         onOpenChange={(open) => {
-          if (!open) setSourcesFor(null)
+          if (!open) setSourcesOpenFor(null)
         }}
         isMobileLayout={isMobileLayout}
       />

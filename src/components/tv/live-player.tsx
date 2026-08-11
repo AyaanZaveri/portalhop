@@ -115,7 +115,9 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
       }
     }
     const title = currentProgramme?.title || channel.name || "Live stream"
-    const artist = currentProgramme ? channel.name || "Live stream" : "Portal Hop"
+    const artist = currentProgramme
+      ? channel.name || "Live stream"
+      : "Portal Hop"
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
@@ -126,13 +128,18 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
 
     const video = playerElement
     const updatePlaybackState = () => {
-      navigator.mediaSession.playbackState = video?.paused ? "paused" : "playing"
+      navigator.mediaSession.playbackState = video?.paused
+        ? "paused"
+        : "playing"
     }
     const seekBy = (seconds: number) => {
       if (!video || video.seekable.length === 0) return
       const start = video.seekable.start(0)
       const end = video.seekable.end(video.seekable.length - 1)
-      video.currentTime = Math.min(end, Math.max(start, video.currentTime + seconds))
+      video.currentTime = Math.min(
+        end,
+        Math.max(start, video.currentTime + seconds),
+      )
     }
     const setActionHandler = (
       action: MediaSessionAction,
@@ -170,10 +177,18 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
       navigator.mediaSession.metadata = null
       navigator.mediaSession.playbackState = "none"
     }
-  }, [channel.name, channel.portalSource?.name, currentProgramme, logoUrl, playerElement, useImageProxy])
+  }, [
+    channel.name,
+    channel.portalSource?.name,
+    currentProgramme,
+    logoUrl,
+    playerElement,
+    useImageProxy,
+  ])
 
   // Resolve the latest playable stream for this channel. The component is keyed
-  // by channel id upstream, so it remounts (fresh state) on channel change.
+  // by the specific stream upstream, so choosing another source remounts it
+  // with fresh loading and error state.
   useEffect(() => {
     if (!canResolveChannel(channel)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -295,7 +310,7 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
     const syncOrientation = () => {
       if (document.fullscreenElement) {
         // Rejects when the platform refuses the lock; the user can still rotate.
-        lockLandscape.call(orientation, "landscape").catch(() => { })
+        lockLandscape.call(orientation, "landscape").catch(() => {})
       } else {
         orientation.unlock()
       }
@@ -613,9 +628,7 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
   }
 
   if (!streamUrl) {
-    return (
-      <div className="aspect-video w-full rounded-lg bg-black" />
-    )
+    return <div className="aspect-video w-full rounded-lg bg-black" />
   }
 
   return (

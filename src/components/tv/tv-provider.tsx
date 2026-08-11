@@ -16,7 +16,10 @@ import { toast } from "sonner"
 import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
 import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
-import { identityKeyFor } from "@portalhop/shared/channel-grouping"
+import {
+  identityKeyFor,
+  type ChannelSourceOrder,
+} from "@portalhop/shared/channel-grouping"
 import {
   browseFilterCookieName,
   parseBrowseFilter,
@@ -64,6 +67,9 @@ type TvContextValue = {
   filteredChannels: PortalChannelWithSource[]
   channelIndex: Map<string, PortalChannelWithSource>
   channelSlug: (channel: PortalChannelWithSource) => string
+  /** Which stream each channel plays, most preferred first. */
+  sourceOrder: ChannelSourceOrder
+  setChannelSourceOrder: (identityKey: string, savedChannelIds: number[]) => void
   epgChannels: Record<
     string,
     { name: string; logoUrl?: string; countryCode?: string }
@@ -380,9 +386,71 @@ export function TvProvider({
       .map((entry) => entry.channel)
   }, [browserChannels, deferredQuery, searchableChannels])
 
+  /**
+   * Which stream each channel plays, as the user has chosen it.
+   *
+   * Loaded once per session from the one table that holds it. Kept here rather
+   * than in the sources drawer because two things read it — the drawer, and the
+   * index that resolves a deep link — and if they read different copies then
+   * following a link plays a different stream from the one the drawer says is
+   * first, which is the whole thing the choice was supposed to fix.
+   */
+  const [sourceOrder, setSourceOrderState] = useState<ChannelSourceOrder>({})
+
+  useEffect(() => {
+    if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSourceOrderState({})
+      return
+    }
+
+    let current = true
+    apiFetch("/api/channel-source-order", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (current && body?.order) setSourceOrderState(body.order)
+      })
+      .catch(() => {})
+
+    return () => {
+      current = false
+    }
+  }, [userId])
+
+  /**
+   * Applied here and saved in the background.
+   *
+   * Optimistic because the answer is already known: the user dragged a row, or
+   * tapped one, and the list has to be in the new order under their finger. A
+   * failed write leaves the app one refresh from the truth, which is the right
+   * way round for a preference — the alternative is a list that ignores the
+   * gesture until the network agrees.
+   */
+  const setChannelSourceOrder = useCallback(
+    (identityKey: string, savedChannelIds: number[]) => {
+      setSourceOrderState((current) => ({
+        ...current,
+        [identityKey]: savedChannelIds,
+      }))
+
+      apiFetch("/api/channel-source-order", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identityKey, savedChannelIds }),
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error()
+        })
+        .catch(() => {
+          toast.error("Could not save which source plays first.")
+        })
+    },
+    [],
+  )
+
   const channelIndex = useMemo(
-    () => buildChannelIndex(browserChannels, userId),
-    [browserChannels, userId],
+    () => buildChannelIndex(browserChannels, userId, sourceOrder),
+    [browserChannels, userId, sourceOrder],
   )
 
   const channelSlug = useCallback(
@@ -614,6 +682,8 @@ export function TvProvider({
       filteredChannels,
       channelIndex,
       channelSlug,
+      sourceOrder,
+      setChannelSourceOrder,
       epgChannels,
       customEpgChannels,
       userId,
@@ -656,6 +726,8 @@ export function TvProvider({
       filteredChannels,
       channelIndex,
       channelSlug,
+      sourceOrder,
+      setChannelSourceOrder,
       epgChannels,
       customEpgChannels,
       userId,

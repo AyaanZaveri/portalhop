@@ -267,6 +267,39 @@ export const savedChannels = pgTable("saved_channels", {
   ),
 ])
 
+/**
+ * Which stream plays when the user opens a channel.
+ *
+ * Created by scripts/migrate-channel-identities.sql; this is that table reaching
+ * the app. `identityKey` is the channel's — "id:<normalized xmltv id>", from
+ * identityKeyFor — and never saved_channels.identity_key, which is one portal's
+ * name for one of its own rows. The two words mean different things one column
+ * apart, so read the table name.
+ *
+ * Rows point at saved_channels rather than saved_sources because one portal can
+ * carry the same channel twice at different qualities, so what is being ordered
+ * is streams. Sparse: a row only once someone has actually chosen, and a channel
+ * with no rows plays whichever stream the catalogue happens to list first.
+ */
+export const channelIdentitySourceOrder = pgTable(
+  "channel_identity_source_order",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    identityKey: text("identity_key").notNull(),
+    savedChannelId: integer("saved_channel_id")
+      .notNull()
+      .references(() => savedChannels.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.identityKey, table.savedChannelId],
+    }),
+  ],
+)
+
 // The iptv-epg.org channel directory. Public, global, identical for every user;
 // a shared cache of a public dataset rather than user data. Refreshed one country
 // at a time so each write fits inside a serverless request.

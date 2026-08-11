@@ -161,6 +161,53 @@ export function identityKeyFor(channel: GroupableChannel): string | null {
   return id ? `id:${id}` : null
 }
 
+/**
+ * A user's saved answer to "which of these streams plays": identity key ->
+ * saved channel ids, most preferred first. Sparse, and every key is an id: key.
+ */
+export type ChannelSourceOrder = Readonly<Record<string, readonly number[]>>
+
+export type ChosenSourceChannel = GroupableChannel & {
+  savedChannelId?: number | null
+}
+
+/**
+ * Where a stream sits in its channel's saved order.
+ *
+ * Anything unchosen sorts last as a group rather than in some invented order:
+ * the catalogue's own sequence is what the user saw before they chose, so
+ * leaving it alone means choosing one stream reorders exactly one stream.
+ */
+export function sourceRank(
+  channel: ChosenSourceChannel,
+  order: ChannelSourceOrder,
+) {
+  const identityKey = identityKeyFor(channel)
+  if (!identityKey || channel.savedChannelId == null) {
+    return Number.MAX_SAFE_INTEGER
+  }
+
+  const chosen = order[identityKey]
+  if (!chosen) return Number.MAX_SAFE_INTEGER
+
+  const position = chosen.indexOf(channel.savedChannelId)
+  return position === -1 ? Number.MAX_SAFE_INTEGER : position
+}
+
+/**
+ * The streams of one channel, most preferred first.
+ *
+ * Sort is stable, so streams the user never ranked keep the order they arrived
+ * in. Used for both what the row plays and what the sources drawer lists, so
+ * the drawer is showing the decision rather than describing it.
+ */
+export function orderByChosenSource<T extends ChosenSourceChannel>(
+  members: readonly T[],
+  order: ChannelSourceOrder,
+): T[] {
+  return [...members].sort((a, b) => sourceRank(a, order) - sourceRank(b, order))
+}
+
 export type GroupKey = {
   key: string
   /** Which rule produced it, so the interface can say how sure it is. */

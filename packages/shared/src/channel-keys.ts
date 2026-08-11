@@ -1,3 +1,7 @@
+import {
+  sourceRank,
+  type ChannelSourceOrder,
+} from "./channel-grouping"
 import type { PortalChannel } from "./stalker-types"
 import { normalizeXmltvId } from "./xmltv-id"
 
@@ -128,7 +132,7 @@ export function channelSlug(
   userId: string | null,
 ) {
   /**
-   * A channel with a guide id is addressed by it.
+   * A channel with a guide id is that guide id, and nothing else.
    *
    * The URL then names the channel rather than one portal's copy of it, which
    * is what makes it survive: reordering sources, dropping the portal it was
@@ -136,13 +140,16 @@ export function channelSlug(
    * pointing at the same thing. The old form hashed the user, the portal and
    * the row, so it broke on all three.
    *
-   * No hash, because the guide id is already unique and already readable. A
-   * hash would only hide which channel the link is for.
+   * No name in front of it either. A name is per-portal — "SKY SPORTS F1 UHD"
+   * against "4K| SKY SPORTS F1" — so prefixing it gave the same channel a
+   * different URL depending on which portal's copy the link was made from,
+   * which is the per-copy addressing this was meant to end. No hash: the guide
+   * id is already unique and already readable, and hashing it would only hide
+   * which channel the link is for.
    */
   const guideId = normalizeXmltvId(channel.xmltvId)
   if (guideId) {
-    const name = slugify(channel.name || "channel") || "channel"
-    return `${name}-${slugify(guideId) || "id"}`
+    return slugify(guideId) || "channel"
   }
 
   // No guide id, so there is nothing stable to address it by and the old form
@@ -164,11 +171,25 @@ export function channelSlug(
 export function buildChannelIndex<T extends ChannelWithSourceId>(
   channels: T[],
   userId: string | null,
+  /**
+   * The user's chosen stream per channel. Without it the first copy in the
+   * catalogue wins, which is arbitrary — a guide-id slug names the channel, and
+   * several portals carry it. With it, following a link plays the same stream
+   * the sources drawer shows at the top, which is what makes the choice real
+   * rather than a label on a list.
+   */
+  sourceOrder: ChannelSourceOrder = {},
 ) {
   const index = new Map<string, T>()
+  const rank = new Map<string, number>()
+
   for (const channel of channels) {
     const id = channelSlug(channel, userId)
-    if (!index.has(id)) index.set(id, channel)
+    const chosen = sourceRank(channel, sourceOrder)
+    if (!index.has(id) || chosen < (rank.get(id) ?? Number.MAX_SAFE_INTEGER)) {
+      index.set(id, channel)
+      rank.set(id, chosen)
+    }
 
     /**
      * Old links keep working.
@@ -178,9 +199,14 @@ export function buildChannelIndex<T extends ChannelWithSourceId>(
      * are indexed alongside the new form rather than migrated, because there is
      * nothing to migrate: a URL someone saved is not ours to rewrite.
      */
-    if (normalizeXmltvId(channel.xmltvId)) {
+    const guideId = normalizeXmltvId(channel.xmltvId)
+    if (guideId) {
       const legacy = legacyChannelSlug(channel, userId)
       if (!index.has(legacy)) index.set(legacy, channel)
+
+      // And the name-prefixed guide form this briefly had in between.
+      const named = `${slugify(channel.name || "channel") || "channel"}-${slugify(guideId) || "id"}`
+      if (!index.has(named)) index.set(named, channel)
     }
   }
   return index

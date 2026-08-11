@@ -15,21 +15,26 @@ import {
 } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
-import { getChannelLogoUrl } from "@/lib/tv-channels"
+import { getChannelKey, getChannelLogoUrl } from "@/lib/tv-channels"
 import { LivePlayer } from "@/components/tv/live-player"
 import { ProgrammeGuide } from "@/components/tv/programme-guide"
 import { ChannelEpgProvider } from "@/components/tv/channel-epg-provider"
 import { useTv } from "@/components/tv/tv-provider"
-import { useActiveChannelSlug } from "@/hooks/use-active-channel"
+import {
+  useActiveChannelSlug,
+  useActiveChannelSourceId,
+} from "@/hooks/use-active-channel"
 
 export function ChannelDetail() {
   const channelId = useActiveChannelSlug() ?? ""
+  const sourceId = useActiveChannelSourceId()
   const router = useRouter()
   const {
     channelIndex,
     isLoadingPortals,
     iptvOrgLoading,
     browserChannels,
+    channelSlug,
     epgChannels,
     customEpgChannels,
     useImageProxy,
@@ -50,7 +55,17 @@ export function ChannelDetail() {
     return () => mediaQuery.removeEventListener("change", updateLayout)
   }, [])
 
-  const channel = channelIndex.get(channelId)
+  const defaultChannel = channelIndex.get(channelId)
+  // A source picked in the drawer wins for this URL only. Confirm it still
+  // belongs to the requested channel so an edited URL cannot jump across
+  // channels merely by guessing a saved row id.
+  const selectedChannel = sourceId
+    ? browserChannels.find(
+        (entry) =>
+          entry.savedChannelId === sourceId && channelSlug(entry) === channelId,
+      )
+    : undefined
+  const channel = selectedChannel ?? defaultChannel
   const isLoading = isLoadingPortals || iptvOrgLoading
 
   // Deep link / stale id: once channels have loaded, an unknown id goes home.
@@ -89,12 +104,14 @@ export function ChannelDetail() {
         <motion.button
           type="button"
           key={channelId}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg pr-28 text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none min-[940px]:cursor-default min-[940px]:pr-0"
+          className="focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-3 rounded-lg pr-28 text-left focus-visible:ring-3 focus-visible:outline-none min-[940px]:cursor-default min-[940px]:pr-0"
           onClick={() => {
             if (isMobile) setDetailsOpen(true)
           }}
           aria-label={
-            isMobile ? `Show details for ${channel.name || "Live stream"}` : undefined
+            isMobile
+              ? `Show details for ${channel.name || "Live stream"}`
+              : undefined
           }
           tabIndex={isMobile ? 0 : -1}
           initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
@@ -135,14 +152,17 @@ export function ChannelDetail() {
       >
         <ChannelEpgProvider channel={channel}>
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-2">
-            <LivePlayer key={channelId} channel={channel} />
+            {/* A source tap keeps the channel slug but changes the stream. Key
+                the player by the actual stream so an old resolve error cannot
+                mask the newly-selected source while it starts. */}
+            <LivePlayer key={getChannelKey(channel)} channel={channel} />
             <ProgrammeGuide />
           </div>
         </ChannelEpgProvider>
       </ScrollArea>
       {isMobile ? (
         <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl dark:border backdrop-blur-md [--drawer-inset:0.5rem] after:hidden">
+          <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden dark:border">
             <div className="flex items-center gap-3 p-4 pb-5">
               {logoUrl ? (
                 <div className="border-border/60 flex size-12 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">

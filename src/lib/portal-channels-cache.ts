@@ -9,7 +9,12 @@ const DB_NAME = "portalhop"
 // Version 4 refreshes saved catalogues whose provider logos are now replaced
 // with their configured EPG logos before being cached.
 // Version 5 adds the EPG now-playing store.
-const DB_VERSION = 5
+// Version 6 drops catalogues cached before the server resolved channel names.
+// They hold the portal's own name, and nothing invalidates them: the entry is
+// keyed on the source's updatedAt, which a change to the guide directory —
+// or to this app — never moves. Left in place they are exactly the flash, a
+// stale name painted on load and corrected on the next refetch.
+const DB_VERSION = 6
 const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 const EPG_WINDOW_STORE_NAME = "epgWindows"
