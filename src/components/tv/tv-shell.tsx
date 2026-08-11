@@ -58,6 +58,10 @@ import {
 import { ChannelList } from "@/components/tv/channel-list"
 import { ChannelSourcesDrawer } from "@/components/tv/channel-sources-drawer"
 import {
+  ChannelEpgMatchDrawer,
+  type EpgMatchChannel,
+} from "@/components/tv/channel-epg-match-drawer"
+import {
   LoadingShell,
   NoPortalsSelected,
 } from "@/components/tv/tv-placeholders"
@@ -86,6 +90,7 @@ export function TvShell({ children }: { children: ReactNode }) {
     sourceOrder,
     setChannelSourceOrder,
     trustedIds,
+    applyChannelXmltvId,
     useImageProxy,
     browseFilter,
   } = useTv()
@@ -153,6 +158,40 @@ export function TvShell({ children }: { children: ReactNode }) {
   // Each row wears what its own portal shipped, not the channel's mark. Every
   // row here is the same channel, so the channel's mark would be the same
   // picture nine times and the list would say nothing.
+  /**
+   * Correcting one stream's guide match, from the row it is wrong on.
+   *
+   * A drawer over a drawer: the sources list stays open behind it, because
+   * fixing a match is something you do while comparing the streams — and the
+   * one you just corrected is the one you then want to play.
+   */
+  const [epgMatchChannel, setEpgMatchChannel] =
+    useState<EpgMatchChannel | null>(null)
+
+  // Only a stream backed by a saved row can be re-matched; the built-in
+  // iptv-org catalogue has no row of its own to pin an id to.
+  const toEpgMatchChannel = useCallback(
+    (source: PortalChannelWithSource): EpgMatchChannel | null => {
+      const sourceId = source.portalSource?.id
+      const savedChannelId = source.savedChannelId
+
+      if (typeof sourceId !== "number" || typeof savedChannelId !== "number") {
+        return null
+      }
+
+      return {
+        savedChannelId,
+        sourceId,
+        // The portal's own name, as everywhere else in this drawer: the guide
+        // match is being made for this stream, and the search is seeded from
+        // the name whose spelling is the reason it needs correcting.
+        name: source.sourceName || source.name || "Channel",
+        xmltvId: source.xmltvId ?? "",
+      }
+    },
+    [],
+  )
+
   const sourceLogoUrl = useCallback(
     (source: PortalChannelWithSource) => getStreamLogoUrl(source, useImageProxy),
     [useImageProxy],
@@ -295,12 +334,40 @@ export function TvShell({ children }: { children: ReactNode }) {
             canRemember={Boolean(sourceIdentityKey)}
             onSelect={selectSource}
             onOrderChange={updateSourceOrder}
+            onEditGuideMatch={
+              sources.some((source) => toEpgMatchChannel(source))
+                ? (source) => setEpgMatchChannel(toEpgMatchChannel(source))
+                : undefined
+            }
             getLogoUrl={sourceLogoUrl}
             open={sourcesOpen}
             onOpenChange={setSourcesOpen}
             isMobileLayout={isMobileLayout}
           />
         ) : null}
+
+        <ChannelEpgMatchDrawer
+          channel={epgMatchChannel}
+          isMobileLayout={isMobileLayout}
+          useImageProxy={useImageProxy}
+          onOpenChange={(open) => {
+            if (!open) setEpgMatchChannel(null)
+          }}
+          onMatched={(xmltvId, logoUrl) => {
+            // Patched in place rather than reloading the source: the save has
+            // already bumped the source's updatedAt, so the cached catalogue is
+            // invalid and refills on the next visit. This is only about the row
+            // changing now instead of after a full refetch.
+            if (epgMatchChannel) {
+              applyChannelXmltvId(
+                epgMatchChannel.sourceId,
+                epgMatchChannel.savedChannelId,
+                xmltvId,
+                logoUrl,
+              )
+            }
+          }}
+        />
       </div>
     </main>
   )

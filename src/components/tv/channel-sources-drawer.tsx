@@ -1,7 +1,12 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { CheckIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
+import {
+  ArrowUpDownIcon,
+  CheckIcon,
+  GripVerticalIcon,
+  PencilIcon,
+} from "lucide-react"
 
 import {
   Drawer,
@@ -27,8 +32,9 @@ export type SourceChannel = PortalChannel & {
 
 /**
  * The source switcher deliberately uses the same drawer grammar as Categories
- * and Groups: plain buttons for everyday choices, with ordering disclosed only
- * after pressing Edit. A source is a choice, not a settings surface.
+ * and Groups: plain buttons for everyday choices, with everything that edits
+ * rather than chooses disclosed behind a control in the header. A source is a
+ * choice, not a settings surface.
  */
 export function ChannelSourcesDrawer<T extends SourceChannel>({
   sources,
@@ -36,6 +42,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   canRemember,
   onSelect,
   onOrderChange,
+  onEditGuideMatch,
   getLogoUrl,
   open,
   onOpenChange,
@@ -46,17 +53,42 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   canRemember: boolean
   onSelect: (source: T) => void
   onOrderChange: (sources: T[]) => void
+  /**
+   * Opens the guide match for one stream, or absent where nothing here has a
+   * saved row to pin an id to.
+   *
+   * Per source rather than per channel, because that is what a guide id is: a
+   * portal writes one on each of its own rows, and it is the row that is wrong
+   * when the match is wrong. Five streams of one channel can disagree about
+   * which guide entry they are, and fixing one is not fixing the others.
+   */
+  onEditGuideMatch?: (source: T) => void
   getLogoUrl: (source: T) => string
   open: boolean
   onOpenChange: (open: boolean) => void
   isMobileLayout: boolean
 }) {
-  const [isEditing, setIsEditing] = useState(false)
+  /**
+   * Three states, because there are three things to do to this list and only
+   * one of them is what anyone came here for.
+   *
+   * "browse" is the drawer at rest: tap a source, it plays. "edit" reveals the
+   * per-source pencils that correct a stream's guide match. "reorder" turns the
+   * rows into a draggable list. The two edits are separate modes rather than
+   * one, because they act on different things — a pencil changes what a stream
+   * *is*, dragging changes which one plays first — and a row wearing both a
+   * grip and a pencil is two small targets on top of the one that matters,
+   * which is the row itself.
+   */
+  const [mode, setMode] = useState<"browse" | "edit" | "reorder">("browse")
   const didDragRef = useRef(false)
+
+  const toggle = (next: "edit" | "reorder") =>
+    setMode((current) => (current === next ? "browse" : next))
 
   const close = (nextOpen: boolean) => {
     onOpenChange(nextOpen)
-    if (!nextOpen) setIsEditing(false)
+    if (!nextOpen) setMode("browse")
   }
 
   const selectSource = (source: T) => {
@@ -78,23 +110,52 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
           <div className="flex items-center justify-between gap-3">
             <DrawerTitle className="text-lg">Sources</DrawerTitle>
-            {canRemember && sources.length > 1 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={
-                  isEditing ? "Finish editing sources" : "Edit sources"
-                }
-                onClick={() => setIsEditing((current) => !current)}
-              >
-                {isEditing ? (
-                  <CheckIcon className="size-4 stroke-[2.25]" />
-                ) : (
-                  <PencilIcon className="size-4 stroke-[2.25]" />
-                )}
-              </Button>
-            ) : null}
+            {/* Each icon says what its own mode does: the pencil changes what
+                a stream is, the arrows change which one plays first. Both live
+                up here rather than on the rows, so the list at rest is a list
+                of sources and nothing else. */}
+            <div className="flex items-center gap-0.5">
+              {onEditGuideMatch ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={
+                    mode === "edit"
+                      ? "Finish editing guide matches"
+                      : "Edit guide matches"
+                  }
+                  aria-pressed={mode === "edit"}
+                  onClick={() => toggle("edit")}
+                >
+                  {mode === "edit" ? (
+                    <CheckIcon className="size-4 stroke-[2.25]" />
+                  ) : (
+                    <PencilIcon className="size-4 stroke-[2.25]" />
+                  )}
+                </Button>
+              ) : null}
+              {canRemember && sources.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={
+                    mode === "reorder"
+                      ? "Finish reordering sources"
+                      : "Reorder sources"
+                  }
+                  aria-pressed={mode === "reorder"}
+                  onClick={() => toggle("reorder")}
+                >
+                  {mode === "reorder" ? (
+                    <CheckIcon className="size-4 stroke-[2.25]" />
+                  ) : (
+                    <ArrowUpDownIcon className="size-4 stroke-[2.25]" />
+                  )}
+                </Button>
+              ) : null}
+            </div>
           </div>
         </DrawerHeader>
         <ScrollArea
@@ -102,7 +163,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
           viewportTabIndex={-1}
           viewportClassName="px-4 pt-3 pb-4"
         >
-          {isEditing ? (
+          {mode === "reorder" ? (
             // The items are Sortable's own children, with the column laid out
             // on Sortable itself. A wrapping <div> here is what pinned the drag
             // to the list: Sortable finds the row to float under the cursor by
@@ -146,29 +207,51 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
               {sources.map((source) => {
                 const isActive = getChannelKey(source) === activeSourceKey
                 return (
-                  <Button
+                  <div
                     key={getChannelKey(source)}
-                    type="button"
-                    variant="ghost"
-                    onClick={() => selectSource(source)}
-                    className="hover:bg-accent hover:text-accent-foreground h-auto w-full justify-start gap-3 rounded-lg px-2 py-2.5 text-sm font-normal"
+                    className="flex items-center gap-0.5"
                   >
-                    <ChannelLogo url={getLogoUrl(source)} />
-                    <SourceLabels source={source} />
-                    {/* A dot rather than a filled row. Every row here carries a
-                        logo tile of the channel's own colour, so a tinted
-                        background lands behind artwork that is already loud and
-                        the list reads as two competing fills. One mark on the
-                        right says the same thing and leaves the row alone. */}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "bg-primary size-2 shrink-0 rounded-full transition-opacity",
-                        isActive ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    {isActive ? <span className="sr-only">Playing</span> : null}
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => selectSource(source)}
+                      className="hover:bg-accent hover:text-accent-foreground h-auto min-w-0 flex-1 justify-start gap-3 rounded-lg px-2 py-2.5 text-sm font-normal"
+                    >
+                      <ChannelLogo url={getLogoUrl(source)} />
+                      <SourceLabels source={source} />
+                      {/* A dot rather than a filled row. Every row here carries
+                          a logo tile of the channel's own colour, so a tinted
+                          background lands behind artwork that is already loud
+                          and the list reads as two competing fills. One mark on
+                          the right says the same thing and leaves the row
+                          alone. */}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "bg-primary size-2 shrink-0 rounded-full transition-opacity",
+                          isActive ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      {isActive ? (
+                        <span className="sr-only">Playing</span>
+                      ) : null}
+                    </Button>
+                    {/* Only once the pencil above has been pressed, and beside
+                        the row rather than inside it: a button cannot contain a
+                        button, and the row's job is to play this stream. */}
+                    {mode === "edit" && onEditGuideMatch ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-foreground shrink-0"
+                        aria-label={`Change guide match for ${source.sourceName || source.name || "this source"}`}
+                        onClick={() => onEditGuideMatch(source)}
+                      >
+                        <PencilIcon className="size-4" />
+                      </Button>
+                    ) : null}
+                  </div>
                 )
               })}
             </div>

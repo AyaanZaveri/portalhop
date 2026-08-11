@@ -19,7 +19,6 @@ import {
   PencilIcon,
   ArrowUpDownIcon,
   GripVerticalIcon,
-  ScanSearchIcon,
   SearchIcon,
   ShapesIcon,
   StarIcon,
@@ -41,7 +40,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -72,10 +70,6 @@ import {
 import { isFavoriteKeyed } from "@portalhop/shared/channel-keys"
 import { ChannelLogo } from "@/components/tv/channel-logo"
 import { CategoryVisual } from "@/components/category-visual"
-import {
-  ChannelEpgMatchDrawer,
-  type EpgMatchChannel,
-} from "@/components/tv/channel-epg-match-drawer"
 import { PortalHopWordmark } from "@/components/portal-hop-wordmark"
 import {
   FavoriteGroupsDrawer,
@@ -172,11 +166,9 @@ export function ChannelList({
     isChannelFavorited,
     favoriteKeyFor,
     toggleFavorite,
-    useImageProxy,
     channelSlug,
     hiddenCategories,
     setCategoryHidden,
-    applyChannelXmltvId,
     channelLogoUrl,
     identityKeyOf,
     trustedIds,
@@ -204,8 +196,6 @@ export function ChannelList({
     useState<PortalChannelWithSource | null>(null)
   const [groupMembershipChannel, setGroupMembershipChannel] =
     useState<PortalChannelWithSource | null>(null)
-  const [epgMatchChannel, setEpgMatchChannel] =
-    useState<EpgMatchChannel | null>(null)
   const [contextCategory, setContextCategory] = useState<CategoryEntry | null>(
     null,
   )
@@ -291,26 +281,6 @@ export function ChannelList({
       setSelectedFavoriteGroupKeys(new Set(group.channelKeys))
     })
   }, [browseFilter])
-
-  // Only a channel backed by a saved row can be re-matched; iptv-org entries
-  // have no row of their own to pin an id to.
-  const toEpgMatchChannel = (
-    channel: PortalChannelWithSource,
-  ): EpgMatchChannel | null => {
-    const sourceId = channel.portalSource?.id
-    const savedChannelId = channel.savedChannelId
-
-    if (typeof sourceId !== "number" || typeof savedChannelId !== "number") {
-      return null
-    }
-
-    return {
-      savedChannelId,
-      sourceId,
-      name: channel.name || "Channel",
-      xmltvId: channel.xmltvId ?? "",
-    }
-  }
 
   const canReorder =
     browseFilter.type === "favorites" || browseFilter.type === "favoriteGroup"
@@ -1560,20 +1530,6 @@ export function ChannelList({
                                   : "Add to groups"}
                               </DropdownMenuItem>
                             ) : null}
-                            {toEpgMatchChannel(channel) ? (
-                              <DropdownMenuSeparator />
-                            ) : null}
-                            {toEpgMatchChannel(channel) ? (
-                              <DropdownMenuItem
-                                className="py-1.5 whitespace-nowrap"
-                                onClick={() =>
-                                  setEpgMatchChannel(toEpgMatchChannel(channel))
-                                }
-                              >
-                                <ScanSearchIcon />
-                                Change guide match
-                              </DropdownMenuItem>
-                            ) : null}
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1711,76 +1667,31 @@ export function ChannelList({
                     ? "Remove from favorites"
                     : "Add to favorites"}
                 </Button>
-                <div
-                  className={cn(
-                    "grid gap-2",
-                    userId && toEpgMatchChannel(contextChannel)
-                      ? "grid-cols-2"
-                      : "grid-cols-1",
-                  )}
-                >
-                  {userId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-center gap-2"
-                      onClick={() => {
-                        setGroupMembershipChannel(contextChannel)
-                        setContextChannel(null)
-                      }}
-                    >
-                      {groupedChannelKeys.has(getChannelKey(contextChannel)) ? (
-                        <FolderHeartIcon />
-                      ) : (
-                        <FolderPlusIcon />
-                      )}
-                      {groupedChannelKeys.has(getChannelKey(contextChannel))
-                        ? "Edit groups"
-                        : "Add to groups"}
-                    </Button>
-                  ) : null}
-                  {toEpgMatchChannel(contextChannel) ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-center gap-2"
-                      onClick={() => {
-                        setEpgMatchChannel(toEpgMatchChannel(contextChannel))
-                        setContextChannel(null)
-                      }}
-                    >
-                      <ScanSearchIcon />
-                      Guide match
-                    </Button>
-                  ) : null}
-                </div>
+                {userId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-center gap-2"
+                    onClick={() => {
+                      setGroupMembershipChannel(contextChannel)
+                      setContextChannel(null)
+                    }}
+                  >
+                    {groupedChannelKeys.has(getChannelKey(contextChannel)) ? (
+                      <FolderHeartIcon />
+                    ) : (
+                      <FolderPlusIcon />
+                    )}
+                    {groupedChannelKeys.has(getChannelKey(contextChannel))
+                      ? "Edit groups"
+                      : "Add to groups"}
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}
         </DrawerContent>
       </Drawer>
-      <ChannelEpgMatchDrawer
-        channel={epgMatchChannel}
-        isMobileLayout={isMobileLayout}
-        useImageProxy={useImageProxy}
-        onOpenChange={(open) => {
-          if (!open) setEpgMatchChannel(null)
-        }}
-        onMatched={(xmltvId, logoUrl) => {
-          // Patched in place rather than reloading the source: the save already
-          // bumped the source's updatedAt, so the IndexedDB cache is invalid
-          // and will refill on the next visit. This is only about the row
-          // changing now instead of after a full refetch.
-          if (epgMatchChannel) {
-            applyChannelXmltvId(
-              epgMatchChannel.sourceId,
-              epgMatchChannel.savedChannelId,
-              xmltvId,
-              logoUrl,
-            )
-          }
-        }}
-      />
       <GroupMembershipDrawer
         channel={
           groupMembershipChannel

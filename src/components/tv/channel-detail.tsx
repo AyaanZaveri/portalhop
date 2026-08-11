@@ -194,8 +194,13 @@ function NowPlayingTitle() {
 
   if (!currentProgramme?.title) return null
 
+  // The row's treatment, figure for figure: 13 points, medium, and dimmed
+  // against a name at full strength. It is the same line saying the same thing
+  // a few pixels from the list that also says it, so it reads as the same fact
+  // rather than as two — and muted-foreground at regular weight had it reading
+  // as a caption under the name instead.
   return (
-    <span className="text-muted-foreground truncate text-sm leading-tight">
+    <span className="text-foreground/80 truncate text-[13px] leading-tight font-medium">
       {currentProgramme.title}
     </span>
   )
