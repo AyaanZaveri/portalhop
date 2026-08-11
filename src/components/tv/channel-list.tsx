@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api-fetch"
@@ -29,7 +22,6 @@ import {
   ScanSearchIcon,
   SearchIcon,
   ShapesIcon,
-  LayersIcon,
   StarIcon,
   TvIcon,
 } from "lucide-react"
@@ -75,14 +67,11 @@ import {
 } from "@/components/reui/sortable"
 import {
   groupChannels,
-  groupKeyFor,
   identityKeyFor,
   orderByChosenSource,
-  trustedGuideIds,
 } from "@portalhop/shared/channel-grouping"
 import { isFavoriteKeyed } from "@portalhop/shared/channel-keys"
 import { ChannelLogo } from "@/components/tv/channel-logo"
-import { ChannelSourcesDrawer } from "@/components/tv/channel-sources-drawer"
 import { CategoryVisual } from "@/components/category-visual"
 import {
   ChannelEpgMatchDrawer,
@@ -194,7 +183,6 @@ export function ChannelList({
     applyChannelXmltvId,
     userId,
     sourceOrder,
-    setChannelSourceOrder,
   } = useTv()
 
   const router = useRouter()
@@ -591,135 +579,12 @@ export function ChannelList({
    * the representative's own channel key, so nothing stored changes shape and
    * this can be turned off without a migration.
    */
-  /**
-   * Every stream carrying each channel, from the whole catalogue.
-   *
-   * Deliberately not from the visible list. Favourites are the case that
-   * proves it: a favourite made before favourites were keyed on the channel
-   * belongs to one portal's copy, so filtering to favourites leaves exactly
-   * that copy on screen and grouping it finds no company — the row has five
-   * other streams behind it and the menu said it had none. The streams a
-   * channel has are a fact about the catalogue, not about what is filtered.
-   */
-  const catalogueGroups = useMemo(() => {
-    // Which ids can be grouped on is a statistic over the whole catalogue, so
-    // it is computed once here and reused for every lookup below rather than
-    // recomputed per row.
-    const trusted = trustedGuideIds(allChannels)
-    const streams = new Map<string, PortalChannelWithSource[]>()
-
-    for (const channel of allChannels) {
-      const key = groupKeyFor(channel, trusted)?.key
-      if (!key) continue
-      const members = streams.get(key)
-      if (members) members.push(channel)
-      else streams.set(key, [channel])
-    }
-
-    return { trusted, streams }
-  }, [allChannels])
-
-  /** The streams behind one channel, most preferred first, and its group key. */
-  const sourcesFor = useCallback(
-    (channel: PortalChannelWithSource) => {
-      const key = groupKeyFor(channel, catalogueGroups.trusted)?.key
-      const members = (key && catalogueGroups.streams.get(key)) || [channel]
-      return { key, streams: orderByChosenSource(members, sourceOrder) }
-    },
-    [catalogueGroups, sourceOrder],
-  )
-
-  const { groupedChannels, sourcesByKey } = useMemo(() => {
-    const groups = groupChannels(visibleChannels)
-    const sources = new Map<string, typeof visibleChannels>()
-
-    const representatives = groups.map((group) => {
-      // The stream the user chose leads the row, so what the list plays and
-      // what the drawer calls Default are one decision rather than two.
-      const members = orderByChosenSource(group.members, sourceOrder)
-      const representative = members[0]
-      const { streams } = sourcesFor(representative)
-
-      if (streams.length > 1) {
-        sources.set(getChannelKey(representative), streams)
-      }
-
-      return representative
-    })
-
-    return { groupedChannels: representatives, sourcesByKey: sources }
-  }, [sourcesFor, sourceOrder, visibleChannels])
-
-  /**
-   * The row whose sources are open, held as the row itself rather than as the
-   * list of streams it had when it opened. The list is derived below, so
-   * choosing a source reorders the open drawer under the user's finger instead
-   * of leaving a stale snapshot claiming the old one is still first.
-   */
-  const [sourcesOpenFor, setSourcesOpenFor] = useState<{
-    name: string
-    channel: PortalChannelWithSource
-  } | null>(null)
-
-  const openSourcesGroup = useMemo(() => {
-    if (!sourcesOpenFor) return null
-
-    const { key, streams } = sourcesFor(sourcesOpenFor.channel)
-
-    return {
-      name: sourcesOpenFor.name,
-      channels: streams,
-      // Only an id: group can be remembered. A name group's key is its
-      // channels' name reduced to letters and digits, so a portal renaming one
-      // moves the key and the choice would silently stop applying — see
-      // identityKeyFor.
-      identityKey: key?.startsWith("id:") ? key : null,
-    }
-  }, [sourcesFor, sourcesOpenFor])
-
-  const openSources = useCallback(
-    (name: string, channel: PortalChannelWithSource) => {
-      setSourcesOpenFor({ name, channel })
-    },
-    [],
-  )
-
-  const chooseSourceOrder = useCallback(
-    (channels: PortalChannelWithSource[]) => {
-      const identityKey = openSourcesGroup?.identityKey
-      if (!identityKey) return
-
-      // What is stored is a saved channel row, so a stream that was never saved
-      // — the built-in iptv-org catalogue, or a portal being previewed before
-      // it is added — cannot hold a position. Those always follow the saved
-      // ones rather than silently accepting a choice that would not survive the
-      // next load.
-      if (channels[0]?.savedChannelId == null) {
-        toast.error(
-          "Only a channel from a saved portal can be the default source.",
-        )
-        return
-      }
-
-      setChannelSourceOrder(
-        identityKey,
-        channels
-          .map((channel) => channel.savedChannelId)
-          .filter((id): id is number => typeof id === "number"),
-      )
-      triggerHaptic()
-    },
-    [openSourcesGroup, setChannelSourceOrder, triggerHaptic],
-  )
-
-  const playSource = useCallback(
-    (channel: PortalChannelWithSource) => {
-      // A source choice is intentionally ephemeral. Its saved-channel id names
-      // the exact server-side stream without exposing its command in the URL.
-      router.push(channelHref(channelSlug(channel), channel.savedChannelId))
-      setSourcesOpenFor(null)
-    },
-    [channelSlug, router],
+  const groupedChannels = useMemo(
+    () =>
+      groupChannels(visibleChannels).map(
+        (group) => orderByChosenSource(group.members, sourceOrder)[0],
+      ),
+    [sourceOrder, visibleChannels],
   )
 
   // While reordering, the dragged order wins until the saved order catches up.
@@ -1667,16 +1532,7 @@ export function ChannelList({
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              // Hover-only everywhere else, but a row carrying
-                              // several sources has something behind it that
-                              // cannot be guessed at, and hover does not exist
-                              // on touch at all. Those rows keep the control on
-                              // screen; the rest stay quiet.
-                              className={cn(
-                                "focus-visible:opacity-100 aria-expanded:opacity-100",
-                                !sourcesByKey.has(channelKey) &&
-                                  "opacity-0 group-hover:opacity-100",
-                              )}
+                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
                               aria-label={`Actions for ${displayName || "channel"}`}
                             />
                           }
@@ -1685,24 +1541,6 @@ export function ChannelList({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-64">
                           <DropdownMenuGroup>
-                            {/* Only where there is a choice to make. A row
-                                carried by one portal has nothing to pick
-                                between, and an item that opens a list of one
-                                is a dead end wearing a menu entry. */}
-                            {sourcesByKey.has(channelKey) ? (
-                              <DropdownMenuItem
-                                className="py-1.5 whitespace-nowrap"
-                                onClick={() =>
-                                  openSources(
-                                    displayName || "this channel",
-                                    channel,
-                                  )
-                                }
-                              >
-                                <LayersIcon />
-                                {sourcesByKey.get(channelKey)?.length} sources
-                              </DropdownMenuItem>
-                            ) : null}
                             <DropdownMenuItem
                               className="py-1.5 whitespace-nowrap"
                               onClick={() =>
@@ -1972,18 +1810,6 @@ export function ChannelList({
         onOpenChange={(open) => {
           if (!open) setGroupMembershipChannel(null)
         }}
-      />
-      <ChannelSourcesDrawer
-        name={openSourcesGroup?.name ?? ""}
-        sources={openSourcesGroup?.channels ?? []}
-        canRemember={Boolean(openSourcesGroup?.identityKey)}
-        onSelect={playSource}
-        onOrderChange={chooseSourceOrder}
-        open={Boolean(sourcesOpenFor)}
-        onOpenChange={(open) => {
-          if (!open) setSourcesOpenFor(null)
-        }}
-        isMobileLayout={isMobileLayout}
       />
     </div>
   )

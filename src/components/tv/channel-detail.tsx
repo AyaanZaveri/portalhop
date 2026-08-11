@@ -6,16 +6,11 @@ import { useRouter } from "next/navigation"
 import { motion, useReducedMotion } from "motion/react"
 import { ChevronLeftIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerTitle,
-} from "@/components/ui/drawer"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
 import { getChannelKey, getChannelLogoUrl } from "@/lib/tv-channels"
+import { ChannelLogo } from "@/components/tv/channel-logo"
 import { LivePlayer } from "@/components/tv/live-player"
 import { ProgrammeGuide } from "@/components/tv/programme-guide"
 import { ChannelEpgProvider } from "@/components/tv/channel-epg-provider"
@@ -104,7 +99,7 @@ export function ChannelDetail() {
         <motion.button
           type="button"
           key={channelId}
-          className="focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-3 rounded-lg pr-28 text-left focus-visible:ring-3 focus-visible:outline-none min-[940px]:cursor-default min-[940px]:pr-0"
+          className="focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-3 rounded-lg pr-52 text-left focus-visible:ring-3 focus-visible:outline-none min-[940px]:cursor-default min-[940px]:pr-0"
           onClick={() => {
             if (isMobile) setDetailsOpen(true)
           }}
@@ -118,31 +113,11 @@ export function ChannelDetail() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", bounce: 0, duration: 0.4 }}
         >
-          {logoUrl ? (
-            <div className="border-border/60 flex size-11 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
-              {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
-              <img
-                src={logoUrl}
-                alt=""
-                className="size-full rounded-[6px] object-contain"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          ) : null}
+          <ChannelLogo url={logoUrl} />
           <div className="flex min-w-0 flex-col">
             <p className="truncate text-lg font-semibold">
               {channel.name || "Live stream"}
             </p>
-            <div className="text-muted-foreground flex items-center gap-2 text-sm">
-              <span className="truncate">
-                {channel.genre || "Uncategorized"}
-              </span>
-              {channel.portalSource?.name ? (
-                <Badge variant="outline" className="h-5">
-                  {channel.portalSource.name}
-                </Badge>
-              ) : null}
-            </div>
           </div>
         </motion.button>
       </div>
@@ -164,31 +139,11 @@ export function ChannelDetail() {
         <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
           <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden dark:border">
             <div className="flex items-center gap-3 p-4 pb-5">
-              {logoUrl ? (
-                <div className="border-border/60 flex size-12 shrink-0 items-center justify-center overflow-clip rounded-lg border bg-zinc-900 p-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
-                  <img
-                    src={logoUrl}
-                    alt=""
-                    className="size-full rounded-[6px] object-contain"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              ) : null}
+              <ChannelLogo url={logoUrl} />
               <div className="min-w-0 flex-1 pt-0.5 text-left">
                 <DrawerTitle className="text-left leading-tight">
                   {channel.name || "Live stream"}
                 </DrawerTitle>
-                <div className="mt-1 flex min-w-0 items-center gap-2">
-                  <DrawerDescription className="min-w-0 truncate text-left">
-                    {channel.genre || "Uncategorized"}
-                  </DrawerDescription>
-                  {channel.portalSource?.name ? (
-                    <Badge variant="outline" className="h-5 shrink-0">
-                      {channel.portalSource.name}
-                    </Badge>
-                  ) : null}
-                </div>
               </div>
             </div>
           </DrawerContent>

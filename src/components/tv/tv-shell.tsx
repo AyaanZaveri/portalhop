@@ -1,6 +1,13 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   AlertCircleIcon,
@@ -9,6 +16,11 @@ import {
   CopyIcon,
   TvIcon,
 } from "lucide-react"
+
+import {
+  groupChannels,
+  orderByChosenSource,
+} from "@portalhop/shared/channel-grouping"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -30,13 +42,12 @@ import { AuthDialog } from "@/components/auth-dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
-import {
-  TV_MOBILE_LAYOUT_QUERY,
-  useMediaQuery,
-} from "@/hooks/use-media-query"
+import { TV_MOBILE_LAYOUT_QUERY, useMediaQuery } from "@/hooks/use-media-query"
 import {
   externalPlayers,
   getClientPlatform,
+  getChannelKey,
+  getChannelLogoUrl,
   getExternalPlayerLabel,
   getExternalPlayerUrl,
   resolveChannelLink,
@@ -45,12 +56,17 @@ import {
   type PortalChannelWithSource,
 } from "@/lib/tv-channels"
 import { ChannelList } from "@/components/tv/channel-list"
+import { ChannelSourcesDrawer } from "@/components/tv/channel-sources-drawer"
 import {
   LoadingShell,
   NoPortalsSelected,
 } from "@/components/tv/tv-placeholders"
 import { useTv } from "@/components/tv/tv-provider"
-import { useActiveChannelSlug } from "@/hooks/use-active-channel"
+import {
+  channelHref,
+  useActiveChannelSlug,
+  useActiveChannelSourceId,
+} from "@/hooks/use-active-channel"
 
 export function TvShell({ children }: { children: ReactNode }) {
   const {
@@ -66,13 +82,86 @@ export function TvShell({ children }: { children: ReactNode }) {
     onSheetSaved,
     onSheetView,
     channelIndex,
+    channelSlug,
+    sourceOrder,
+    setChannelSourceOrder,
+    epgChannels,
+    customEpgChannels,
+    useImageProxy,
     browseFilter,
   } = useTv()
 
   const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const isReady = useHydratedLayout()
   const segment = useActiveChannelSlug()
-  const currentChannel = segment ? channelIndex.get(segment) : undefined
+  const selectedSourceId = useActiveChannelSourceId()
+  const router = useRouter()
+  const defaultChannel = segment ? channelIndex.get(segment) : undefined
+  const currentChannel = selectedSourceId
+    ? (browserChannels.find(
+        (entry) =>
+          entry.savedChannelId === selectedSourceId &&
+          channelSlug(entry) === segment,
+      ) ?? defaultChannel)
+    : defaultChannel
+  const [sourcesOpen, setSourcesOpen] = useState(false)
+
+  const sourceGroup = useMemo(() => {
+    if (!currentChannel) return null
+    return (
+      groupChannels(browserChannels).find((group) =>
+        group.members.some(
+          (entry) => getChannelKey(entry) === getChannelKey(currentChannel),
+        ),
+      ) ?? null
+    )
+  }, [browserChannels, currentChannel])
+
+  const sources = useMemo(
+    () =>
+      sourceGroup
+        ? orderByChosenSource(sourceGroup.members, sourceOrder)
+        : currentChannel
+          ? [currentChannel]
+          : [],
+    [currentChannel, sourceGroup, sourceOrder],
+  )
+  const sourceIdentityKey = sourceGroup?.key.startsWith("id:")
+    ? sourceGroup.key
+    : null
+
+  const selectSource = useCallback(
+    (source: PortalChannelWithSource) => {
+      router.push(channelHref(channelSlug(source), source.savedChannelId))
+      setSourcesOpen(false)
+    },
+    [channelSlug, router],
+  )
+
+  const updateSourceOrder = useCallback(
+    (ordered: PortalChannelWithSource[]) => {
+      if (!sourceIdentityKey || ordered[0]?.savedChannelId == null) return
+      setChannelSourceOrder(
+        sourceIdentityKey,
+        ordered
+          .map((source) => source.savedChannelId)
+          .filter((id): id is number => typeof id === "number"),
+      )
+    },
+    [setChannelSourceOrder, sourceIdentityKey],
+  )
+
+  const sourceLogoUrl = useCallback(
+    (source: PortalChannelWithSource) =>
+      getChannelLogoUrl(
+        source,
+        source.portalSource,
+        epgChannels,
+        customEpgChannels,
+        useImageProxy,
+      ),
+    [customEpgChannels, epgChannels, useImageProxy],
+  )
 
   const utilityControls = (
     <>
@@ -139,7 +228,11 @@ export function TvShell({ children }: { children: ReactNode }) {
     content = (
       <>
         <div className="bg-background h-full overflow-hidden min-[940px]:hidden">
-          {segment ? children : <ChannelList headerControls={utilityControls} />}
+          {segment ? (
+            children
+          ) : (
+            <ChannelList headerControls={utilityControls} />
+          )}
         </div>
         <div className="bg-muted/30 hidden h-full w-full gap-1.5 overflow-hidden p-3 min-[940px]:flex">
           <div className="min-h-0 w-[360px] max-w-[520px] min-w-80 shrink-0">
@@ -167,17 +260,52 @@ export function TvShell({ children }: { children: ReactNode }) {
           } min-[940px]:top-6 min-[940px]:right-6`}
         >
           {currentChannel ? (
-            <StreamActionsMenu
-              channel={currentChannel}
-              isMobileLayout={isMobileLayout}
-            />
+            <div className="flex items-center gap-2">
+              {sources.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  onClick={() => setSourcesOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-expanded={sourcesOpen}
+                  aria-label="Choose stream source"
+                  className="max-w-40"
+                >
+                  <span className="truncate">
+                    {currentChannel.portalSource?.name ?? "Manual"}
+                  </span>
+                  <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
+                </Button>
+              ) : null}
+              <StreamActionsMenu channel={currentChannel} />
+            </div>
           ) : null}
-          <div className={segment ? "flex items-center gap-1" : "hidden min-[940px]:flex min-[940px]:items-center min-[940px]:gap-1"}>
+          <div
+            className={
+              segment
+                ? "flex items-center gap-1"
+                : "hidden min-[940px]:flex min-[940px]:items-center min-[940px]:gap-1"
+            }
+          >
             {utilityControls}
           </div>
         </div>
 
         {content}
+        {currentChannel ? (
+          <ChannelSourcesDrawer
+            sources={sources}
+            activeSourceKey={getChannelKey(currentChannel)}
+            canRemember={Boolean(sourceIdentityKey)}
+            onSelect={selectSource}
+            onOrderChange={updateSourceOrder}
+            getLogoUrl={sourceLogoUrl}
+            open={sourcesOpen}
+            onOpenChange={setSourcesOpen}
+            isMobileLayout={isMobileLayout}
+          />
+        ) : null}
       </div>
     </main>
   )
@@ -195,13 +323,7 @@ function PlayerLogo({ player }: { player: ExternalPlayer }) {
   )
 }
 
-function StreamActionsMenu({
-  channel,
-  isMobileLayout,
-}: {
-  channel: PortalChannelWithSource
-  isMobileLayout: boolean
-}) {
+function StreamActionsMenu({ channel }: { channel: PortalChannelWithSource }) {
   const { endpoint, previewSourceRequest, useProxy } = useTv()
   const [clientPlatform, setClientPlatform] = useState<ClientPlatform>("other")
   const [busy, setBusy] = useState(false)
@@ -268,15 +390,18 @@ function StreamActionsMenu({
           <Button
             type="button"
             variant="outline"
+            // Not size="icon". The label moved into the menu, but the trigger
+            // still carries two glyphs, and a square meant for one squeezed
+            // them against each other and against the source button beside it.
+            // This is the width the mobile trigger always had.
             size="default"
-            className={isMobileLayout ? "px-2" : undefined}
+            className="px-2"
             disabled={busy}
-            aria-label="Open stream actions"
+            aria-label="Open in player"
           />
         }
       >
         <TvIcon className="-mt-px size-4" />
-        {!isMobileLayout && "Open in player"}
         <ChevronDownIcon className="size-4 opacity-70" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

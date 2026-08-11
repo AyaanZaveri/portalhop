@@ -1,22 +1,22 @@
 "use client"
 
-import { useRef } from "react"
-import { GripVerticalIcon } from "lucide-react"
+import { useRef, useState } from "react"
+import { CheckIcon, GripVerticalIcon, PencilIcon } from "lucide-react"
 
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Sortable,
   SortableItem,
   SortableItemHandle,
 } from "@/components/reui/sortable"
+import { ChannelLogo } from "@/components/tv/channel-logo"
 import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
 import { cn } from "@/lib/utils"
@@ -26,86 +26,83 @@ export type SourceChannel = PortalChannel & {
 }
 
 /**
- * The streams behind one channel, in the order they will be tried.
- *
- * Every row shows the portal's own name for the channel rather than the tidied
- * one the list displays. That is the whole reason this list is worth reading:
- * the tidied name is identical on every row by construction, so showing it here
- * would be five copies of the same string. "SKY SPORTS F1 UHD" against
- * "4K| SKY SPORTS F1" is how someone tells which stream they are promoting.
- *
- * Two ways to choose, because they are two different intents. Dragging sets a
- * whole saved order; tapping plays one stream now. A tap must not alter what
- * opens next time — it is the escape hatch for a stream that is buffering.
+ * The source switcher deliberately uses the same drawer grammar as Categories
+ * and Groups: plain buttons for everyday choices, with ordering disclosed only
+ * after pressing Edit. A source is a choice, not a settings surface.
  */
 export function ChannelSourcesDrawer<T extends SourceChannel>({
-  name,
   sources,
+  activeSourceKey,
   canRemember,
   onSelect,
   onOrderChange,
+  getLogoUrl,
   open,
   onOpenChange,
   isMobileLayout,
 }: {
-  /** The group's display name, for the header. */
-  name: string
-  /** The streams, already in the order they will be tried. */
   sources: T[]
-  /**
-   * Whether this channel can carry a saved choice. False for a channel with no
-   * guide id, where there is no identity to hang one from — see identityKeyFor.
-   */
+  activeSourceKey: string
   canRemember: boolean
-  /** Play this source for the current view only. */
   onSelect: (source: T) => void
-  /** The new order, most preferred first. */
   onOrderChange: (sources: T[]) => void
+  getLogoUrl: (source: T) => string
   open: boolean
   onOpenChange: (open: boolean) => void
   isMobileLayout: boolean
 }) {
-  // dnd-kit finishes a drag before the browser emits the trailing click. Keep
-  // that click from turning a saved reorder into an unexpected navigation.
+  const [isEditing, setIsEditing] = useState(false)
   const didDragRef = useRef(false)
 
-  const choose = (channel: T) => {
+  const close = (nextOpen: boolean) => {
+    onOpenChange(nextOpen)
+    if (!nextOpen) setIsEditing(false)
+  }
+
+  const selectSource = (source: T) => {
     if (didDragRef.current) {
       didDragRef.current = false
       return
     }
-    onSelect(channel)
+    onSelect(source)
   }
 
   return (
     <Drawer
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={close}
       swipeDirection={isMobileLayout ? "down" : "left"}
+      showSwipeHandle={isMobileLayout}
     >
-      <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:85dvh] dark:border">
+      <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden data-[swipe-axis=y]:[--drawer-height:75dvh] dark:border">
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
-          <DrawerTitle className="text-lg">Sources</DrawerTitle>
-          <DrawerDescription>
-            {sources.length === 1
-              ? `One source carries ${name}.`
-              : canRemember
-                ? `${sources.length} sources carry ${name}. Tap one to play it now, or drag to set the default order.`
-                : `${sources.length} sources carry ${name}. The top one plays first.`}
-          </DrawerDescription>
-        </DrawerHeader>
-
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="p-4 pt-2">
-            {/* Said once, up front, rather than after the drag that did
-                nothing. A channel with no guide id has no identity to attach a
-                choice to, so there is nothing here to remember it. */}
-            {!canRemember && sources.length > 1 ? (
-              <p className="text-muted-foreground mb-3 text-xs">
-                This channel has no guide id, so a default source can&rsquo;t be
-                saved for it. You can still tap a source to play it now.
-              </p>
+          <div className="flex items-center justify-between gap-3">
+            <DrawerTitle className="text-lg">Sources</DrawerTitle>
+            {canRemember && sources.length > 1 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={
+                  isEditing ? "Finish editing sources" : "Edit sources"
+                }
+                onClick={() => setIsEditing((current) => !current)}
+              >
+                {isEditing ? (
+                  <CheckIcon className="size-4 stroke-[2.25]" />
+                ) : (
+                  <PencilIcon className="size-4 stroke-[2.25]" />
+                )}
+              </Button>
             ) : null}
+          </div>
+        </DrawerHeader>
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportTabIndex={-1}
+          viewportClassName="px-4 pt-3 pb-4"
+        >
+          {isEditing ? (
             <Sortable
               value={sources}
               getItemValue={getChannelKey}
@@ -114,67 +111,76 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                 didDragRef.current = true
               }}
             >
-              <div className="flex flex-col gap-1">
-                {sources.map((channel, index) => (
+              <div className="flex flex-col gap-1.5">
+                {sources.map((source) => (
                   <SortableItem
-                    key={getChannelKey(channel)}
-                    value={getChannelKey(channel)}
-                    className={cn(
-                      "rounded-xl",
-                      isMobileLayout ? "bg-background" : "bg-card",
-                    )}
+                    key={getChannelKey(source)}
+                    value={getChannelKey(source)}
+                    className="rounded-lg"
                   >
-                    {/* The row is both the drag handle and the temporary play
-                        target. Dragging is persisted; tapping never is. */}
-                    <SortableItemHandle
-                      onClick={() => choose(channel)}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left active:cursor-grabbing",
-                        "hover:bg-accent/60 cursor-pointer transition-colors",
-                      )}
-                    >
-                      <span className="text-muted-foreground w-4 shrink-0 text-center font-mono text-xs tabular-nums">
-                        {index + 1}
-                      </span>
-
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        {/* The portal's own name, untouched. */}
-                        <span className="truncate text-sm font-medium">
-                          {channel.sourceName ||
-                            channel.name ||
-                            "Unnamed channel"}
-                        </span>
-                        {/* The source as a badge, the way the player header
-                            wears it. Same fact in the same treatment, so a row
-                            here reads as the thing that will appear up there
-                            once it plays. */}
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <Badge variant="outline" className="h-5 shrink-0">
-                            {channel.portalSource?.name ?? "Manual"}
-                          </Badge>
-                          {channel.number ? (
-                            <span className="text-muted-foreground truncate font-mono text-[10px] tabular-nums">
-                              #{channel.number}
-                            </span>
-                          ) : null}
-                        </span>
-                      </span>
-
-                      {index === 0 ? (
-                        <Badge variant="outline" className="shrink-0">
-                          Default
-                        </Badge>
-                      ) : null}
-
+                    {/* The same box as the plain row below, so pressing Edit
+                        changes what a row does and not how tall it is. */}
+                    <SortableItemHandle className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors">
+                      <ChannelLogo url={getLogoUrl(source)} />
+                      <SourceLabels source={source} />
                       <GripVerticalIcon className="text-muted-foreground size-4 shrink-0" />
                     </SortableItemHandle>
                   </SortableItem>
                 ))}
               </div>
             </Sortable>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {sources.map((source) => {
+                const isActive = getChannelKey(source) === activeSourceKey
+                return (
+                  <Button
+                    key={getChannelKey(source)}
+                    type="button"
+                    variant="ghost"
+                    onClick={() => selectSource(source)}
+                    className="hover:bg-accent hover:text-accent-foreground h-auto w-full justify-start gap-3 rounded-lg px-2 py-2.5 text-sm font-normal"
+                  >
+                    <ChannelLogo url={getLogoUrl(source)} />
+                    <SourceLabels source={source} />
+                    {/* A dot rather than a filled row. Every row here carries a
+                        logo tile of the channel's own colour, so a tinted
+                        background lands behind artwork that is already loud and
+                        the list reads as two competing fills. One mark on the
+                        right says the same thing and leaves the row alone. */}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "bg-primary size-2 shrink-0 rounded-full transition-opacity",
+                        isActive ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {isActive ? <span className="sr-only">Playing</span> : null}
+                  </Button>
+                )
+              })}
+            </div>
+          )}
         </ScrollArea>
       </DrawerContent>
     </Drawer>
+  )
+}
+
+function SourceLabels({ source }: { source: SourceChannel }) {
+  const sourceName = source.portalSource?.name ?? "Manual"
+  const streamName = source.sourceName || source.name || "Unnamed channel"
+
+  // The channel first, the portal under it. The portal is how you tell two
+  // rows apart, but it is not what either row is: reading "Max" over "TSN 1 4K"
+  // makes the drawer a list of portals that happen to carry something, when it
+  // is a list of the same channel arriving five ways.
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-tight">
+      <span className="truncate font-medium">{streamName}</span>
+      <span className="text-muted-foreground truncate text-xs">
+        {sourceName}
+      </span>
+    </span>
   )
 }
