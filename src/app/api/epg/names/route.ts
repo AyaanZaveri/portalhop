@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getEpgChannels } from "@/lib/epg-store"
+import { stripCountryPrefix } from "@portalhop/shared/epg-search"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -30,7 +31,18 @@ export async function POST(request: Request) {
       if (typeof raw !== "string") continue
       const id = raw.trim().toLowerCase()
       const entry = directory[id]
-      if (entry) names[id] = { name: entry.name, logoUrl: entry.logoUrl }
+      if (!entry) continue
+
+      // iptv-epg prefixes every name with its country: "CA - TSN 1". That is
+      // the directory disambiguating itself across two hundred countries, and
+      // it means nothing inside one person's catalogue — a Canadian subscriber
+      // does not need every row telling them it is Canadian. Stripped here
+      // rather than in each client so both agree, using the same helper the
+      // guide matcher already uses to compare names.
+      names[id] = {
+        name: stripCountryPrefix(entry.name) || entry.name,
+        logoUrl: entry.logoUrl,
+      }
     }
 
     return NextResponse.json({ names })
