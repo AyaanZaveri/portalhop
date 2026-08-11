@@ -42,6 +42,7 @@ import {
   type PortalChannelWithSource,
   type StreamVariant,
 } from "@/lib/tv-channels"
+import { ChannelLogo } from "@/components/tv/channel-logo"
 import { useTv } from "@/components/tv/tv-provider"
 import { useChannelEpg } from "@/components/tv/channel-epg-provider"
 
@@ -57,7 +58,21 @@ const isBuffered = (video: HTMLVideoElement, time: number) => {
   return false
 }
 
-export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
+export function LivePlayer({
+  channel,
+  logoUrl: channelLogoUrl,
+}: {
+  channel: PortalChannelWithSource
+  /**
+   * The channel's logo, not this stream's.
+   *
+   * Passed in because the two differ once a source is picked: `channel` here is
+   * one portal's copy, carrying whatever artwork that portal shipped, and the
+   * player is showing the channel. Which portal is supplying the pixels belongs
+   * in the sources drawer, where every row wears its own.
+   */
+  logoUrl?: string
+}) {
   const { resolvedTheme } = useTheme()
   const {
     endpoint,
@@ -84,13 +99,17 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
   })
 
   const channelKey = getChannelKey(channel)
-  const logoUrl = getChannelLogoUrl(
-    channel,
-    channel.portalSource,
-    epgChannels,
-    customEpgChannels,
-    useImageProxy,
-  )
+  // Falls back to this stream's own, which is all there is when the player is
+  // rendered outside a channel view.
+  const logoUrl =
+    channelLogoUrl ||
+    getChannelLogoUrl(
+      channel,
+      channel.portalSource,
+      epgChannels,
+      customEpgChannels,
+      useImageProxy,
+    )
 
   // Native media controls on Android and iPhone use this metadata for their
   // Now Playing surfaces. Programme art is more useful when present; the
@@ -701,25 +720,22 @@ export function LivePlayer({ channel }: { channel: PortalChannelWithSource }) {
       <MediaPlayerControls className="flex-col items-start gap-2.5 px-4 pb-3">
         <MediaPlayerControlsOverlay />
         <div className="flex w-full items-center gap-3 pb-1">
-          {logoUrl ? (
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-950/50 p-1 shadow-inner backdrop-blur">
-              {/* eslint-disable-next-line @next/next/no-img-element -- Channel logos can come from arbitrary provider or EPG hosts. */}
-              <img
-                src={logoUrl}
-                alt=""
-                className="size-full rounded-[6px] object-contain"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          ) : null}
+          {/* The list's tile, at full strength. Same width, same corner, same
+              colour and the same redrawn mark, so the channel looks like
+              itself here as well. It sits on the controls' own gradient, which
+              is already holding the video back — a second veil over the tile
+              only made the mark harder to read. */}
+          {logoUrl ? <ChannelLogo url={logoUrl} /> : null}
           <div className="flex min-w-0 flex-col">
             <h2 className="truncate text-lg font-semibold text-white">
               {channel.name || "Live stream"}
             </h2>
+            {/* The two badges and nothing else. The category was the portal's
+                filing of this one stream — one operator's "SPORTS | GENERAL"
+                against another's word for the same channel — so it changed
+                under the viewer when they switched source, and said nothing
+                about the channel either way. */}
             <div className="flex min-w-0 items-center gap-2 text-sm text-white/60">
-              {channel.genre ? (
-                <span className="truncate font-medium">{channel.genre}</span>
-              ) : null}
               {channel.portalSource?.name ? (
                 <Badge
                   variant="outline"

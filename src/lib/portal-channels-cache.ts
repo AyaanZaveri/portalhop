@@ -14,7 +14,11 @@ const DB_NAME = "portalhop"
 // keyed on the source's updatedAt, which a change to the guide directory —
 // or to this app — never moves. Left in place they are exactly the flash, a
 // stale name painted on load and corrected on the next refetch.
-const DB_VERSION = 6
+// Version 7 drops catalogues cached before a channel's logo was told apart from
+// its streams'. They carry one logoUrl and no sourceLogoUrl, so a row would
+// wear whichever portal sorted first and the sources drawer would show that one
+// mark on every line. Same trap as version 6 and dropped the same way.
+const DB_VERSION = 7
 const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 const EPG_WINDOW_STORE_NAME = "epgWindows"

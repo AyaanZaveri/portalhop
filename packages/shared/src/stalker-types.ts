@@ -29,7 +29,17 @@ export type PortalChannel = {
   genre: string
   cmd: string
   logo: string
+  /**
+   * What the channel looks like. The guide's artwork where there is a guide
+   * match, so a row wears the same mark whichever portal supplied it — the
+   * logo pair works exactly as the name pair above does.
+   */
   logoUrl: string
+  /**
+   * What this portal ships for its own copy. Only the sources drawer shows it,
+   * where the point is to tell one stream from another.
+   */
+  sourceLogoUrl?: string
   xmltvId?: string
 }
 

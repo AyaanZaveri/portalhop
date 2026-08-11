@@ -47,9 +47,9 @@ import {
   externalPlayers,
   getClientPlatform,
   getChannelKey,
-  getChannelLogoUrl,
   getExternalPlayerLabel,
   getExternalPlayerUrl,
+  getStreamLogoUrl,
   resolveChannelLink,
   type ClientPlatform,
   type ExternalPlayer,
@@ -85,8 +85,6 @@ export function TvShell({ children }: { children: ReactNode }) {
     channelSlug,
     sourceOrder,
     setChannelSourceOrder,
-    epgChannels,
-    customEpgChannels,
     useImageProxy,
     browseFilter,
   } = useTv()
@@ -151,16 +149,12 @@ export function TvShell({ children }: { children: ReactNode }) {
     [setChannelSourceOrder, sourceIdentityKey],
   )
 
+  // Each row wears what its own portal shipped, not the channel's mark. Every
+  // row here is the same channel, so the channel's mark would be the same
+  // picture nine times and the list would say nothing.
   const sourceLogoUrl = useCallback(
-    (source: PortalChannelWithSource) =>
-      getChannelLogoUrl(
-        source,
-        source.portalSource,
-        epgChannels,
-        customEpgChannels,
-        useImageProxy,
-      ),
-    [customEpgChannels, epgChannels, useImageProxy],
+    (source: PortalChannelWithSource) => getStreamLogoUrl(source, useImageProxy),
+    [useImageProxy],
   )
 
   const utilityControls = (

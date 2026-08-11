@@ -98,7 +98,6 @@ import {
   canResolveChannel,
   formatClockTime,
   getChannelKey,
-  getChannelLogoUrl,
   type PortalChannelWithSource,
   type PortalSource,
 } from "@/lib/tv-channels"
@@ -174,13 +173,12 @@ export function ChannelList({
     isChannelFavorited,
     favoriteKeyFor,
     toggleFavorite,
-    epgChannels,
-    customEpgChannels,
     useImageProxy,
     channelSlug,
     hiddenCategories,
     setCategoryHidden,
     applyChannelXmltvId,
+    channelLogoUrl,
     userId,
     sourceOrder,
   } = useTv()
@@ -631,15 +629,7 @@ export function ChannelList({
 
   const isPortalFiltered =
     selectedPortalIds.size > 0 && selectedPortalIds.size < portals.length
-  const contextLogoUrl = contextChannel
-    ? getChannelLogoUrl(
-        contextChannel,
-        contextChannel.portalSource,
-        epgChannels,
-        customEpgChannels,
-        useImageProxy,
-      )
-    : ""
+  const contextLogoUrl = contextChannel ? channelLogoUrl(contextChannel) : ""
 
   return (
     <div
@@ -1228,13 +1218,10 @@ export function ChannelList({
           >
             {orderedChannels.map((channel, index) => {
               const channelBadgeId = channel.xmltvId ?? ""
-              const logoUrl = getChannelLogoUrl(
-                channel,
-                channel.portalSource,
-                epgChannels,
-                customEpgChannels,
-                useImageProxy,
-              )
+              // The channel's, not this stream's, so the row agrees with the
+              // header above the player and neither moves when the default
+              // source does.
+              const logoUrl = channelLogoUrl(channel)
               return (
                 <SortableItem
                   key={getChannelKey(channel)}
@@ -1330,13 +1317,10 @@ export function ChannelList({
               const isSelected = activeSlug === slug
               const isFavorited = isChannelFavorited(channel)
               const channelLabel = `Play ${channel.name || `channel ${channel.number || virtualRow.index + 1}`}`
-              const logoUrl = getChannelLogoUrl(
-                channel,
-                channel.portalSource,
-                epgChannels,
-                customEpgChannels,
-                useImageProxy,
-              )
+              // The channel's, not this stream's, so the row agrees with the
+              // header above the player and neither moves when the default
+              // source does.
+              const logoUrl = channelLogoUrl(channel)
               // Already the guide's name where the guide knows it:
               // /api/portals/[id] overlays it before the row ever exists.
               // Nothing to resolve here, which is the point — a name worked

@@ -16,8 +16,11 @@ import { toast } from "sonner"
 import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
 import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {
+  groupKeyFor,
   identityKeyFor,
+  trustedGuideIds,
   type ChannelSourceOrder,
 } from "@portalhop/shared/channel-grouping"
 import {
@@ -67,6 +70,8 @@ type TvContextValue = {
   filteredChannels: PortalChannelWithSource[]
   channelIndex: Map<string, PortalChannelWithSource>
   channelSlug: (channel: PortalChannelWithSource) => string
+  /** The channel's own artwork, the same wherever the channel is drawn. */
+  channelLogoUrl: (channel: PortalChannelWithSource) => string
   /** Which stream each channel plays, most preferred first. */
   sourceOrder: ChannelSourceOrder
   setChannelSourceOrder: (identityKey: string, savedChannelIds: number[]) => void
@@ -453,6 +458,66 @@ export function TvProvider({
     [browserChannels, userId, sourceOrder],
   )
 
+  /**
+   * Every stream in the catalogue, grouped by the channel it is a copy of.
+   *
+   * Over the whole catalogue rather than whatever is on screen, because which
+   * streams a channel has is a fact about the catalogue. It is also the only
+   * way two places can agree: the list groups what it is showing and the player
+   * resolves a slug, and those are different sets — a filter or a search can
+   * leave one member visible and hide the other four, which is enough to change
+   * which member either one lands on.
+   */
+  const catalogueGroups = useMemo(() => {
+    const trusted = trustedGuideIds(browserChannels)
+    const streams = new Map<string, PortalChannelWithSource[]>()
+
+    for (const channel of browserChannels) {
+      const key = groupKeyFor(channel, trusted)?.key
+      if (!key) continue
+      const members = streams.get(key)
+      if (members) members.push(channel)
+      else streams.set(key, [channel])
+    }
+
+    return { trusted, streams }
+  }, [browserChannels])
+
+  /**
+   * What a channel looks like, wherever it is drawn.
+   *
+   * Not a property of any one of its streams, which is the bug this replaces:
+   * both the row and the header were resolving a logo from whichever member
+   * they happened to be holding, so they disagreed with each other, and the
+   * artwork above the player changed when the default source did — as though
+   * picking a different pipe had changed the channel.
+   *
+   * So: the guide's mark if any stream has one, which is every stream with a
+   * guide match, since /api/portals/[id] puts the guide's logo in logoUrl and
+   * leaves the portal's own in sourceLogoUrl. Failing that, the first artwork
+   * in the catalogue's own order.
+   *
+   * Deliberately not a function of sourceOrder. A channel does not change what
+   * it looks like because someone chose which portal should carry it.
+   */
+  const channelLogoUrl = useCallback(
+    (channel: PortalChannelWithSource) => {
+      const key = groupKeyFor(channel, catalogueGroups.trusted)?.key
+      const streams = (key && catalogueGroups.streams.get(key)) || [channel]
+
+      const fromGuide = streams.find(
+        (stream) => stream.logoUrl && stream.logoUrl !== stream.sourceLogoUrl,
+      )
+      const logoUrl =
+        fromGuide?.logoUrl ||
+        streams.find((stream) => stream.logoUrl)?.logoUrl ||
+        ""
+
+      return logoUrl ? proxyImageUrl(logoUrl, useImageProxy) : ""
+    },
+    [catalogueGroups, useImageProxy],
+  )
+
   const channelSlug = useCallback(
     (channel: PortalChannelWithSource) => channelSlugFor(channel, userId),
     [userId],
@@ -682,6 +747,7 @@ export function TvProvider({
       filteredChannels,
       channelIndex,
       channelSlug,
+      channelLogoUrl,
       sourceOrder,
       setChannelSourceOrder,
       epgChannels,
@@ -726,6 +792,7 @@ export function TvProvider({
       filteredChannels,
       channelIndex,
       channelSlug,
+      channelLogoUrl,
       sourceOrder,
       setChannelSourceOrder,
       epgChannels,

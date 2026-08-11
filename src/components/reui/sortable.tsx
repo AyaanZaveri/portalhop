@@ -305,7 +305,15 @@ function Sortable<T>({
             <DragOverlay
               dropAnimation={dropAnimationConfig}
               modifiers={modifiers}
-              className={cn("z-50", activeId && "cursor-grabbing")}
+              // Above a drawer, not level with it. The overlay is portalled to
+              // document.body and is what makes a drag feel free -- it follows
+              // the pointer anywhere on the page, while the row left behind can
+              // only slide along the list's axis. At z-50 it tied with an open
+              // drawer, and since the drawer's portal mounts later it won: the
+              // drag inside a drawer showed only the row moving, snapping from
+              // slot to slot, with the thing under the cursor hidden behind the
+              // panel.
+              className={cn("z-[60]", activeId && "cursor-grabbing")}
             >
               <IsOverlayContext.Provider value={true}>
                 {overlayContent}
@@ -454,7 +462,7 @@ function SortableOverlay({
     <DragOverlay
       dropAnimation={dropAnimationConfig}
       modifiers={modifiers}
-      className={cn("z-50", activeId && "cursor-grabbing", className)}
+      className={cn("z-[60]", activeId && "cursor-grabbing", className)}
       {...props}
     >
       <IsOverlayContext.Provider value={true}>

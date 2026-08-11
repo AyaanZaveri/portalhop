@@ -415,6 +415,24 @@ export function getChannelLogoUrl(
   return logoUrl ? proxyImageUrl(logoUrl, useImageProxy) : ""
 }
 
+/**
+ * The artwork this one stream shipped, rather than the channel's.
+ *
+ * Only the sources drawer wants this. Everywhere else — the row, the header
+ * above the player, the player's own overlay — is showing the channel, and a
+ * channel wears the guide's mark whichever portal is currently supplying the
+ * pixels. sourceLogoUrl is absent on a catalogue cached before the two were
+ * told apart, and on the built-in iptv-org list where a stream and a channel
+ * are the same thing; both fall through to the channel's.
+ */
+export function getStreamLogoUrl(
+  channel: PortalChannel,
+  useImageProxy: boolean,
+) {
+  const logoUrl = channel.sourceLogoUrl || channel.logoUrl || ""
+  return logoUrl ? proxyImageUrl(logoUrl, useImageProxy) : ""
+}
+
 export function formatTimeRange(startAt: string, stopAt: string) {
   return `${formatClockTime(startAt)} - ${formatClockTime(stopAt)}`
 }

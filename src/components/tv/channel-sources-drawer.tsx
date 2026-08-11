@@ -103,6 +103,14 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
           viewportClassName="px-4 pt-3 pb-4"
         >
           {isEditing ? (
+            // The items are Sortable's own children, with the column laid out
+            // on Sortable itself. A wrapping <div> here is what pinned the drag
+            // to the list: Sortable finds the row to float under the cursor by
+            // scanning its direct children for the one being dragged, so a
+            // wrapper hides every row from it, no overlay is rendered, and all
+            // that moves is the row still in the list -- which can only slide
+            // along the column and snap between slots. Same arrangement the
+            // favourites reorder uses, and the reason that one feels free.
             <Sortable
               value={sources}
               getItemValue={getChannelKey}
@@ -110,24 +118,28 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
               onDragStart={() => {
                 didDragRef.current = true
               }}
+              className="flex flex-col gap-1.5"
             >
-              <div className="flex flex-col gap-1.5">
-                {sources.map((source) => (
-                  <SortableItem
-                    key={getChannelKey(source)}
-                    value={getChannelKey(source)}
-                    className="rounded-lg"
-                  >
-                    {/* The same box as the plain row below, so pressing Edit
-                        changes what a row does and not how tall it is. */}
-                    <SortableItemHandle className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors">
-                      <ChannelLogo url={getLogoUrl(source)} />
-                      <SourceLabels source={source} />
-                      <GripVerticalIcon className="text-muted-foreground size-4 shrink-0" />
-                    </SortableItemHandle>
-                  </SortableItem>
-                ))}
-              </div>
+              {sources.map((source) => (
+                <SortableItem
+                  key={getChannelKey(source)}
+                  value={getChannelKey(source)}
+                  // A surface of its own, because the row being dragged is
+                  // copied out to document.body and floats over the page.
+                  // Without one it would render transparent the moment it
+                  // left the panel — the same reason the favourites reorder
+                  // rows carry a background.
+                  className="bg-popover rounded-lg"
+                >
+                  {/* The same box as the plain row below, so pressing Edit
+                      changes what a row does and not how tall it is. */}
+                  <SortableItemHandle className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors">
+                    <ChannelLogo url={getLogoUrl(source)} />
+                    <SourceLabels source={source} />
+                    <GripVerticalIcon className="text-muted-foreground size-4 shrink-0" />
+                  </SortableItemHandle>
+                </SortableItem>
+              ))}
             </Sortable>
           ) : (
             <div className="flex flex-col gap-1.5">

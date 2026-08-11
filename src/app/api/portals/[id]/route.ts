@@ -67,15 +67,18 @@ export async function GET(
     .where(eq(savedChannels.sourceId, sourceId))
 
   const channelIds = channels.map((channel) => channel.xmltvId)
-  // Names come from the directory whatever the source's epgMode, unlike logos.
-  // Which feed supplies programmes is a different question from what a channel
-  // is called, and resolving the name here rather than in the browser is what
-  // stops the list painting the portal's name and correcting itself a moment
-  // later.
+  // Both the name and the logo come from the directory whatever the source's
+  // epgMode. Which feed supplies programmes is a different question from what a
+  // channel is called and what it looks like, and a portal's answer to either
+  // is whatever its operator happened to upload: five portals carry TSN 1 with
+  // five different marks, and picking one of those means the row wears the
+  // artwork of whichever stream sorted first. Resolving both here rather than
+  // in the browser is also what stops the list painting the portal's version
+  // and correcting itself a moment later.
   const epgNames = await getEpgChannelNames(channelIds)
-  const epgLogos = portal.epgMode === "iptv-org"
-    ? await getEpgChannelLogos(channelIds)
-    : {}
+  const epgLogos = await getEpgChannelLogos(channelIds)
+  // Still gated: a custom EPG is a feed this user configured for this portal,
+  // so it outranks the shared directory rather than standing in for it.
   const customEpgLogos =
     portal.epgMode === "custom" && portal.epgSourceId
       ? await getUserEpgChannelLogos(user.id, portal.epgSourceId, channelIds)
@@ -105,10 +108,20 @@ export async function GET(
       // resolves this specific saved-channel id.
       cmd: "",
       logo: channel.logo,
+      /**
+       * What the channel looks like, and separately what this stream looks
+       * like. The same split as name/sourceName, for the same reason.
+       *
+       * logoUrl is the guide's, so every portal's copy of a channel wears one
+       * mark and the row does not change artwork when the default source does.
+       * sourceLogoUrl is what this portal shipped, and only the sources drawer
+       * shows it -- there the whole point is telling one stream from another.
+       */
       logoUrl:
-        epgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
         customEpgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
+        epgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
         channel.logoUrl,
+      sourceLogoUrl: channel.logoUrl,
     })),
   })
 }
