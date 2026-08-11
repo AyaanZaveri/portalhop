@@ -85,6 +85,7 @@ export function TvShell({ children }: { children: ReactNode }) {
     channelSlug,
     sourceOrder,
     setChannelSourceOrder,
+    trustedIds,
     useImageProxy,
     browseFilter,
   } = useTv()
@@ -118,11 +119,11 @@ export function TvShell({ children }: { children: ReactNode }) {
   const sources = useMemo(
     () =>
       sourceGroup
-        ? orderByChosenSource(sourceGroup.members, sourceOrder)
+        ? orderByChosenSource(sourceGroup.members, sourceOrder, trustedIds)
         : currentChannel
           ? [currentChannel]
           : [],
-    [currentChannel, sourceGroup, sourceOrder],
+    [currentChannel, sourceGroup, sourceOrder, trustedIds],
   )
   const sourceIdentityKey = sourceGroup?.key.startsWith("id:")
     ? sourceGroup.key

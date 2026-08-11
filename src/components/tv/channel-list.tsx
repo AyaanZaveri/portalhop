@@ -67,7 +67,6 @@ import {
 } from "@/components/reui/sortable"
 import {
   groupChannels,
-  identityKeyFor,
   orderByChosenSource,
 } from "@portalhop/shared/channel-grouping"
 import { isFavoriteKeyed } from "@portalhop/shared/channel-keys"
@@ -179,6 +178,8 @@ export function ChannelList({
     setCategoryHidden,
     applyChannelXmltvId,
     channelLogoUrl,
+    identityKeyOf,
+    trustedIds,
     userId,
     sourceOrder,
   } = useTv()
@@ -541,7 +542,7 @@ export function ChannelList({
           // Both keys, for the same reason favourites check both: a
           // membership added before this change carries the per-copy key,
           // and a channel can gain a guide id later.
-          isFavoriteKeyed(channel, identityKeyFor(channel), (key) =>
+          isFavoriteKeyed(channel, identityKeyOf(channel), (key) =>
             selectedFavoriteGroupKeys.has(key),
           ),
         ),
@@ -559,6 +560,7 @@ export function ChannelList({
     channels,
     favorites,
     hiddenCategorySet,
+    identityKeyOf,
     isChannelFavorited,
     selectedFavoriteGroup,
     selectedFavoriteGroupKeys,
@@ -580,9 +582,10 @@ export function ChannelList({
   const groupedChannels = useMemo(
     () =>
       groupChannels(visibleChannels).map(
-        (group) => orderByChosenSource(group.members, sourceOrder)[0],
+        (group) =>
+          orderByChosenSource(group.members, sourceOrder, trustedIds)[0],
       ),
-    [sourceOrder, visibleChannels],
+    [sourceOrder, trustedIds, visibleChannels],
   )
 
   // While reordering, the dragged order wins until the saved order catches up.

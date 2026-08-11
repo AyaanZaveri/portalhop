@@ -106,6 +106,37 @@ export function channelNameKey(name: string) {
  */
 export const ID_NAME_LIMIT = 10
 
+/**
+ * The same question, asked for identity rather than for grouping, and answered
+ * with a looser number.
+ *
+ * Merging and addressing are not the same risk. A group that merges two
+ * channels shows one row where there should be two, which the user can see and
+ * work around; an identity that covers two channels gives them one URL, one
+ * favourite and one default source between them, and the second channel simply
+ * cannot be reached. So grouping stays tight and identity — where a false
+ * positive is unrecoverable — would seem to want tighter still.
+ *
+ * It wants looser, because the errors are the other way round. Being denied an
+ * identity costs a channel a shareable link and the ability to remember a
+ * source; it still groups, still plays, still favourites under its per-copy
+ * key. Ten is too tight for that: measured across three live catalogues,
+ * skysportsf1.uk wears 14 distinct names across 23 streams and svt1.se 14
+ * across 17, purely because portals write "4K| SKY SPORTS F1" and "SKY SPORTS
+ * F1 UHD" and the tokenizer only strips the quality tokens it knows.
+ *
+ * The distribution here is continuous — 14, 15, 16, 18, 19, 20, 24, 27, 28, 32,
+ * 43, 50, 60, 69, 72, 106, 119, 178, 197, 4124 — so this is a judgement about
+ * where real channels stop and labels begin, not a boundary the data draws by
+ * itself. Twenty-five sits in the widest gap below the sentinels: it keeps
+ * every id in that list up to rai3.it at 24, and rejects everything from
+ * ballysportsflorida.us at 27 upward. Re-measure with
+ * scripts/measure-channel-grouping.mjs when the tokenizer changes, because a
+ * better tokenizer moves real channels down and leaves the labels where they
+ * are.
+ */
+export const IDENTITY_NAME_LIMIT = 25
+
 export type GroupableChannel = {
   name?: string | null
   xmltvId?: string | null
@@ -118,7 +149,11 @@ export type GroupableChannel = {
  * because a bad id is only visible in company: "default" looks perfectly
  * reasonable until you notice what else is wearing it.
  */
-export function trustedGuideIds(channels: Iterable<GroupableChannel>) {
+export function trustedGuideIds(
+  channels: Iterable<GroupableChannel>,
+  /** ID_NAME_LIMIT to decide grouping, IDENTITY_NAME_LIMIT to decide identity. */
+  limit: number = ID_NAME_LIMIT,
+) {
   const names = new Map<string, Set<string>>()
 
   for (const channel of channels) {
@@ -131,34 +166,42 @@ export function trustedGuideIds(channels: Iterable<GroupableChannel>) {
 
   const trusted = new Set<string>()
   for (const [id, seen] of names) {
-    if (seen.size <= ID_NAME_LIMIT) trusted.add(id)
+    if (seen.size <= limit) trusted.add(id)
   }
   return trusted
 }
 
 /**
- * The identity a stored preference may be attached to, or null.
+ * The identity a stored preference or a URL may be attached to, or null.
  *
- * Not the same question as which row a channel appears in, and the difference
- * is the point. Grouping is a heuristic being actively tuned: ID_NAME_LIMIT is
- * a measured number, and the tokenizer changed last week. Anything keyed on the
- * result of a heuristic moves when the heuristic does.
+ * Gated on the same trust the grouping uses, and it took a real catalogue to
+ * show why. This used to anchor on the guide id merely being *present*, on the
+ * reasoning that trust is a whole-catalogue statistic and a stored row should
+ * not move because someone subscribed to something new. That is a real cost,
+ * and it is the smaller one: measured across three accounts, 18% of the largest
+ * catalogue sits behind an id that fails the test — "default" alone is 10,203
+ * channels under 4,124 distinct names. Anchoring on presence hands all 10,203
+ * of them one identity, so favouriting one favourites every one of them, a
+ * source chosen for one is chosen for all, and every one of them addresses the
+ * same URL — which is what made 10,202 channels unreachable in a list that was
+ * otherwise drawing them correctly.
  *
- * So storage anchors on the guide id being *present*, and never on it being
- * trusted. Trust is a whole-catalogue statistic — an id is trusted only
- * relative to every other channel wearing it — which means adding a portal can
- * demote an id in portals it never touched. Gate storage on that and a user's
- * source ordering evaporates because they subscribed to something new.
+ * Demotion, the case this used to protect, is confined to ids sitting near the
+ * threshold. A sentinel is nowhere near it.
  *
- * Returning null is the honest answer for a channel with no guide id. It still
- * groups, and it still fails over at runtime, but there is nothing stable to
- * hang a saved preference from: a name key moves the moment a portal renames
- * the channel, and the preference would detach with nothing to show for it. The
- * interface says so rather than saving something that quietly stops applying.
+ * Returning null is the honest answer for a channel with no usable identity —
+ * no guide id, or one that turns out to be a label rather than a name. It still
+ * groups, by name, and it still fails over at runtime; there is simply nothing
+ * stable to hang a saved preference or a shareable link from, and the interface
+ * says so rather than saving something that quietly applies to thousands of
+ * other channels.
  */
-export function identityKeyFor(channel: GroupableChannel): string | null {
+export function identityKeyFor(
+  channel: GroupableChannel,
+  trusted: ReadonlySet<string>,
+): string | null {
   const id = normalizeXmltvId(channel.xmltvId)
-  return id ? `id:${id}` : null
+  return id && trusted.has(id) ? `id:${id}` : null
 }
 
 /**
@@ -181,8 +224,9 @@ export type ChosenSourceChannel = GroupableChannel & {
 export function sourceRank(
   channel: ChosenSourceChannel,
   order: ChannelSourceOrder,
+  trusted: ReadonlySet<string>,
 ) {
-  const identityKey = identityKeyFor(channel)
+  const identityKey = identityKeyFor(channel, trusted)
   if (!identityKey || channel.savedChannelId == null) {
     return Number.MAX_SAFE_INTEGER
   }
@@ -204,8 +248,11 @@ export function sourceRank(
 export function orderByChosenSource<T extends ChosenSourceChannel>(
   members: readonly T[],
   order: ChannelSourceOrder,
+  trusted: ReadonlySet<string>,
 ): T[] {
-  return [...members].sort((a, b) => sourceRank(a, order) - sourceRank(b, order))
+  return [...members].sort(
+    (a, b) => sourceRank(a, order, trusted) - sourceRank(b, order, trusted),
+  )
 }
 
 export type GroupKey = {

@@ -21,6 +21,7 @@ import {
   groupKeyFor,
   identityKeyFor,
   trustedGuideIds,
+  IDENTITY_NAME_LIMIT,
   type ChannelSourceOrder,
 } from "@portalhop/shared/channel-grouping"
 import {
@@ -72,6 +73,16 @@ type TvContextValue = {
   channelSlug: (channel: PortalChannelWithSource) => string
   /** The channel's own artwork, the same wherever the channel is drawn. */
   channelLogoUrl: (channel: PortalChannelWithSource) => string
+  /** What a channel is, for anything that stores or addresses one. */
+  identityKeyOf: (channel: PortalChannelWithSource) => string | null
+  /**
+   * Which guide ids are identities rather than labels, over this catalogue.
+   *
+   * Handed out rather than recomputed per consumer: it is a whole-catalogue
+   * statistic, so two consumers computing it over different sets would disagree
+   * about which channel a row is.
+   */
+  trustedIds: ReadonlySet<string>
   /** Which stream each channel plays, most preferred first. */
   sourceOrder: ChannelSourceOrder
   setChannelSourceOrder: (identityKey: string, savedChannelIds: number[]) => void
@@ -470,6 +481,13 @@ export function TvProvider({
    */
   const catalogueGroups = useMemo(() => {
     const trusted = trustedGuideIds(browserChannels)
+    // A looser limit, because being denied an identity costs a channel its
+    // shareable link and its saved default while merging two costs the second
+    // one any way of being reached at all. See IDENTITY_NAME_LIMIT.
+    const identityTrusted = trustedGuideIds(
+      browserChannels,
+      IDENTITY_NAME_LIMIT,
+    )
     const streams = new Map<string, PortalChannelWithSource[]>()
 
     for (const channel of browserChannels) {
@@ -480,7 +498,7 @@ export function TvProvider({
       else streams.set(key, [channel])
     }
 
-    return { trusted, streams }
+    return { trusted, identityTrusted, streams }
   }, [browserChannels])
 
   /**
@@ -519,8 +537,22 @@ export function TvProvider({
   )
 
   const channelSlug = useCallback(
-    (channel: PortalChannelWithSource) => channelSlugFor(channel, userId),
-    [userId],
+    (channel: PortalChannelWithSource) =>
+      channelSlugFor(channel, userId, catalogueGroups.identityTrusted),
+    [catalogueGroups, userId],
+  )
+
+  /**
+   * What a channel is, for anything that stores or addresses one.
+   *
+   * The trusted set comes from the same grouping the rows are built from, so a
+   * favourite, a source choice and a URL all agree with the list about which
+   * channel they are for.
+   */
+  const identityKeyOf = useCallback(
+    (channel: PortalChannelWithSource) =>
+      identityKeyFor(channel, catalogueGroups.identityTrusted),
+    [catalogueGroups],
   )
 
   // Which saved sources appear is a per-user, DB-synced setting.
@@ -610,16 +642,16 @@ export function TvProvider({
    */
   const isChannelFavorited = useCallback(
     (channel: PortalChannelWithSource) =>
-      isFavoriteKeyed(channel, identityKeyFor(channel), isFavorite) ||
+      isFavoriteKeyed(channel, identityKeyOf(channel), isFavorite) ||
       isFavorite(getLegacyChannelKey(channel)),
-    [isFavorite],
+    [identityKeyOf, isFavorite],
   )
 
   /** The key a new favourite is written under. */
   const favoriteKeyFor = useCallback(
     (channel: PortalChannelWithSource) =>
-      getFavoriteKey(channel, identityKeyFor(channel)),
-    [],
+      getFavoriteKey(channel, identityKeyOf(channel)),
+    [identityKeyOf],
   )
 
   // Migrate legacy favorite keys once channels are loaded. A legacy key can map
@@ -748,6 +780,8 @@ export function TvProvider({
       channelIndex,
       channelSlug,
       channelLogoUrl,
+      identityKeyOf,
+      trustedIds: catalogueGroups.identityTrusted,
       sourceOrder,
       setChannelSourceOrder,
       epgChannels,
@@ -793,6 +827,8 @@ export function TvProvider({
       channelIndex,
       channelSlug,
       channelLogoUrl,
+      identityKeyOf,
+      catalogueGroups,
       sourceOrder,
       setChannelSourceOrder,
       epgChannels,

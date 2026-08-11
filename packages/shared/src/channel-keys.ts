@@ -1,5 +1,8 @@
 import {
+  identityKeyFor,
   sourceRank,
+  trustedGuideIds,
+  IDENTITY_NAME_LIMIT,
   type ChannelSourceOrder,
 } from "./channel-grouping"
 import type { PortalChannel } from "./stalker-types"
@@ -130,9 +133,11 @@ function channelIdentity(channel: ChannelWithSourceId) {
 export function channelSlug(
   channel: ChannelWithSourceId,
   userId: string | null,
+  trusted: ReadonlySet<string>,
 ) {
   /**
-   * A channel with a guide id is that guide id, and nothing else.
+   * A channel with a guide id that is an identity is that guide id, and
+   * nothing else.
    *
    * The URL then names the channel rather than one portal's copy of it, which
    * is what makes it survive: reordering sources, dropping the portal it was
@@ -146,16 +151,21 @@ export function channelSlug(
    * which is the per-copy addressing this was meant to end. No hash: the guide
    * id is already unique and already readable, and hashing it would only hide
    * which channel the link is for.
+   *
+   * Which is exactly why it has to be an identity and not merely an id. A
+   * portal that writes "default" on ten thousand channels was writing a label,
+   * not a name, and addressing by it made one of those channels reachable and
+   * the rest unreachable — every row in the list drawing correctly and every
+   * one of them opening the same stream. identityKeyFor is the test.
    */
-  const guideId = normalizeXmltvId(channel.xmltvId)
+  const guideId = identityKeyFor(channel, trusted) ? normalizeXmltvId(channel.xmltvId) : ""
   if (guideId) {
     return slugify(guideId) || "channel"
   }
 
-  // No guide id, so there is nothing stable to address it by and the old form
-  // stands: scoped to this user and this portal, because that is genuinely all
-  // this channel is. A link to one is not shareable and should not pretend to
-  // be.
+  // Nothing stable to address it by, so the old form stands: scoped to this
+  // user and this portal, because that is genuinely all this channel is. A link
+  // to one is not shareable and should not pretend to be.
   const name = slugify(channel.name || channel.number || "channel") || "channel"
   const hash = shortHash(
     [
@@ -180,12 +190,17 @@ export function buildChannelIndex<T extends ChannelWithSourceId>(
    */
   sourceOrder: ChannelSourceOrder = {},
 ) {
+  // Computed here rather than passed in: an index is built over a whole
+  // catalogue, which is the only scope the question can be answered at, and a
+  // caller handing in a set from somewhere else could address a channel
+  // differently from the list that links to it.
+  const trusted = trustedGuideIds(channels, IDENTITY_NAME_LIMIT)
   const index = new Map<string, T>()
   const rank = new Map<string, number>()
 
   for (const channel of channels) {
-    const id = channelSlug(channel, userId)
-    const chosen = sourceRank(channel, sourceOrder)
+    const id = channelSlug(channel, userId, trusted)
+    const chosen = sourceRank(channel, sourceOrder, trusted)
     if (!index.has(id) || chosen < (rank.get(id) ?? Number.MAX_SAFE_INTEGER)) {
       index.set(id, channel)
       rank.set(id, chosen)
@@ -200,7 +215,7 @@ export function buildChannelIndex<T extends ChannelWithSourceId>(
      * nothing to migrate: a URL someone saved is not ours to rewrite.
      */
     const guideId = normalizeXmltvId(channel.xmltvId)
-    if (guideId) {
+    if (guideId && trusted.has(guideId)) {
       const legacy = legacyChannelSlug(channel, userId)
       if (!index.has(legacy)) index.set(legacy, channel)
 
