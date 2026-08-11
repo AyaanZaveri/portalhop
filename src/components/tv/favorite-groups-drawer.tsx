@@ -1056,7 +1056,12 @@ export function GroupMembershipDrawer({
         </div>
         {groups?.length ? (
           <div className="p-4 pt-0">
-            <Button type="button" className="w-full" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              size="lg"
+              className="w-full"
+              onClick={() => onOpenChange(false)}
+            >
               Done
             </Button>
           </div>

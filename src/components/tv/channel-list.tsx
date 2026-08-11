@@ -1069,6 +1069,7 @@ export function ChannelList({
                 <Button
                   type="button"
                   variant="outline"
+                  size="lg"
                   className="w-full justify-center gap-2"
                   onClick={() => {
                     toggleCategoryVisibility(contextCategory)
@@ -1643,6 +1644,7 @@ export function ChannelList({
                 <Button
                   type="button"
                   variant="outline"
+                  size="lg"
                   className="w-full justify-center gap-2"
                   onClick={() => {
                     const isFavorited = isChannelFavorited(contextChannel)
@@ -1671,6 +1673,7 @@ export function ChannelList({
                   <Button
                     type="button"
                     variant="outline"
+                    size="lg"
                     className="w-full justify-center gap-2"
                     onClick={() => {
                       setGroupMembershipChannel(contextChannel)

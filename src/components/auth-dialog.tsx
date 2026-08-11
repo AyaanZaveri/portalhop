@@ -140,6 +140,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
       <Button
         type="button"
         variant="outline"
+        size="lg"
         className="w-full justify-center gap-2"
         disabled={busy}
         onClick={signInWithGoogle}
@@ -197,7 +198,12 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
             placeholder="At least 8 characters"
           />
         </div>
-        <Button type="submit" className="w-full justify-center gap-2" disabled={busy}>
+        <Button
+        type="submit"
+        size="lg"
+        className="w-full justify-center gap-2"
+        disabled={busy}
+      >
           {isSubmitting ? (
             <Loader2Icon className="size-4 animate-spin" />
           ) : null}
@@ -371,6 +377,7 @@ function AccountMenu({
                   <Button
                     type="button"
                     variant="outline"
+                    size="lg"
                     className="w-full justify-center gap-2"
                     disabled={isShuffling}
                     onClick={shuffleAvatar}
@@ -391,6 +398,7 @@ function AccountMenu({
                   {!hideSettings ? (
                     <Button
                       variant="outline"
+                      size="lg"
                       className="w-full flex-[2] justify-center gap-2"
                       render={<Link href="/settings" />}
                       onClick={() => setMenuOpen(false)}
@@ -402,6 +410,7 @@ function AccountMenu({
                   <Button
                     type="button"
                     variant="outline"
+                    size="lg"
                     className="w-full flex-1 justify-center gap-2"
                     disabled={isSigningOut}
                     onClick={signOut}

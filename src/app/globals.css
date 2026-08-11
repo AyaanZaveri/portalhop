@@ -284,25 +284,6 @@ video {
   background-color: #000;
 }
 
-/* Sheet controls are sized for a cursor: the default button is 32px tall and
-   even `lg` is only 36px, against Android's 48dp guidance and iOS's 44pt. One
-   rule here rather than a size on every button, so sheets built later can't
-   drift back to cursor-sized targets. Scoped to full-width actions, leaving
-   icon buttons and badges inside sheets alone. */
-@media (pointer: coarse) {
-  [data-slot="drawer-popup"] [data-slot="button"]:where(.w-full) {
-    min-height: 2.75rem;
-  }
-
-  [data-slot="drawer-popup"] [data-slot="tabs-list"] {
-    height: 2.75rem;
-  }
-
-  [data-slot="drawer-popup"] [data-slot="tabs-trigger"] {
-    min-height: 2.25rem;
-  }
-}
-
 /* The category list runs to hundreds of rows, most carrying a remote flag
    image, and the whole thing sits inside a sheet that transforms while being
    dragged — so every frame of the drag rasterises rows nobody can see. The
