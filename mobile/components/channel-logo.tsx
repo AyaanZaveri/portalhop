@@ -1,9 +1,14 @@
+import { useState } from "react"
 import { View } from "react-native"
 import { Image } from "expo-image"
 import { Tv } from "lucide-react-native"
 
 import { useTheme } from "@/lib/theme"
-import { useLogoStyle, type LogoStyle } from "@/lib/logo-style"
+import {
+  forgetLogoStyle,
+  useLogoStyle,
+  type LogoStyle,
+} from "@/lib/logo-style"
 
 /**
  * The logo tile, in the one shape every screen shows it.
@@ -163,6 +168,32 @@ export function ChannelLogo({
    */
   const style = useLogoStyle(uri)
 
+  /**
+   * The redrawn copy is gone, so draw the logo it was made from.
+   *
+   * It lives in the OS cache directory and can be reclaimed at any time, while
+   * the verdict naming it is durable — so a row can be told to draw a file that
+   * no longer exists, and an Image pointed at a missing file draws nothing.
+   * That is the tile with a colour on it and no mark, which is what this is
+   * here to prevent: the original is still a logo, and a logo is what the row
+   * needs.
+   *
+   * Forgetting the verdict is the other half. The next row to ask for this logo
+   * finds nothing stored, analyses it again, and writes a new file — so the
+   * redraw comes back on its own rather than staying broken until the table is
+   * cleared by hand.
+   */
+  const [redrawnMissing, setRedrawnMissing] = useState(false)
+  const [seenUri, setSeenUri] = useState(uri)
+
+  // A recycled row is handed a new channel while mounted, and the last one's
+  // failure says nothing about this one.
+  if (uri !== seenUri) {
+    setSeenUri(uri)
+    setRedrawnMissing(false)
+  }
+
+  const redrawn = redrawnMissing ? undefined : style.uri
   const boxWidth = CHANNEL_LOGO_WIDTH - PAD_X * 2
   const boxHeight = CHANNEL_LOGO_HEIGHT - PAD_Y * 2
   const placement = layout(style, boxWidth, boxHeight)
@@ -185,12 +216,20 @@ export function ChannelLogo({
           style={{ width: boxWidth, height: boxHeight, overflow: "hidden" }}
         >
           <Image
-            source={{ uri: style.uri ?? uri }}
+            source={{ uri: redrawn ?? uri }}
+            onError={() => {
+              // Only the redraw is worth retrying. A provider's own URL that
+              // fails is a broken link, and forgetting a verdict over it would
+              // re-analyse the same dead URL on every pass.
+              if (!redrawn) return
+              setRedrawnMissing(true)
+              void forgetLogoStyle(uri)
+            }}
             // No radius: see the note by OUTER_RADIUS. Here it clips the ink of
             // a wordmark that reaches its own frame, and on the box it reaches
             // nothing.
             style={
-              placement
+              placement && redrawn
                 ? { position: "absolute", ...placement }
                 : { width: "100%", height: "100%" }
             }

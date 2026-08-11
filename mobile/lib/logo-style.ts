@@ -112,6 +112,34 @@ async function resolve(url: string): Promise<LogoStyle> {
   return style
 }
 
+/**
+ * Forgets one verdict, so the next row to want it asks for it again.
+ *
+ * The redrawn PNG lives in the OS cache directory, which both platforms are
+ * free to empty whenever they want the space — and do, arbitrarily and a few
+ * files at a time. The verdict naming that file lives in SQLite, which is
+ * durable, so the two drift apart: the row says "draw file://…/logo-ab12.png"
+ * long after the file has gone, and what draws is nothing at all. That is the
+ * tile with a colour and no mark on it.
+ *
+ * Deliberately not fixed by writing the PNGs somewhere durable. They are
+ * derived data, a catalogue holds tens of thousands of them, and the cache
+ * directory is exactly the right place for something that can be made again.
+ * What was missing is this: noticing they have gone, and making them again.
+ */
+export async function forgetLogoStyle(url: string) {
+  memory.delete(url)
+  inFlight.delete(url)
+
+  try {
+    const handle = await db
+    await handle.runAsync("DELETE FROM logo_style WHERE url = ?", url)
+  } catch {
+    // The row survives and the redraw is remade on the next launch instead.
+    // Dropping it from memory above is what matters for this one.
+  }
+}
+
 export function useLogoStyle(url: string | undefined): LogoStyle {
   const [style, setStyle] = useState<LogoStyle>(
     () => (LogoAnalysis && url ? memory.get(url) : undefined) ?? PLAIN,
