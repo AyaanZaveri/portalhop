@@ -4,7 +4,7 @@ import Sortable from "react-native-sortables"
 import * as Haptics from "expo-haptics"
 import { GripVertical } from "lucide-react-native"
 
-import type { PortalChannelWithSource } from "@/lib/channels"
+import { favoriteKeyFor, type ChannelWithStreams } from "@/lib/channels"
 import { useReorderChannels } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
@@ -47,10 +47,21 @@ function tick() {
  */
 export function ChannelReorderList({
   channels,
+  storedKeys,
   groupId,
   bottomInset,
 }: {
-  channels: PortalChannelWithSource[]
+  channels: ChannelWithStreams[]
+  /**
+   * The keys this list is actually stored under.
+   *
+   * A channel is favourited under its guide id now, but one favourited before
+   * that is still stored under a portal's copy of it — and the endpoint moves
+   * the rows it can find and silently ignores the rest. Sending the key the row
+   * was saved with is what stops a drag on an older favourite looking like it
+   * worked and reverting on the next read.
+   */
+  storedKeys: Set<string>
   /** Omitted when reordering the plain favourites list. */
   groupId?: number
   bottomInset: number
@@ -73,18 +84,22 @@ export function ChannelReorderList({
   }
 
   const onDragEnd = useCallback(
-    ({ data }: { data: PortalChannelWithSource[] }) => {
+    ({ data }: { data: ChannelWithStreams[] }) => {
       setOrder(data)
       reorder.mutate({
         groupId,
-        channelKeys: data.map((channel) => channel.key),
+        channelKeys: data.map((channel) => {
+          const identity = favoriteKeyFor(channel)
+          if (storedKeys.has(identity)) return identity
+          return storedKeys.has(channel.key) ? channel.key : identity
+        }),
       })
     },
-    [groupId, reorder],
+    [groupId, reorder, storedKeys],
   )
 
   const renderItem = useCallback(
-    ({ item }: { item: PortalChannelWithSource }) => {
+    ({ item }: { item: ChannelWithStreams }) => {
       const logo = item.logoUrl || item.logo
 
       return (

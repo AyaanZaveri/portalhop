@@ -7,7 +7,11 @@ import {
 import * as Haptics from "expo-haptics"
 import { Check } from "lucide-react-native"
 
-import type { PortalChannelWithSource } from "@/lib/channels"
+import {
+  favoriteKeyFor,
+  isFavorited,
+  type ChannelWithStreams,
+} from "@/lib/channels"
 import type { FavoriteGroup } from "@/lib/filters"
 import { useToggleGroupMembership } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
@@ -24,7 +28,7 @@ import { Sheet } from "@/components/ui/sheet"
 export const GroupMembershipSheet = forwardRef<
   BottomSheetModal,
   {
-    channel: PortalChannelWithSource | null
+    channel: ChannelWithStreams | null
     groups: FavoriteGroup[] | undefined
   }
 >(function GroupMembershipSheet({ channel, groups }, ref) {
@@ -43,8 +47,9 @@ export const GroupMembershipSheet = forwardRef<
           </Text>
         }
         renderItem={({ item }) => {
+          // Under either key the channel might have been added with.
           const member = channel
-            ? item.channelKeys.includes(channel.key)
+            ? isFavorited(channel, (key) => item.channelKeys.includes(key))
             : false
 
           return (
@@ -56,8 +61,9 @@ export const GroupMembershipSheet = forwardRef<
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
                 toggleMembership.mutate({
                   groupId: item.id,
-                  channelKey: channel.key,
+                  channelKey: favoriteKeyFor(channel),
                   member,
+                  alsoRemove: channel.key,
                 })
               }}
             >

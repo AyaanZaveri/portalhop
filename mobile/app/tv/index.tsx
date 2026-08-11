@@ -23,8 +23,10 @@ import { channelSlug } from "@/lib/channel-keys"
 import {
   usePortalChannels,
   usePortals,
+  type ChannelWithStreams,
   type PortalChannelWithSource,
 } from "@/lib/channels"
+import { useChooseChannelSource } from "@/lib/source-order"
 import {
   applyBrowseFilter,
   useCategories,
@@ -56,12 +58,13 @@ import { ChannelRow } from "@/components/channel-row"
 import { ChannelReorderList } from "@/components/channel-reorder-list"
 import { invalidateFeeds } from "@/lib/epg"
 import { ChannelActionsSheet } from "@/components/channel-actions-sheet"
+import { ChannelSourcesSheet } from "@/components/channel-sources-sheet"
 import { GroupMembershipSheet } from "@/components/group-membership-sheet"
 import { EpgProvider, useNowPlayingSearch } from "@/components/epg-provider"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
 // Module scope so FlashList sees the same function and object every render.
-const channelKey = (channel: PortalChannelWithSource) => channel.key
+const channelKey = (channel: ChannelWithStreams) => channel.key
 const MAINTAIN_POSITION = { disabled: true }
 
 export default function ChannelListScreen() {
@@ -139,7 +142,7 @@ export default function ChannelListScreen() {
   const actionsSheet = useRef<BottomSheetModal>(null)
   const membershipSheet = useRef<BottomSheetModal>(null)
   const [actionChannel, setActionChannel] =
-    useState<PortalChannelWithSource | null>(null)
+    useState<ChannelWithStreams | null>(null)
   const [reordering, setReordering] = useState(false)
   const categoriesSheet = useRef<BottomSheetModal>(null)
   const groupsSheet = useRef<BottomSheetModal>(null)
@@ -170,6 +173,8 @@ export default function ChannelListScreen() {
 
   const {
     channels: withSource,
+    streams,
+    trustedIds,
     byKey,
     isPending: channelsPending,
     error: channelsError,
@@ -250,7 +255,7 @@ export default function ChannelListScreen() {
 
   // Derived from everything in the source, not from what the chip currently
   // shows — otherwise picking a category would empty the category list.
-  const categories = useCategories(withSource)
+  const categories = useCategories(streams)
 
   // Asked of SQLite rather than of the catalogue, debounced, and additive: it
   // arrives after the name matches are already on screen and only ever widens
@@ -272,8 +277,8 @@ export default function ChannelListScreen() {
     // Someone typing "tsn" wants the channel called TSN before every channel
     // showing a programme with "tsn" in the title, so name and id matches keep
     // their catalogue order at the front and guide matches follow.
-    const named: PortalChannelWithSource[] = []
-    const onNow: PortalChannelWithSource[] = []
+    const named: ChannelWithStreams[] = []
+    const onNow: ChannelWithStreams[] = []
 
     for (const channel of filtered) {
       if (channel.searchName.includes(q) || channel.searchId.includes(q)) {
@@ -289,39 +294,74 @@ export default function ChannelListScreen() {
   // The guide id and name ride along as params rather than being looked up
   // again on the other side: resolving a slug back to a channel would mean
   // rebuilding the merged catalogue on a screen that needs one row from it.
-  const openChannel = useCallback((channel: PortalChannelWithSource) => {
-    router.push({
-      pathname: "/tv/[slug]",
-      params: {
-        slug: channelSlug(channel),
-        xmltvId: channel.xmltvId ?? "",
-        name: channel.name ?? "",
-        channelId: channel.id ?? "",
-        portalId: String(channel.portalSource?.id ?? ""),
-        // What /api/channel-link resolves a stream from, so the portal's
-        // credentials and stream command never leave the server.
-        savedChannelId: String(channel.savedChannelId ?? ""),
-        // For the header, so it can draw the channel before any request
-        // resolves rather than popping in a logo a moment later.
-        logo: channel.logoUrl || channel.logo || "",
-        genre: channel.genre || "",
-        portalName: channel.portalSource?.name ?? "",
-      },
-    })
-  }, [])
+  const openChannel = useCallback(
+    (channel: ChannelWithStreams) => {
+      router.push({
+        pathname: "/tv/[slug]",
+        params: {
+          slug: channelSlug(channel, trustedIds),
+          xmltvId: channel.xmltvId ?? "",
+          name: channel.name ?? "",
+          channelId: channel.id ?? "",
+          portalId: String(channel.portalSource?.id ?? ""),
+          // What /api/channel-link resolves a stream from, so the portal's
+          // credentials and stream command never leave the server.
+          savedChannelId: String(channel.savedChannelId ?? ""),
+          // For the header, so it can draw the channel before any request
+          // resolves rather than popping in a logo a moment later.
+          logo: channel.logoUrl || channel.logo || "",
+          genre: channel.genre || "",
+          portalName: channel.portalSource?.name ?? "",
+        },
+      })
+    },
+    [trustedIds],
+  )
 
   // Every prop below is held stable on purpose. FlashList re-renders its
   // internals when a prop changes by reference, and with a list this size an
   // inline renderItem or style object is enough to send it into a loop that
   // never commits — which is what "Exceeded max renders without commit" was.
-  const openActions = useCallback((channel: PortalChannelWithSource) => {
+  const sourcesSheet = useRef<BottomSheetModal>(null)
+  const [sourcesChannel, setSourcesChannel] =
+    useState<ChannelWithStreams | null>(null)
+  const chooseSource = useChooseChannelSource()
+
+  /**
+   * Promotes the tapped stream to the front of its channel's order.
+   *
+   * Only a channel with a guide id can carry the choice — that is the identity
+   * the row is stored against, and a name is one portal's wording, which moves.
+   * Streams that were never saved (a preview source) cannot hold a position
+   * either, since what is stored is a saved-channel row.
+   */
+  const onChooseSource = useCallback(
+    (channel: ChannelWithStreams, stream: PortalChannelWithSource) => {
+      sourcesSheet.current?.dismiss()
+
+      if (!channel.identityKey || stream.savedChannelId == null) return
+
+      chooseSource.mutate({
+        identityKey: channel.identityKey,
+        savedChannelIds: [
+          stream.savedChannelId,
+          ...channel.streams
+            .filter((entry) => entry.key !== stream.key)
+            .map((entry) => entry.savedChannelId),
+        ].filter((id): id is number => typeof id === "number"),
+      })
+    },
+    [chooseSource],
+  )
+
+  const openActions = useCallback((channel: ChannelWithStreams) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setActionChannel(channel)
     actionsSheet.current?.present()
   }, [])
 
   const renderChannel = useCallback(
-    ({ item }: { item: PortalChannelWithSource }) => (
+    ({ item }: { item: ChannelWithStreams }) => (
       <ChannelRow
         channel={item}
         onPress={openChannel}
@@ -335,7 +375,7 @@ export default function ChannelListScreen() {
   // this the scroll offset carries over, and switching from a scrolled position
   // in All to a short Favorites lands somewhere arbitrary in it — or past its
   // end, which is the other way blank space appears.
-  const listRef = useRef<FlashListRef<PortalChannelWithSource>>(null)
+  const listRef = useRef<FlashListRef<ChannelWithStreams>>(null)
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false })
@@ -345,13 +385,13 @@ export default function ChannelListScreen() {
   // catalogue this size spans many countries, and downloading every one of
   // their guide files would be tens of megabytes for schedules the user has
   // not scrolled to.
-  const [visibleRows, setVisibleRows] = useState<PortalChannelWithSource[]>([])
+  const [visibleRows, setVisibleRows] = useState<ChannelWithStreams[]>([])
 
   const onViewableItemsChanged = useRef(
     ({
       viewableItems,
     }: {
-      viewableItems: Array<{ item: PortalChannelWithSource }>
+      viewableItems: Array<{ item: ChannelWithStreams }>
     }) => {
       setVisibleRows(viewableItems.map((entry) => entry.item))
     },
@@ -592,6 +632,14 @@ export default function ChannelListScreen() {
           // targets are noise in a mode whose only action is moving a row.
           <ChannelReorderList
             channels={visible}
+            storedKeys={
+              filter.type === "favoriteGroup"
+                ? new Set(
+                    groups?.find((group) => group.id === filter.groupId)
+                      ?.channelKeys ?? [],
+                  )
+                : favorites.set
+            }
             groupId={
               filter.type === "favoriteGroup" ? filter.groupId : undefined
             }
@@ -645,12 +693,27 @@ export default function ChannelListScreen() {
           }}
         />
 
+        <ChannelSourcesSheet
+          ref={sourcesSheet}
+          streams={sourcesChannel?.streams ?? []}
+          activeKey={sourcesChannel?.key}
+          onChoose={(stream) => {
+            if (sourcesChannel) onChooseSource(sourcesChannel, stream)
+          }}
+        />
+
         <ChannelActionsSheet
           ref={actionsSheet}
           channel={actionChannel}
           favorites={favorites.set}
           groups={groups}
           signedIn={signedIn}
+          onChooseSource={(channel) => {
+            // Dismissed first so the two sheets do not overlap mid-animation.
+            actionsSheet.current?.dismiss()
+            setSourcesChannel(channel)
+            setTimeout(() => sourcesSheet.current?.present(), 220)
+          }}
           onEditGroups={() => {
             // Dismissed first so the two sheets do not overlap mid-animation.
             actionsSheet.current?.dismiss()

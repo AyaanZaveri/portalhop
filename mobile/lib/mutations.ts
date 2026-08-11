@@ -17,25 +17,46 @@ export function useToggleFavorite() {
     mutationFn: async ({
       channelKey,
       favorited,
+      alsoRemove,
     }: {
       channelKey: string
       favorited: boolean
+      /**
+       * The other key this channel might be stored under.
+       *
+       * A favourite belongs to the channel and is written under its guide id,
+       * but one made before that names a portal's copy. Both are read, so both
+       * have to be removed or the star stays lit on a channel the user just
+       * unfavourited.
+       */
+      alsoRemove?: string
     }) => {
-      const response = favorited
-        ? await apiFetch(
-            `/api/favorites?channelKey=${encodeURIComponent(channelKey)}`,
+      if (favorited) {
+        const keys =
+          alsoRemove && alsoRemove !== channelKey
+            ? [channelKey, alsoRemove]
+            : [channelKey]
+
+        for (const key of keys) {
+          const response = await apiFetch(
+            `/api/favorites?channelKey=${encodeURIComponent(key)}`,
             { method: "DELETE" },
           )
-        : await apiFetch("/api/favorites", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channelKey }),
-          })
+          if (!response.ok) throw new Error("Could not update favourites.")
+        }
+        return
+      }
+
+      const response = await apiFetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelKey }),
+      })
 
       if (!response.ok) throw new Error("Could not update favourites.")
     },
 
-    onMutate: async ({ channelKey, favorited }) => {
+    onMutate: async ({ channelKey, favorited, alsoRemove }) => {
       // Otherwise a refetch already in flight can land after this and put the
       // old list back.
       await queryClient.cancelQueries({ queryKey: ["favorites"] })
@@ -49,7 +70,7 @@ export function useToggleFavorite() {
           const keys = current?.favorites ?? []
           return {
             favorites: favorited
-              ? keys.filter((key) => key !== channelKey)
+              ? keys.filter((key) => key !== channelKey && key !== alsoRemove)
               : // Appended, not prepended: the list is in the user's manual
                 // order and a new favourite belongs at the end of it.
                 [...keys, channelKey],
@@ -81,25 +102,35 @@ export function useToggleGroupMembership() {
       groupId,
       channelKey,
       member,
+      alsoRemove,
     }: {
       groupId: number
       channelKey: string
       member: boolean
+      /** The channel's other key — see useToggleFavorite. */
+      alsoRemove?: string
     }) => {
-      const response = await apiFetch(
-        `/api/favorite-groups/${groupId}/channels`,
-        {
-          method: member ? "DELETE" : "POST",
-          headers: { "Content-Type": "application/json" },
-          // The handler reads the key from the body on both verbs.
-          body: JSON.stringify({ channelKey }),
-        },
-      )
+      const keys =
+        member && alsoRemove && alsoRemove !== channelKey
+          ? [channelKey, alsoRemove]
+          : [channelKey]
 
-      if (!response.ok) throw new Error("Could not update the group.")
+      for (const key of keys) {
+        const response = await apiFetch(
+          `/api/favorite-groups/${groupId}/channels`,
+          {
+            method: member ? "DELETE" : "POST",
+            headers: { "Content-Type": "application/json" },
+            // The handler reads the key from the body on both verbs.
+            body: JSON.stringify({ channelKey: key }),
+          },
+        )
+
+        if (!response.ok) throw new Error("Could not update the group.")
+      }
     },
 
-    onMutate: async ({ groupId, channelKey, member }) => {
+    onMutate: async ({ groupId, channelKey, member, alsoRemove }) => {
       await queryClient.cancelQueries({ queryKey: ["favorite-groups"] })
       const previous = queryClient.getQueryData<{ groups: FavoriteGroup[] }>([
         "favorite-groups",
@@ -113,7 +144,9 @@ export function useToggleGroupMembership() {
               ? {
                   ...group,
                   channelKeys: member
-                    ? group.channelKeys.filter((key) => key !== channelKey)
+                    ? group.channelKeys.filter(
+                        (key) => key !== channelKey && key !== alsoRemove,
+                      )
                     : [...group.channelKeys, channelKey],
                 }
               : group,

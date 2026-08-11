@@ -2,9 +2,9 @@ import { forwardRef } from "react"
 import { Text, View } from "react-native"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import * as Haptics from "expo-haptics"
-import { FolderHeart, FolderPlus, Star } from "lucide-react-native"
+import { FolderHeart, FolderPlus, Layers, Star } from "lucide-react-native"
 
-import type { PortalChannelWithSource } from "@/lib/channels"
+import { favoriteKeyFor, isFavorited, type ChannelWithStreams } from "@/lib/channels"
 import type { FavoriteGroup } from "@/lib/filters"
 import { useToggleFavorite } from "@/lib/mutations"
 import { useTheme } from "@/lib/theme"
@@ -24,23 +24,30 @@ import { Sheet } from "@/components/ui/sheet"
 export const ChannelActionsSheet = forwardRef<
   BottomSheetModal,
   {
-    channel: PortalChannelWithSource | null
+    channel: ChannelWithStreams | null
     favorites: Set<string>
     groups: FavoriteGroup[] | undefined
     signedIn: boolean
-    onEditGroups: (channel: PortalChannelWithSource) => void
+    onEditGroups: (channel: ChannelWithStreams) => void
+    onChooseSource: (channel: ChannelWithStreams) => void
     onClose: () => void
   }
 >(function ChannelActionsSheet(
-  { channel, favorites, groups, signedIn, onEditGroups, onClose },
+  { channel, favorites, groups, signedIn, onEditGroups, onChooseSource, onClose },
   ref,
 ) {
   const { colors, iconPrimary } = useTheme()
   const toggleFavorite = useToggleFavorite()
 
-  const favorited = channel ? favorites.has(channel.key) : false
+  // Under either key it might carry, not just this copy's — see isFavorited.
+  const has = (key: string) => favorites.has(key)
+  const favorited = channel ? isFavorited(channel, has) : false
   const grouped = channel
-    ? Boolean(groups?.some((group) => group.channelKeys.includes(channel.key)))
+    ? Boolean(
+        groups?.some((group) =>
+          isFavorited(channel, (key) => group.channelKeys.includes(key)),
+        ),
+      )
     : false
   const logo = channel?.logoUrl || channel?.logo
 
@@ -99,8 +106,12 @@ export const ChannelActionsSheet = forwardRef<
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
                 }
                 toggleFavorite.mutate({
-                  channelKey: channel.key,
+                  channelKey: favoriteKeyFor(channel),
                   favorited,
+                  // Both, because the channel may have been favourited under
+                  // its old per-copy key and removing only the new one would
+                  // leave the star lit.
+                  alsoRemove: channel.key,
                 })
                 onClose()
               }}
@@ -116,6 +127,22 @@ export const ChannelActionsSheet = forwardRef<
                 {favorited ? "Remove from favorites" : "Add to favorites"}
               </Text>
             </PressableScale>
+
+            {/* Only where there is a choice to make. A channel carried by one
+                portal has nothing to pick between, and a row that opens a list
+                of one is a dead end wearing a button. */}
+            {channel.streams.length > 1 ? (
+              <PressableScale
+                className="mt-2 h-11 flex-row items-center justify-center gap-2 rounded-lg border"
+                style={{ borderColor: colors.border }}
+                onPress={() => onChooseSource(channel)}
+              >
+                <Layers size={16} color={colors.foreground} />
+                <Text className="text-foreground text-sm font-medium">
+                  {channel.streams.length} sources
+                </Text>
+              </PressableScale>
+            ) : null}
 
             {signedIn ? (
               <PressableScale

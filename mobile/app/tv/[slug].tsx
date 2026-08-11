@@ -1,12 +1,18 @@
-import { useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
+import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { router, useLocalSearchParams } from "expo-router"
-import { ChevronLeft, Tv } from "lucide-react-native"
+import { ChevronLeft, ChevronDown, Tv } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/auth"
-import { usePortals } from "@/lib/channels"
+import {
+  useCachedStreams,
+  usePortals,
+  type PortalChannelWithSource,
+} from "@/lib/channels"
+import { useChooseChannelSource } from "@/lib/source-order"
 import { useLogoStyle } from "@/lib/logo-style"
 
 import { CategoryVisual } from "@/components/category-visual"
@@ -14,6 +20,7 @@ import { TopGlow } from "@/components/top-glow"
 import { ChannelLogo } from "@/components/channel-logo"
 import { ChannelPlayer } from "@/components/channel-player"
 import { ChannelSchedule } from "@/components/channel-schedule"
+import { ChannelSourcesSheet } from "@/components/channel-sources-sheet"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 export default function ChannelDetailScreen() {
@@ -58,6 +65,58 @@ export default function ChannelDetailScreen() {
   // Already resolved and cached by the row the user tapped, so this costs
   // nothing here.
   const logoStyle = useLogoStyle(logo)
+
+  /**
+   * Switching stream without leaving the channel.
+   *
+   * The streams are read from the cached catalogues when the badge is tapped
+   * rather than on mount, so a screen that only ever plays costs nothing for a
+   * picker nobody opened. Choosing writes the channel's default and then moves
+   * the route's own parameters — the player keys its link on savedChannelId, so
+   * that is the whole switch; nothing here reaches into it.
+   */
+  const sourcesSheet = useRef<BottomSheetModal>(null)
+  const getStreams = useCachedStreams(Boolean(session?.user))
+  const chooseSource = useChooseChannelSource()
+  // Resolved once for the screen rather than on the tap, so the badge only
+  // wears a chevron where there is somewhere to go. Reading the cache costs one
+  // pass and no request; the memo re-runs when the chosen order changes.
+  const streams = useMemo(() => getStreams(xmltvId), [getStreams, xmltvId])
+  const activeKey = streams.find(
+    (stream) => stream.savedChannelId === Number(savedChannelId),
+  )?.key
+
+  const openSources = useCallback(() => {
+    if (streams.length > 1) sourcesSheet.current?.present()
+  }, [streams])
+
+  const chooseStream = useCallback(
+    (stream: PortalChannelWithSource) => {
+      sourcesSheet.current?.dismiss()
+
+      // Stamped by useCachedStreams, which has already decided whether this
+      // guide id is an identity or a label the portal writes on everything.
+      const identityKey = stream.identityKey
+      if (identityKey && stream.savedChannelId != null) {
+        chooseSource.mutate({
+          identityKey,
+          savedChannelIds: [
+            stream.savedChannelId,
+            ...streams
+              .filter((entry) => entry.key !== stream.key)
+              .map((entry) => entry.savedChannelId),
+          ].filter((id): id is number => typeof id === "number"),
+        })
+      }
+
+      router.setParams({
+        savedChannelId: String(stream.savedChannelId ?? ""),
+        portalId: String(stream.portalSource?.id ?? ""),
+        portalName: stream.portalSource?.name ?? "",
+      })
+    },
+    [chooseSource, streams],
+  )
 
   return (
     <View
@@ -115,10 +174,15 @@ export default function ChannelDetailScreen() {
                 {genre || "Uncategorized"}
               </Text>
               {portalName ? (
-                // The web's outline Badge. Which source a channel came from
-                // matters most here, where you are about to watch it.
-                <View
-                  className="rounded-md border px-2 py-0.5"
+                // The web's outline Badge, and the control that changes it.
+                // Which source is playing belongs next to the stream it
+                // describes, so the thing naming it is also the thing that
+                // swaps it — there is no second place to look.
+                <PressableScale
+                  preset="icon"
+                  hitSlop={8}
+                  onPress={openSources}
+                  className="flex-row items-center gap-1 rounded-md border px-2 py-0.5"
                   style={{ borderColor: colors.border }}
                 >
                   <Text
@@ -132,7 +196,10 @@ export default function ChannelDetailScreen() {
                   >
                     {portalName}
                   </Text>
-                </View>
+                  {streams.length > 1 ? (
+                    <ChevronDown size={10} color={colors["muted-foreground"]} />
+                  ) : null}
+                </PressableScale>
               ) : null}
             </View>
           </View>
@@ -177,6 +244,13 @@ export default function ChannelDetailScreen() {
           />
         </ScrollView>
       )}
+
+      <ChannelSourcesSheet
+        ref={sourcesSheet}
+        streams={streams}
+        activeKey={activeKey}
+        onChoose={chooseStream}
+      />
     </View>
   )
 }

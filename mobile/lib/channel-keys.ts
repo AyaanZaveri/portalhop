@@ -20,7 +20,8 @@ import type { ChannelWithSourceId } from "@portalhop/shared/channel-keys"
  */
 export function channelSlug(
   channel: ChannelWithSourceId,
+  trusted: ReadonlySet<string>,
   userId?: string | null,
 ) {
-  return sharedChannelSlug(channel, userId ?? null)
+  return sharedChannelSlug(channel, userId ?? null, trusted)
 }

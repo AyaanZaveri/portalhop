@@ -50,7 +50,12 @@ const persister = experimental_createQueryPersister({
   maxAge: 30 * 24 * 60 * 60 * 1000,
   // Bump when the stored shape changes; mismatched entries are discarded rather
   // than deserialised into something the app no longer understands.
-  buster: "v1",
+  //
+  // v2: a catalogue now tells the channel apart from the stream — name from
+  // sourceName, logoUrl from sourceLogoUrl. A stored v1 entry has only one of
+  // each, and nothing would ever replace it: an entry is keyed by its source's
+  // updatedAt, which a change to the guide, or to this app, never moves.
+  buster: "v2",
 })
 
 const queryClient = new QueryClient({

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import type { BrowseFilter } from "@portalhop/shared/browse-filter"
 
 import { apiJson } from "./api"
-import type { PortalChannelWithSource } from "./channels"
+import type { ChannelWithStreams } from "./channels"
 
 export type FavoriteGroup = {
   id: number
@@ -61,7 +61,7 @@ export function useFavoriteGroups(enabled: boolean) {
  * is no endpoint for them, and the counts have to reflect whatever is currently
  * in view. Same grouping and sort the web list uses.
  */
-export function useCategories(channels: PortalChannelWithSource[]) {
+export function useCategories(channels: { genre: string; portalSource?: { id: number; name: string } }[]) {
   return useMemo(() => {
     const entries = new Map<string, CategoryEntry>()
 
@@ -88,10 +88,37 @@ export function useCategories(channels: PortalChannelWithSource[]) {
   }, [channels])
 }
 
+/**
+ * The rows a saved list of keys resolves to, in the order they were saved.
+ *
+ * Deduplicated, because several keys now land on one row: a channel is
+ * favourited under its guide id, and the copies it was favourited under before
+ * that are still valid keys for the same channel. Without this, a channel
+ * favourited twice over its life would appear twice in the list.
+ */
+function rowsForKeys(
+  keys: string[],
+  byKey: Map<string, ChannelWithStreams>,
+) {
+  const rows: ChannelWithStreams[] = []
+  const seen = new Set<string>()
+
+  for (const key of keys) {
+    // A key with no channel behind it is skipped: a source can be removed
+    // while its favourites remain.
+    const row = byKey.get(key)
+    if (!row || seen.has(row.key)) continue
+    seen.add(row.key)
+    rows.push(row)
+  }
+
+  return rows
+}
+
 /** Applies the active chip's filter to the channel list. */
 export function applyBrowseFilter(
-  channels: PortalChannelWithSource[],
-  byKey: Map<string, PortalChannelWithSource>,
+  channels: ChannelWithStreams[],
+  byKey: Map<string, ChannelWithStreams>,
   filter: BrowseFilter,
   favorites: Favorites | undefined,
   groups: FavoriteGroup[] | undefined,
@@ -101,15 +128,10 @@ export function applyBrowseFilter(
       return channels
 
     // Walks the saved keys rather than the catalogue, so the rows come out in
-    // the order the user arranged them. A key with no channel behind it is
-    // skipped: a source can be removed while its favourites remain.
+    // the order the user arranged them.
     case "favorites": {
       if (!favorites?.keys.length) return []
-      return favorites.keys
-        .map((key) => byKey.get(key))
-        .filter((channel): channel is PortalChannelWithSource =>
-          Boolean(channel),
-        )
+      return rowsForKeys(favorites.keys, byKey)
     }
 
     case "category":
@@ -124,11 +146,7 @@ export function applyBrowseFilter(
     case "favoriteGroup": {
       const group = groups?.find((entry) => entry.id === filter.groupId)
       if (!group) return []
-      return group.channelKeys
-        .map((key) => byKey.get(key))
-        .filter((channel): channel is PortalChannelWithSource =>
-          Boolean(channel),
-        )
+      return rowsForKeys(group.channelKeys, byKey)
     }
   }
 }

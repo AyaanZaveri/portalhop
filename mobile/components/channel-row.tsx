@@ -1,7 +1,7 @@
 import { memo } from "react"
 import { Text, View } from "react-native"
 
-import type { PortalChannelWithSource } from "@/lib/channels"
+import type { ChannelWithStreams } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
 import { CategoryVisual } from "@/components/category-visual"
 import { ChannelLogo } from "@/components/channel-logo"
@@ -20,9 +20,9 @@ export const ChannelRow = memo(function ChannelRow({
   onPress,
   onLongPress,
 }: {
-  channel: PortalChannelWithSource
-  onPress: (channel: PortalChannelWithSource) => void
-  onLongPress: (channel: PortalChannelWithSource) => void
+  channel: ChannelWithStreams
+  onPress: (channel: ChannelWithStreams) => void
+  onLongPress: (channel: ChannelWithStreams) => void
 }) {
   const { colors } = useTheme()
   const logo = channel.logoUrl || channel.logo
