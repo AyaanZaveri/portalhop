@@ -1,4 +1,6 @@
-import quantize from "quantize"
+import { Palette, Swatch } from "@vibrant/color"
+import { DefaultGenerator } from "@vibrant/generator-default"
+import { MMCQ } from "@vibrant/quantizer-mmcq"
 
 /**
  * The third implementation of the logo pass, after the Kotlin and the Swift.
@@ -26,14 +28,16 @@ export type LogoStyle = {
   /** The colour the tile should take, where the logo offers one. */
   color?: string
   /**
-   * The logo's dominant colour, whatever it turns out to be.
+   * The logo's vibrant colour — the one a person would name if asked what
+   * colour the channel is.
    *
    * Not the tile's colour and not a fallback for it. `color` is a verdict —
    * most logos are told to keep the base tile, and a white mark is deliberately
    * given no colour at all, because a white tile behind a white mark is not a
-   * tile. This is the plainer question of what colour the picture mostly is,
-   * which is the right one for something that is only ever a wash behind other
-   * things: CP24 is white, and a white glow is exactly what it should throw.
+   * tile. This is the plainer question, and the right one for something that is
+   * only ever a wash behind other things. A logo with no colourful swatch at
+   * all falls back to its dominant one: CP24 is white, and a white glow is
+   * exactly what it should throw.
    */
   accent?: string
   /** The image's own width over its height, needed to lay the artwork out. */
@@ -388,43 +392,69 @@ function recolorEnclosed(
 }
 
 /**
- * The logo's dominant colour, by median cut.
+ * The logo's vibrant colour.
  *
- * The algorithm Color Thief uses, run here rather than through the library
- * itself for two reasons. The pass already holds decoded pixels in a worker,
- * and Color Thief wants an <img> and a document, which would mean fetching and
- * decoding every logo a second time on the main thread — and its pixel reader
- * drops anything above 250 in all three channels, which would throw away every
- * pixel of a white wordmark and answer nothing for the case this exists for.
+ * node-vibrant's own quantizer and generator, used directly rather than through
+ * its Vibrant class: that class exists to load an image and hand its pixels to
+ * this pair, and the pass already has decoded pixels in a worker where there is
+ * no document to load an image with. MMCQ is the median cut Color Thief also
+ * uses; DefaultGenerator is the part Color Thief has no equivalent of, sorting
+ * the swatches into Vibrant, Muted and their light and dark variants.
  *
- * Transparency is still skipped at the same threshold it uses, since a logo is
- * mostly transparent and its background is not its colour.
+ * Vibrant rather than dominant, which is what Color Thief answers with. The
+ * dominant colour of a logo is usually its background or the grey of its
+ * lettering — technically correct and, as a wash behind a channel, a wash of
+ * nothing. The vibrant one is the colour a person would name if asked what
+ * colour the channel is, however little of the picture it covers.
+ *
+ * The muted variants and then the largest swatch stand behind it, because a
+ * logo can have no colourful swatch at all: a white wordmark, a grey monogram.
+ * Falling through to what is actually there is the right answer for those —
+ * white is CP24's colour, and a white glow is what it should throw.
+ *
+ * No filters are applied. node-vibrant's optional ones drop near-white pixels,
+ * which is exactly the case this has to answer for; MMCQ on its own skips only
+ * fully transparent pixels, which a logo is mostly made of and which are not
+ * its colour.
  */
-function dominant(data: Uint8ClampedArray, count: number) {
-  const pixels: [number, number, number][] = []
-  // Every fourth pixel. Median cut is being asked which colour a picture is
-  // mostly made of, and that answer does not change with four times the sample
-  // — but the time it takes does.
-  for (let i = 0; i < count; i += 4) {
-    const p = i * 4
-    if (data[p + 3] < 125) continue
-    pixels.push([data[p], data[p + 1], data[p + 2]])
-  }
+function vibrant(data: Uint8ClampedArray) {
+  const swatches = MMCQ(data, { colorCount: 64 })
+  if (!swatches.length) return null
 
-  if (pixels.length < 8) return null
+  // The generator's type allows a promise so a custom one may be async. The
+  // default is not, and awaiting it would make this whole pass async for
+  // nothing.
+  const palette = DefaultGenerator(swatches) as Palette
 
-  // quantize returns false rather than throwing when the pixels give it
-  // nothing to cut — one flat colour, or too few to bother with.
-  const map = quantize(pixels, 5)
-  const palette = map ? map.palette() : null
-  if (!palette?.length) return null
+  /**
+   * Only swatches the image actually contains.
+   *
+   * The generator fills a slot it could not fill from the image by inventing a
+   * colour from a neighbouring slot, and for a logo with no colour in it those
+   * inventions are grey: a white wordmark comes back with a "Vibrant" of
+   * #7f7f7f, which is neither vibrant nor in the picture. An invented swatch is
+   * marked by a population of zero, which is the honest way to tell it from one
+   * that was measured.
+   */
+  const measured = (swatch: Swatch | null) =>
+    swatch && swatch.population > 0 ? swatch : null
 
-  const [r, g, b] = palette[0]
-  return hex({ r, g, b })
+  const chosen =
+    measured(palette.Vibrant) ??
+    measured(palette.LightVibrant) ??
+    measured(palette.DarkVibrant) ??
+    measured(palette.Muted) ??
+    measured(palette.LightMuted) ??
+    measured(palette.DarkMuted) ??
+    swatches.reduce((best, swatch) =>
+      swatch.population > best.population ? swatch : best,
+    )
+
+  return chosen?.hex ?? null
 }
 
 /**
- * The pass, and the dominant colour taken before it runs.
+ * The pass, and the vibrant colour taken before it runs.
  *
  * Before, because classify rewrites the pixels where it decides to redraw the
  * mark — it paints the holes with the tile colour and turns the mark white — so
@@ -435,7 +465,7 @@ export function analyse(
   url: string,
   trace?: Partial<Trace>,
 ): Verdict {
-  const accent = dominant(image.data, image.width * image.height)
+  const accent = vibrant(image.data)
   const verdict = classify(image, url, trace)
 
   return accent
