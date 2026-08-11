@@ -36,18 +36,19 @@ export function Orb({
   size?: number
   state?: OrbState
 }) {
-  const { iconPrimary, isDark } = useTheme()
+  const { orbPrimary, isDark } = useTheme()
 
   return (
     <ThinkingOrb
       state={state}
       size={size}
-      // iconPrimary, not the raw primary: knocked back to brightness 75 in
-      // light mode, the same treatment the drawer icons take. The lime is a
-      // light one, and at full value on a white background it goes hazy —
-      // which on a loader is worse than on an icon, because a loader is the
-      // only thing on the screen to look at.
-      color={iconPrimary}
+      // Its own shade rather than the icons': brighter than the palette's lime
+      // in dark mode, where the orb is a scatter of small dots on near-black
+      // and the stored value leaves it barely there, and knocked back the way
+      // the icons are in light mode, where the same lime at full value goes
+      // hazy on white — worse on a loader than on an icon, because a loader is
+      // the only thing on the screen to look at.
+      color={orbPrimary}
       // Told rather than sniffed. `auto` reads the system scheme, which is not
       // the app's — the theme here is a stored preference and can disagree with
       // the device.

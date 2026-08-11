@@ -52,6 +52,22 @@ export function useTheme() {
     iconPrimary: isDark
       ? colors.primary
       : scaleBrightness(colors.primary, 0.75),
+    /**
+     * The primary again, pushed brighter for the orb in dark mode.
+     *
+     * The palette's lime is already fully saturated in sRGB — the generator
+     * clipped it getting there, since the real token is more chromatic than
+     * sRGB can hold — so there is no saturation left to add and value is the
+     * only thing that can make it read. At its stored value it sits at 40%
+     * lightness, which on a near-black screen is a dim ring of dots rather
+     * than a loader.
+     *
+     * Light mode keeps the icons' knock-back: on white, brighter is less
+     * visible, not more.
+     */
+    orbPrimary: isDark
+      ? scaleBrightness(colors.primary, 1.2)
+      : scaleBrightness(colors.primary, 0.75),
     toggle,
   }
 }

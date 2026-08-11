@@ -211,15 +211,15 @@ export function PullToRefresh({
         ]}
       >
         {refreshing ? (
-          // Still the size of the arrow it replaces, so the indicator does not
-          // change size when the pull tips over into a refresh — both went up
-          // together. Past the 20 the orb's dot layout is tuned for, but it
-          // interpolates toward 64 and four points buys a lot of clarity on
-          // something this small.
-          <Orb size={24} />
+          // Bigger than the arrow it replaces, not the same. An orb of a given
+          // size is a scatter of dots inside a sphere, with space around them
+          // by construction, where an icon is ink out to its own edge — so
+          // matching the numbers made the orb read as the smaller of the two.
+          // Matching what they look like means the orb takes more of the box.
+          <Orb size={32} />
         ) : (
           <Animated.View style={arrowStyle}>
-            <RefreshCw size={24} color={colors["muted-foreground"]} />
+            <RefreshCw size={20} color={colors["muted-foreground"]} />
           </Animated.View>
         )}
       </Animated.View>
