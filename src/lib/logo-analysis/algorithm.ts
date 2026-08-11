@@ -1,3 +1,5 @@
+import quantize from "quantize"
+
 /**
  * The third implementation of the logo pass, after the Kotlin and the Swift.
  *
@@ -23,6 +25,17 @@ export type LogoStyle = {
   uri?: string
   /** The colour the tile should take, where the logo offers one. */
   color?: string
+  /**
+   * The logo's dominant colour, whatever it turns out to be.
+   *
+   * Not the tile's colour and not a fallback for it. `color` is a verdict —
+   * most logos are told to keep the base tile, and a white mark is deliberately
+   * given no colour at all, because a white tile behind a white mark is not a
+   * tile. This is the plainer question of what colour the picture mostly is,
+   * which is the right one for something that is only ever a wash behind other
+   * things: CP24 is white, and a white glow is exactly what it should throw.
+   */
+  accent?: string
   /** The image's own width over its height, needed to lay the artwork out. */
   aspect?: number
   /** Where the artwork sits inside the image, in fractions of it. */
@@ -374,7 +387,63 @@ function recolorEnclosed(
   }
 }
 
-export function analyse(image: ImageData, url: string, trace?: Partial<Trace>): Verdict {
+/**
+ * The logo's dominant colour, by median cut.
+ *
+ * The algorithm Color Thief uses, run here rather than through the library
+ * itself for two reasons. The pass already holds decoded pixels in a worker,
+ * and Color Thief wants an <img> and a document, which would mean fetching and
+ * decoding every logo a second time on the main thread — and its pixel reader
+ * drops anything above 250 in all three channels, which would throw away every
+ * pixel of a white wordmark and answer nothing for the case this exists for.
+ *
+ * Transparency is still skipped at the same threshold it uses, since a logo is
+ * mostly transparent and its background is not its colour.
+ */
+function dominant(data: Uint8ClampedArray, count: number) {
+  const pixels: [number, number, number][] = []
+  // Every fourth pixel. Median cut is being asked which colour a picture is
+  // mostly made of, and that answer does not change with four times the sample
+  // — but the time it takes does.
+  for (let i = 0; i < count; i += 4) {
+    const p = i * 4
+    if (data[p + 3] < 125) continue
+    pixels.push([data[p], data[p + 1], data[p + 2]])
+  }
+
+  if (pixels.length < 8) return null
+
+  // quantize returns false rather than throwing when the pixels give it
+  // nothing to cut — one flat colour, or too few to bother with.
+  const map = quantize(pixels, 5)
+  const palette = map ? map.palette() : null
+  if (!palette?.length) return null
+
+  const [r, g, b] = palette[0]
+  return hex({ r, g, b })
+}
+
+/**
+ * The pass, and the dominant colour taken before it runs.
+ *
+ * Before, because classify rewrites the pixels where it decides to redraw the
+ * mark — it paints the holes with the tile colour and turns the mark white — so
+ * asking afterwards would be asking about a picture the pass had just made up.
+ */
+export function analyse(
+  image: ImageData,
+  url: string,
+  trace?: Partial<Trace>,
+): Verdict {
+  const accent = dominant(image.data, image.width * image.height)
+  const verdict = classify(image, url, trace)
+
+  return accent
+    ? { ...verdict, style: { ...verdict.style, accent } }
+    : verdict
+}
+
+function classify(image: ImageData, url: string, trace?: Partial<Trace>): Verdict {
   const { width, height } = image
   const data = image.data
   const count = width * height

@@ -11,6 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
 import { getChannelKey } from "@/lib/tv-channels"
 import { ChannelLogo } from "@/components/tv/channel-logo"
+import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
+import { useLogoStyle } from "@/lib/logo-analysis"
 import { LivePlayer } from "@/components/tv/live-player"
 import { ProgrammeGuide } from "@/components/tv/programme-guide"
 import {
@@ -98,6 +100,7 @@ export function ChannelDetail() {
     // one provider means all three read the same fetch.
     <ChannelEpgProvider channel={channel}>
       <div className="bg-background relative flex h-full flex-col overflow-hidden min-[940px]:rounded-2xl">
+        <ChannelMeshBackdrop logoUrl={logoUrl} />
         <div className="relative z-10 flex min-h-16 items-center gap-2 px-4 pt-4 pb-3 min-[940px]:pr-[22rem]">
           <Link
             href="/tv"
@@ -140,7 +143,7 @@ export function ChannelDetail() {
           </motion.button>
         </div>
         <ScrollArea
-          className="touch-hide-scrollbar min-h-0 flex-1 px-4 pb-4"
+          className="touch-hide-scrollbar relative z-10 min-h-0 flex-1 px-4 pb-4"
           viewportClassName="focus-visible:ring-0 focus-visible:outline-none"
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pt-2">
@@ -195,5 +198,45 @@ function NowPlayingTitle() {
     <span className="text-muted-foreground truncate text-sm leading-tight">
       {currentProgramme.title}
     </span>
+  )
+}
+
+/**
+ * The channel's colour, behind the top of the player panel.
+ *
+ * The band the tiles page wears, to the figure: the same height, the same fade
+ * to nothing at 40%, and the same backdrop underneath it. It is also what the
+ * panel already shows when no channel is selected, so opening one changes the
+ * colour rather than introducing a decoration.
+ *
+ * The colour is the logo's, from the pass that tints the tile a few points
+ * away — one channel, one colour. A logo the pass found nothing in leaves this
+ * undefined and the backdrop keeps the app's green, which is what the empty
+ * panel shows too.
+ */
+function ChannelMeshBackdrop({ logoUrl }: { logoUrl: string }) {
+  // The dominant colour rather than the tile's. The tile's is a verdict about
+  // what a mark can be read against — most logos are told to keep the base
+  // tile, and a white one is given no colour at all — which leaves the
+  // channels with the plainest colours of all throwing no glow. What a wash
+  // behind a header wants is just what colour the logo mostly is.
+  const { accent, color } = useLogoStyle(logoUrl)
+
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[clamp(26rem,52vw,40rem)]"
+      style={{
+        // Full strength for the top third, then gone by the bottom. Taller
+        // than the tiles page's band and fading sooner within itself, because
+        // here the useful part is the strip above the picture.
+        maskImage:
+          "linear-gradient(to bottom, #000 0%, #000 30%, transparent 100%)",
+        WebkitMaskImage:
+          "linear-gradient(to bottom, #000 0%, #000 30%, transparent 100%)",
+      }}
+    >
+      <PrimaryMeshGradientBackdrop color={accent ?? color} intensity="vivid" />
+    </div>
   )
 }
