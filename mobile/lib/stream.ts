@@ -3,14 +3,18 @@ import Constants from "expo-constants"
 import { apiFetch } from "./api"
 
 /**
- * Optional stream proxy, matching the web's NEXT_PUBLIC_PROXY_URL.
+ * The stream proxy, the same one the web points at.
  *
- * Left unset by default, because native does not need it the way a browser
- * does. A Stalker portal usually hands back MPEG-TS over HTTP, which no browser
- * will play — hence the web remuxing it to HLS — while ExoPlayer reads it
- * directly. Going direct skips a hop and the latency that comes with it. Set
- * `extra.proxyBaseUrl` in app.json if a portal turns out to serve something
- * ExoPlayer will not take.
+ * This was left unset on the reasoning that native does not need it: a browser
+ * cannot play MPEG-TS or load http:// from an https:// page, and ExoPlayer has
+ * neither problem. What that missed is that the proxy is not only a remuxer.
+ * It fetches the stream server-side and hands back a playlist whose segments it
+ * serves itself, so whatever the portal wants — its own headers, a redirect
+ * chain, a host that only answers to the request the portal expects — is dealt
+ * with where it can be dealt with. The app gets one https URL that behaves.
+ *
+ * Whether it is used is the account's setting, not this file's decision. See
+ * resolveChannelLink.
  */
 const proxyBaseUrl = String(Constants.expoConfig?.extra?.proxyBaseUrl ?? "")
   .trim()
@@ -39,6 +43,14 @@ export function isProxyConfigured() {
 export async function resolveChannelLink(
   sourceId: number,
   savedChannelId: number,
+  /**
+   * The account's own preference, as the web reads it.
+   *
+   * The app used to ignore it and always play direct, so a portal that needs
+   * the proxy played on the web and not here — the setting existed, was synced,
+   * and did nothing on this platform.
+   */
+  useProxy: boolean,
   signal?: AbortSignal,
 ): Promise<string> {
   const response = await apiFetch("/api/channel-link", {
@@ -57,5 +69,5 @@ export async function resolveChannelLink(
     throw new Error(data.error || "Could not pull the latest stream.")
   }
 
-  return proxyStreamUrl(data.link)
+  return useProxy ? proxyStreamUrl(data.link) : data.link
 }

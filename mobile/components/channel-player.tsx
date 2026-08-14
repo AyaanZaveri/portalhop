@@ -33,6 +33,7 @@ import {
 } from "lucide-react-native"
 import * as ScreenOrientation from "expo-screen-orientation"
 
+import { useSettings } from "@/lib/channels"
 import { useTheme } from "@/lib/theme"
 import { StatusBar } from "expo-status-bar"
 import { BackHandler } from "react-native"
@@ -102,14 +103,29 @@ export function ChannelPlayer({
    * play time and never cached — `staleTime: 0` with no retry, because retrying
    * a link that the portal has already burned just fails again more slowly.
    */
+  /**
+   * The account's proxy preference, read the way the web reads it.
+   *
+   * Part of the link's query key rather than something applied afterwards: the
+   * proxied and direct urls are different streams to resolve, and a setting
+   * that arrives after playback started should re-resolve rather than leave the
+   * player on the wrong one.
+   *
+   * Defaults to on while the settings request is in flight, which is the
+   * server's default too — a portal that needs the proxy is broken without it,
+   * and one that does not is merely taking a longer road.
+   */
+  const { data: settings } = useSettings(canPlay)
+  const useProxy = settings?.useProxy ?? true
+
   const link = useQuery({
-    queryKey: ["channel-link", sourceId, savedChannelId],
+    queryKey: ["channel-link", sourceId, savedChannelId, useProxy],
     enabled: canPlay,
     staleTime: 0,
     gcTime: 0,
     retry: false,
     queryFn: ({ signal }) =>
-      resolveChannelLink(sourceId!, savedChannelId!, signal),
+      resolveChannelLink(sourceId!, savedChannelId!, useProxy, signal),
   })
 
   /**
