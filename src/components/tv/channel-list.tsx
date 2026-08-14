@@ -113,22 +113,33 @@ function categoryPreferenceKey(sourceId: number, genre: string) {
  * Orders channels by a saved sequence of channel keys. Anything not in the
  * sequence keeps its catalogue position at the end, so a channel added since
  * the last reorder appears rather than disappearing.
+ *
+ * A channel is looked up under either key it might be stored against — its own,
+ * and the per-copy key a favourite made before favourites belonged to channels
+ * still carries. Ranking on one of them alone put every row of the other kind
+ * at the end, which reads as the saved order having been forgotten.
  */
 function sortByKeyOrder(
   channels: PortalChannelWithSource[],
   orderedKeys: string[],
+  identityKeyOf: (channel: PortalChannelWithSource) => string | null,
 ) {
   if (!orderedKeys.length) {
     return channels
   }
 
   const rank = new Map(orderedKeys.map((key, index) => [key, index]))
+  const rankOf = (channel: PortalChannelWithSource) => {
+    const identityKey = identityKeyOf(channel)
+    return Math.min(
+      identityKey
+        ? (rank.get(identityKey) ?? Number.MAX_SAFE_INTEGER)
+        : Number.MAX_SAFE_INTEGER,
+      rank.get(getChannelKey(channel)) ?? Number.MAX_SAFE_INTEGER,
+    )
+  }
 
-  return [...channels].sort((a, b) => {
-    const aRank = rank.get(getChannelKey(a)) ?? Number.MAX_SAFE_INTEGER
-    const bRank = rank.get(getChannelKey(b)) ?? Number.MAX_SAFE_INTEGER
-    return aRank - bRank
-  })
+  return [...channels].sort((a, b) => rankOf(a) - rankOf(b))
 }
 
 // The category list tints its icons with the primary colour and knocks the
@@ -296,7 +307,12 @@ export function ChannelList({
   }
 
   async function persistOrder(channels: PortalChannelWithSource[]) {
-    const channelKeys = channels.map(getChannelKey)
+    // The key each row is *stored* under, not the row's own. A favourite is
+    // written against the channel, so an order sent in per-copy keys would name
+    // rows the saved list does not contain — and the endpoint moves the rows it
+    // finds and ignores the rest, so the drag would appear to work and revert
+    // on the next read.
+    const channelKeys = channels.map(favoriteKeyFor)
     const endpoint =
       browseFilter.type === "favoriteGroup"
         ? `/api/favorite-groups/${browseFilter.groupId}/order`
@@ -504,6 +520,7 @@ export function ChannelList({
       return sortByKeyOrder(
         visibleCategoryChannels.filter(isChannelFavorited),
         [...favorites],
+        identityKeyOf,
       )
     }
     if (browseFilter.type === "favoriteGroup") {
@@ -517,6 +534,7 @@ export function ChannelList({
           ),
         ),
         selectedFavoriteGroup?.channelKeys ?? [],
+        identityKeyOf,
       )
     }
     return visibleCategoryChannels.filter(
@@ -558,9 +576,17 @@ export function ChannelList({
     [sourceOrder, trustedIds, visibleChannels],
   )
 
-  // While reordering, the dragged order wins until the saved order catches up.
+  /**
+   * While reordering, the dragged order wins until the saved order catches up.
+   *
+   * Over the grouped rows, not the raw streams. Reordering read from the
+   * ungrouped list, so entering the mode split every channel back into one row
+   * per portal — the same channel two or three times, which is the thing
+   * grouping exists to stop. A favourite is a channel, so its list is a list of
+   * channels whether or not it is being dragged.
+   */
   const orderedChannels =
-    isReordering && reorderedChannels ? reorderedChannels : visibleChannels
+    isReordering && reorderedChannels ? reorderedChannels : groupedChannels
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual intentionally returns imperative helpers for scroll math.
   const rowVirtualizer = useVirtualizer({
