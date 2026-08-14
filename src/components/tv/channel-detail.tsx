@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { motion, useReducedMotion } from "motion/react"
 import { ChevronLeftIcon } from "lucide-react"
 
@@ -21,6 +22,7 @@ import {
 } from "@/components/tv/channel-epg-provider"
 import { useTv } from "@/components/tv/tv-provider"
 import {
+  channelHref,
   useActiveChannelSlug,
   useActiveChannelSourceId,
 } from "@/hooks/use-active-channel"
@@ -36,6 +38,7 @@ export function ChannelDetail() {
     browserChannels,
     channelSlug,
     channelLogoUrl,
+    channelStreams,
   } = useTv()
   const prefersReducedMotion = useReducedMotion()
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -93,6 +96,46 @@ export function ChannelDetail() {
    * each stream still wears its own.
    */
   const logoUrl = channelLogoUrl(defaultChannel ?? channel)
+
+  /**
+   * When a source will not play, move down the list rather than sit there.
+   *
+   * The order is the channel's own -- the same one the sources drawer shows and
+   * the same one that decided which stream opened -- so this is the list being
+   * followed to its next entry, not a search for something that works.
+   *
+   * Only streams that can be addressed. A stream is pinned for this view by its
+   * saved-channel id, and one without a row of its own -- the built-in iptv-org
+   * catalogue -- cannot be pinned, so moving to it would land back on whatever
+   * the channel opens by default and fail over again.
+   *
+   * replace, not push: a source that did not play is not a place to go back to.
+   */
+  const streams = channelStreams(defaultChannel ?? channel)
+  const currentIndex = streams.findIndex(
+    (stream) => getChannelKey(stream) === getChannelKey(channel),
+  )
+  const nextStream =
+    currentIndex >= 0
+      ? streams
+          .slice(currentIndex + 1)
+          .find((stream) => stream.savedChannelId != null)
+      : undefined
+
+  // Not memoized, and it must not be: this sits below an early return, where a
+  // hook cannot go. The player holds it in a ref rather than in a dependency
+  // array, so a new function every render costs nothing.
+  const onUnplayable = (reason: string) => {
+    if (!nextStream) {
+      toast.error(reason)
+      return
+    }
+
+    toast(
+      `${channel.portalSource?.name ?? "That source"} didn't play. Trying ${nextStream.portalSource?.name ?? "the next source"}.`,
+    )
+    router.replace(channelHref(channelId, nextStream.savedChannelId))
+  }
 
   return (
     // The guide wraps the header too, not just the player and the listings
@@ -154,6 +197,7 @@ export function ChannelDetail() {
               key={getChannelKey(channel)}
               channel={channel}
               logoUrl={logoUrl}
+              onUnplayable={onUnplayable}
             />
             <ProgrammeGuide />
           </div>

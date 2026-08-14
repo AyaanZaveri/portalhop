@@ -20,6 +20,7 @@ import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {
   groupKeyFor,
   identityKeyFor,
+  orderByChosenSource,
   trustedGuideIds,
   IDENTITY_NAME_LIMIT,
   type ChannelSourceOrder,
@@ -73,6 +74,8 @@ type TvContextValue = {
   channelSlug: (channel: PortalChannelWithSource) => string
   /** The channel's own artwork, the same wherever the channel is drawn. */
   channelLogoUrl: (channel: PortalChannelWithSource) => string
+  /** Every stream carrying this channel, the chosen one first. */
+  channelStreams: (channel: PortalChannelWithSource) => PortalChannelWithSource[]
   /** What a channel is, for anything that stores or addresses one. */
   identityKeyOf: (channel: PortalChannelWithSource) => string | null
   /**
@@ -502,6 +505,26 @@ export function TvProvider({
   }, [browserChannels])
 
   /**
+   * The streams behind a channel, the chosen one first.
+   *
+   * From the whole-catalogue grouping rather than a fresh one per caller, so
+   * the sources drawer, the failover and the list cannot disagree about what a
+   * channel's sources are or which of them leads.
+   */
+  const channelStreams = useCallback(
+    (channel: PortalChannelWithSource) => {
+      const key = groupKeyFor(channel, catalogueGroups.trusted)?.key
+      const streams = (key && catalogueGroups.streams.get(key)) || [channel]
+      return orderByChosenSource(
+        streams,
+        sourceOrder,
+        catalogueGroups.identityTrusted,
+      )
+    },
+    [catalogueGroups, sourceOrder],
+  )
+
+  /**
    * What a channel looks like, wherever it is drawn.
    *
    * Not a property of any one of its streams, which is the bug this replaces:
@@ -780,6 +803,7 @@ export function TvProvider({
       channelIndex,
       channelSlug,
       channelLogoUrl,
+      channelStreams,
       identityKeyOf,
       trustedIds: catalogueGroups.identityTrusted,
       sourceOrder,
@@ -827,6 +851,7 @@ export function TvProvider({
       channelIndex,
       channelSlug,
       channelLogoUrl,
+      channelStreams,
       identityKeyOf,
       catalogueGroups,
       sourceOrder,

@@ -17,11 +17,6 @@ import {
   TvIcon,
 } from "lucide-react"
 
-import {
-  groupChannels,
-  orderByChosenSource,
-} from "@portalhop/shared/channel-grouping"
-
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -87,9 +82,9 @@ export function TvShell({ children }: { children: ReactNode }) {
     onSheetView,
     channelIndex,
     channelSlug,
-    sourceOrder,
+    channelStreams,
+    identityKeyOf,
     setChannelSourceOrder,
-    trustedIds,
     applyChannelXmltvId,
     useImageProxy,
     browseFilter,
@@ -110,28 +105,15 @@ export function TvShell({ children }: { children: ReactNode }) {
     : defaultChannel
   const [sourcesOpen, setSourcesOpen] = useState(false)
 
-  const sourceGroup = useMemo(() => {
-    if (!currentChannel) return null
-    return (
-      groupChannels(browserChannels).find((group) =>
-        group.members.some(
-          (entry) => getChannelKey(entry) === getChannelKey(currentChannel),
-        ),
-      ) ?? null
-    )
-  }, [browserChannels, currentChannel])
-
+  // The provider's grouping rather than a second one of this component's own:
+  // the drawer, the list and the failover have to agree about what a channel's
+  // sources are, and three groupings over three sets is how they stop agreeing.
   const sources = useMemo(
-    () =>
-      sourceGroup
-        ? orderByChosenSource(sourceGroup.members, sourceOrder, trustedIds)
-        : currentChannel
-          ? [currentChannel]
-          : [],
-    [currentChannel, sourceGroup, sourceOrder, trustedIds],
+    () => (currentChannel ? channelStreams(currentChannel) : []),
+    [channelStreams, currentChannel],
   )
-  const sourceIdentityKey = sourceGroup?.key.startsWith("id:")
-    ? sourceGroup.key
+  const sourceIdentityKey = currentChannel
+    ? identityKeyOf(currentChannel)
     : null
 
   const selectSource = useCallback(
@@ -155,9 +137,6 @@ export function TvShell({ children }: { children: ReactNode }) {
     [setChannelSourceOrder, sourceIdentityKey],
   )
 
-  // Each row wears what its own portal shipped, not the channel's mark. Every
-  // row here is the same channel, so the channel's mark would be the same
-  // picture nine times and the list would say nothing.
   /**
    * Correcting one stream's guide match, from the row it is wrong on.
    *
@@ -192,6 +171,9 @@ export function TvShell({ children }: { children: ReactNode }) {
     [],
   )
 
+  // Each row wears what its own portal shipped, not the channel's mark. Every
+  // row here is the same channel, so the channel's mark would be the same
+  // picture nine times and the list would say nothing.
   const sourceLogoUrl = useCallback(
     (source: PortalChannelWithSource) => getStreamLogoUrl(source, useImageProxy),
     [useImageProxy],

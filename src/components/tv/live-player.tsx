@@ -58,9 +58,25 @@ const isBuffered = (video: HTMLVideoElement, time: number) => {
   return false
 }
 
+/**
+ * How long a stream gets to produce a frame before it counts as dead.
+ *
+ * Timed from the moment the link resolves, not from the tap: pulling a fresh
+ * link out of a Stalker portal is its own wait, and a portal that is slow to
+ * answer is not the same thing as a stream that will never play.
+ *
+ * Eight seconds rather than five. A live HLS stream on a distant portal
+ * genuinely takes three or four to fetch a playlist, pull the first segments
+ * and fill enough buffer to start, and cutting away from one that was about to
+ * work is worse than waiting a moment longer -- the viewer has already chosen
+ * this source, and the next one has its own several seconds to spend.
+ */
+const START_DEADLINE_MS = 8000
+
 export function LivePlayer({
   channel,
   logoUrl: channelLogoUrl,
+  onUnplayable,
 }: {
   channel: PortalChannelWithSource
   /**
@@ -72,6 +88,15 @@ export function LivePlayer({
    * in the sources drawer, where every row wears its own.
    */
   logoUrl?: string
+  /**
+   * Called once when this stream turns out not to play: the link would not
+   * resolve, or it resolved and nothing arrived before the deadline.
+   *
+   * The player says what happened and does not decide what to do about it.
+   * Which stream comes next is a fact about the channel, which this component
+   * does not know -- it has been handed one stream.
+   */
+  onUnplayable?: (reason: string) => void
 }) {
   const { resolvedTheme } = useTheme()
   const {
@@ -239,6 +264,57 @@ export function LivePlayer({
       controller.abort()
     }
   }, [channel, endpoint, previewSourceRequest, useProxy])
+
+  /**
+   * The deadline, and the two ways it is cancelled.
+   *
+   * A stream that cannot be resolved is dead immediately -- there is nothing to
+   * wait for -- so that reports at once. A stream that resolved gets until the
+   * deadline to put a frame on screen, and the first `playing` event calls the
+   * whole thing off.
+   *
+   * `timeupdate` is deliberately not the signal. It fires while the playhead is
+   * at zero on some browsers, which would call a dead stream alive.
+   */
+  /**
+   * Held in a ref, and written to from an effect rather than during render.
+   *
+   * The caller rebuilds this function every render — it sits below an early
+   * return, so it cannot be memoized — and putting it in the deadline's
+   * dependencies would restart the countdown on every render, which is a
+   * countdown that never reaches the end.
+   */
+  const reportUnplayable = useRef(onUnplayable)
+
+  useEffect(() => {
+    reportUnplayable.current = onUnplayable
+  }, [onUnplayable])
+
+  useEffect(() => {
+    if (!resolveError) return
+    reportUnplayable.current?.(resolveError)
+  }, [resolveError])
+
+  useEffect(() => {
+    const video = playerElement
+    if (!streamUrl || !video) return
+
+    // Already running when this mounted -- a source switch reuses the element
+    // for a moment -- so there is nothing to wait for.
+    if (!video.paused && video.currentTime > 0) return
+
+    const started = () => window.clearTimeout(timer)
+    const timer = window.setTimeout(() => {
+      reportUnplayable.current?.("This source did not start.")
+    }, START_DEADLINE_MS)
+
+    video.addEventListener("playing", started)
+
+    return () => {
+      window.clearTimeout(timer)
+      video.removeEventListener("playing", started)
+    }
+  }, [playerElement, streamUrl])
 
   // hls.js snaps to the live edge once the playhead leaves the sliding playlist
   // window, so resuming skips ahead. Pull it back, but only while that frame is
