@@ -705,8 +705,31 @@ export function TvProvider({
         if (current && current !== key) mappings.set(key, [current])
       } catch {}
     }
+
+    /**
+     * And a key that names one portal's copy becomes the channel's own.
+     *
+     * The visible symptom is a favourite disappearing when its source is turned
+     * off, while four other portals still carry the channel — the star was
+     * attached to the copy rather than to the thing. Most of these are rows
+     * written before favourites belonged to channels, and a one-off migration
+     * covers those; this is here for the ones that arrive afterwards, when a
+     * channel gains a guide id from the enrichment pass or from someone fixing
+     * its match by hand, and its favourite is left behind on the old key.
+     *
+     * Only while the source is loaded, which is the limit of what a client can
+     * do: a per-copy key cannot be resolved without the copy.
+     */
+    for (const channel of browserChannels) {
+      const identityKey = identityKeyOf(channel)
+      if (!identityKey) continue
+      const copyKey = getChannelKey(channel)
+      if (copyKey === identityKey || !favorites.has(copyKey)) continue
+      mappings.set(copyKey, [identityKey])
+    }
+
     if (mappings.size) migrateFavoriteKeys(mappings)
-  }, [browserChannels, favorites, migrateFavoriteKeys])
+  }, [browserChannels, favorites, identityKeyOf, migrateFavoriteKeys])
 
   const favoriteCount = useMemo(
     () => browserChannels.filter(isChannelFavorited).length,
