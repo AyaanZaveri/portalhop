@@ -55,7 +55,9 @@ export default function ChannelDetailScreen() {
   // The two chips over the glow. Darker than what is behind them in dark mode
   // and lighter in light mode, which is the way round that reads as a control
   // sitting on the picture rather than a panel laid over it.
-  const chipBackground = isDark ? "rgba(0, 0, 0, 0.45)" : "rgba(255, 255, 255, 0.7)"
+  const chipBackground = isDark
+    ? "rgba(0, 0, 0, 0.45)"
+    : "rgba(255, 255, 255, 0.7)"
 
   // The portal record carries the EPG mode and, for a Stalker source, the
   // endpoint and credentials the guide request needs. Read from the cached
@@ -205,7 +207,7 @@ export default function ChannelDetailScreen() {
               <Layers size={14} color={colors["muted-foreground"]} />
               <Text
                 numberOfLines={1}
-                className="font-sans text-foreground max-w-28 text-xs"
+                className="text-foreground max-w-28 font-sans text-xs"
                 style={{ lineHeight: 15, includeFontPadding: false }}
               >
                 {portalName}
@@ -224,11 +226,12 @@ export default function ChannelDetailScreen() {
         onFullscreenChange={setFullscreen}
       />
 
+      {/* Above the scroller, not inside it. The channel and the heading name
+          what is being scrolled, so they are the last things that should leave
+          with it -- and on a phone the listings are long enough that scrolling
+          a few cards used to take the channel's own name off the screen. */}
       {fullscreen ? null : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-          showsVerticalScrollIndicator={false}
-        >
+        <View>
           {/* Who this is, under the picture it belongs to. */}
           <View className="flex-row items-center gap-3 px-4 pt-1">
             <ChannelLogo uri={logo} />
@@ -257,22 +260,21 @@ export default function ChannelDetailScreen() {
                 />
                 <Text
                   numberOfLines={1}
-                  className="font-sans text-muted-foreground shrink text-xs"
+                  className="text-muted-foreground shrink font-sans text-xs"
                   style={{ lineHeight: 15, includeFontPadding: false }}
                 >
                   {genre || "Uncategorized"}
                 </Text>
               </View>
             </View>
-
           </View>
 
           {/* Icon and weight follow the web's guide heading. */}
           <View className="flex-row items-center gap-2 px-4 pt-4 pb-2">
             {/* Optically centred against the text rather than mathematically:
-              the icon's mass sits low next to a cap-height word, so it reads
-              as sunk when its box is aligned. The web nudges the same icon by
-              the same amount with -mt-0.5. */}
+            the icon's mass sits low next to a cap-height word, so it reads
+            as sunk when its box is aligned. The web nudges the same icon by
+            the same amount with -mt-0.5. */}
             <Tv
               size={16}
               color={colors["muted-foreground"]}
@@ -282,7 +284,18 @@ export default function ChannelDetailScreen() {
               Programme Guide
             </Text>
           </View>
+        </View>
+      )}
 
+      {fullscreen ? null : (
+        <ScrollView
+          // Takes exactly what is left under the fixed block and scrolls inside
+          // it. Without the flex it measures to its content, which is what lets
+          // a long guide push past the bottom of the screen instead of moving.
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          showsVerticalScrollIndicator={false}
+        >
           <ChannelSchedule
             portal={portal}
             channelId={channelId}
