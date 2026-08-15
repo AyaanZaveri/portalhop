@@ -163,20 +163,42 @@ export default function ChannelDetailScreen() {
           fullscreen is that nothing but the video is on screen. Drawn before
           the header so it sits under it without needing a z-index. */}
       {fullscreen ? null : <TopGlow color={logoStyle.color} />}
-      {/* Just the way back. The channel says who it is under the video now,
-          where the thing being named is already on screen — a header above the
-          player named a channel the viewer could not see yet, and pushed the
-          video down the screen to do it. */}
+      {/* The way back, and the way to another source. The channel says who it
+          is under the video now — a header above the player named a channel the
+          viewer could not see yet, and pushed the video down the screen to do
+          it — so what is left up here are the two controls, one at each end. */}
       {fullscreen ? null : (
-        <View className="flex-row items-center px-3 pt-2 pb-2">
+        <View className="flex-row items-center justify-between px-3 pt-2 pb-1">
           <PressableScale
             preset="icon"
             hitSlop={8}
             onPress={() => router.back()}
-            className="size-9 items-center justify-center rounded-lg"
+            // A surface of its own. It sits over the glow rather than over the
+            // page, and an unbacked glyph on a colour that changes per channel
+            // is legible by luck.
+            className="bg-muted size-9 items-center justify-center rounded-lg"
           >
             <ChevronLeft size={22} color={colors.foreground} />
           </PressableScale>
+
+          {/* Layers, the same icon the web's sources control wears. */}
+          {portalName ? (
+            <PressableScale
+              preset="icon"
+              hitSlop={8}
+              onPress={openSources}
+              className="bg-muted h-9 flex-row items-center gap-1.5 rounded-lg px-2.5"
+            >
+              <Layers size={14} color={colors["muted-foreground"]} />
+              <Text
+                numberOfLines={1}
+                className="font-sans text-foreground max-w-28 text-xs"
+                style={{ lineHeight: 15, includeFontPadding: false }}
+              >
+                {portalName}
+              </Text>
+            </PressableScale>
+          ) : null}
         </View>
       )}
 
@@ -195,7 +217,7 @@ export default function ChannelDetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Who this is, under the picture it belongs to. */}
-          <View className="flex-row items-center gap-3 px-4 pt-4">
+          <View className="flex-row items-center gap-3 px-4 pt-1">
             <ChannelLogo uri={logo} />
 
             <View className="min-w-0 flex-1">
@@ -230,29 +252,6 @@ export default function ChannelDetailScreen() {
               </View>
             </View>
 
-            {/* The source, as its own control on the right rather than a badge
-                wedged into the category line. It is the one thing here that
-                does something when pressed, and a name in a box beside two
-                pieces of text did not say so. The icon carries that: layers,
-                the same one the web's sources item wears. */}
-            {portalName ? (
-              <PressableScale
-                preset="icon"
-                hitSlop={8}
-                onPress={openSources}
-                className="h-9 flex-row items-center gap-1.5 rounded-lg border px-2.5"
-                style={{ borderColor: colors.border }}
-              >
-                <Layers size={14} color={colors["muted-foreground"]} />
-                <Text
-                  numberOfLines={1}
-                  className="font-sans text-foreground max-w-24 text-xs"
-                  style={{ lineHeight: 15, includeFontPadding: false }}
-                >
-                  {portalName}
-                </Text>
-              </PressableScale>
-            ) : null}
           </View>
 
           {/* Icon and weight follow the web's guide heading. */}

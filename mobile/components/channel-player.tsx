@@ -346,7 +346,11 @@ export function ChannelPlayer({
       className={
         fullscreen
           ? "flex-1 bg-black"
-          : "mx-3 aspect-video overflow-hidden rounded-xl bg-black"
+          : // The picture carries its own margin on all four sides rather than
+            // taking it from whatever sits above and below. What is around a
+            // video is part of how big it looks, and it was flush against the
+            // header on one side and the channel block on the other.
+            "mx-3 my-3 aspect-video overflow-hidden rounded-xl bg-black"
       }
     >
       {/* The system bars have no business over a full-screen picture, and the
