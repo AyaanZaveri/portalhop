@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import {
@@ -20,6 +20,7 @@ import type { UserSettingsData } from "@portalhop/shared/user-settings"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 import { apiJson } from "./api"
+import { loadSelectedPortalIds } from "./preferences"
 import { useChannelSourceOrder } from "./source-order"
 
 export type PortalChannelWithSource = PortalChannel & {
@@ -260,15 +261,41 @@ export function useCachedStreams(enabled: boolean) {
   const queryClient = useQueryClient()
   const sourceOrder = useChannelSourceOrder(enabled)
 
+  /**
+   * Only the sources the user is browsing with.
+   *
+   * A catalogue stays in the persisted cache after its portal is switched off,
+   * so scanning everything cached would offer streams from portals the list is
+   * not showing — and, worse, could rank one of them first, so the sheet's top
+   * row and the row the list plays would be different streams. An empty
+   * selection means "all", which is what the list means by it too.
+   */
+  const [selectedPortalIds, setSelectedPortalIds] = useState<Set<number>>(
+    () => new Set(),
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void loadSelectedPortalIds().then((ids) => {
+      if (!cancelled) setSelectedPortalIds(ids)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return useCallback(
     (xmltvId: string | undefined): PortalChannelWithSource[] => {
       const id = normalizeXmltvId(xmltvId)
       if (!id) return []
 
-      const portals =
+      const portals = (
         queryClient.getQueryData<{ portals: SavedSourceRecord[] }>([
           "portals",
         ])?.portals ?? []
+      ).filter(
+        (portal) => !selectedPortalIds.size || selectedPortalIds.has(portal.id),
+      )
       const names = new Map(portals.map((portal) => [portal.id, portal.name]))
 
       const streams: PortalChannelWithSource[] = []
@@ -327,6 +354,6 @@ export function useCachedStreams(enabled: boolean) {
 
       return orderByChosenSource(streams, sourceOrder, trusted)
     },
-    [queryClient, sourceOrder],
+    [queryClient, selectedPortalIds, sourceOrder],
   )
 }

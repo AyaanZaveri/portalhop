@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { router, useLocalSearchParams } from "expo-router"
-import { ChevronLeft, ChevronDown, Tv } from "lucide-react-native"
+import { ChevronLeft, Layers, Tv } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme } from "@/lib/theme"
@@ -90,9 +90,45 @@ export default function ChannelDetailScreen() {
     if (streams.length > 1) sourcesSheet.current?.present()
   }, [streams])
 
+  /**
+   * The channel's first source plays, unless this viewing picked another.
+   *
+   * The row that was tapped already carries the chosen stream, so this agrees
+   * with it in the ordinary case and does nothing. It is here for the case
+   * where it cannot: the order arrives from the server on its own schedule, and
+   * a channel opened before it lands opened on whichever stream the catalogue
+   * happened to list first. Correcting it afterwards is the difference between
+   * "the top of the list plays" being true always and being true usually.
+   *
+   * A source chosen from the sheet is exempt, permanently for this screen. That
+   * choice is the whole point of the sheet, and moving off it a moment later
+   * because the saved order disagrees would make the sheet useless.
+   */
+  const pickedThisViewing = useRef(false)
+  // What was last corrected to, so a param that somehow does not take cannot
+  // turn this into a loop that keeps asking for the same thing.
+  const correctedTo = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (pickedThisViewing.current) return
+
+    const first = streams[0]
+    if (!first || first.savedChannelId == null) return
+    if (first.savedChannelId === Number(savedChannelId)) return
+    if (correctedTo.current === first.savedChannelId) return
+
+    correctedTo.current = first.savedChannelId
+    router.setParams({
+      savedChannelId: String(first.savedChannelId),
+      portalId: String(first.portalSource?.id ?? ""),
+      portalName: first.portalSource?.name ?? "",
+    })
+  }, [savedChannelId, streams])
+
   const chooseStream = useCallback(
     (stream: PortalChannelWithSource) => {
       sourcesSheet.current?.dismiss()
+      pickedThisViewing.current = true
 
       // Stamped by useCachedStreams, which has already decided whether this
       // guide id is an identity or a label the portal writes on everything.
@@ -127,12 +163,12 @@ export default function ChannelDetailScreen() {
           fullscreen is that nothing but the video is on screen. Drawn before
           the header so it sits under it without needing a z-index. */}
       {fullscreen ? null : <TopGlow color={logoStyle.color} />}
-      {/* Logo, name, category and source — the same block the web's channel
-          header carries, and the same logo treatment as a list row so a
-          channel looks like itself on both screens. Stood down in fullscreen,
-          which is what leaves the player the room to fill. */}
+      {/* Just the way back. The channel says who it is under the video now,
+          where the thing being named is already on screen — a header above the
+          player named a channel the viewer could not see yet, and pushed the
+          video down the screen to do it. */}
       {fullscreen ? null : (
-        <View className="flex-row items-center gap-3 px-3 pt-2 pb-5">
+        <View className="flex-row items-center px-3 pt-2 pb-2">
           <PressableScale
             preset="icon"
             hitSlop={8}
@@ -141,68 +177,6 @@ export default function ChannelDetailScreen() {
           >
             <ChevronLeft size={22} color={colors.foreground} />
           </PressableScale>
-
-          <ChannelLogo uri={logo} />
-
-          <View className="min-w-0 flex-1">
-            <Text
-              numberOfLines={1}
-              className="text-foreground font-rounded text-[17px] tracking-tight"
-              style={{ lineHeight: 21, includeFontPadding: false }}
-            >
-              {name || "Live stream"}
-            </Text>
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 2,
-              }}
-            >
-              <CategoryVisual
-                category={genre || "Uncategorized"}
-                size={12}
-                color={colors["muted-foreground"]}
-              />
-              <Text
-                numberOfLines={1}
-                className="font-sans text-muted-foreground shrink text-xs"
-                style={{ lineHeight: 15, includeFontPadding: false }}
-              >
-                {genre || "Uncategorized"}
-              </Text>
-              {portalName ? (
-                // The web's outline Badge, and the control that changes it.
-                // Which source is playing belongs next to the stream it
-                // describes, so the thing naming it is also the thing that
-                // swaps it — there is no second place to look.
-                <PressableScale
-                  preset="icon"
-                  hitSlop={8}
-                  onPress={openSources}
-                  className="flex-row items-center gap-1 rounded-md border px-2 py-0.5"
-                  style={{ borderColor: colors.border }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    className="font-sans text-muted-foreground text-[10px]"
-                    // The line height is what sized this badge before: 15pt of
-                    // box around 10pt text, against 6pt of side padding, read as
-                    // though the horizontal padding had gone missing. The box now
-                    // hugs the text and the padding does the spacing.
-                    style={{ lineHeight: 12, includeFontPadding: false }}
-                  >
-                    {portalName}
-                  </Text>
-                  {streams.length > 1 ? (
-                    <ChevronDown size={10} color={colors["muted-foreground"]} />
-                  ) : null}
-                </PressableScale>
-              ) : null}
-            </View>
-          </View>
         </View>
       )}
 
@@ -220,6 +194,67 @@ export default function ChannelDetailScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Who this is, under the picture it belongs to. */}
+          <View className="flex-row items-center gap-3 px-4 pt-4">
+            <ChannelLogo uri={logo} />
+
+            <View className="min-w-0 flex-1">
+              <Text
+                numberOfLines={1}
+                className="text-foreground font-rounded text-[17px] tracking-tight"
+                style={{ lineHeight: 21, includeFontPadding: false }}
+              >
+                {name || "Live stream"}
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 2,
+                }}
+              >
+                <CategoryVisual
+                  category={genre || "Uncategorized"}
+                  size={12}
+                  color={colors["muted-foreground"]}
+                />
+                <Text
+                  numberOfLines={1}
+                  className="font-sans text-muted-foreground shrink text-xs"
+                  style={{ lineHeight: 15, includeFontPadding: false }}
+                >
+                  {genre || "Uncategorized"}
+                </Text>
+              </View>
+            </View>
+
+            {/* The source, as its own control on the right rather than a badge
+                wedged into the category line. It is the one thing here that
+                does something when pressed, and a name in a box beside two
+                pieces of text did not say so. The icon carries that: layers,
+                the same one the web's sources item wears. */}
+            {portalName ? (
+              <PressableScale
+                preset="icon"
+                hitSlop={8}
+                onPress={openSources}
+                className="h-9 flex-row items-center gap-1.5 rounded-lg border px-2.5"
+                style={{ borderColor: colors.border }}
+              >
+                <Layers size={14} color={colors["muted-foreground"]} />
+                <Text
+                  numberOfLines={1}
+                  className="font-sans text-foreground max-w-24 text-xs"
+                  style={{ lineHeight: 15, includeFontPadding: false }}
+                >
+                  {portalName}
+                </Text>
+              </PressableScale>
+            ) : null}
+          </View>
+
           {/* Icon and weight follow the web's guide heading. */}
           <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
             {/* Optically centred against the text rather than mathematically:
