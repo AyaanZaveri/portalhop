@@ -113,7 +113,15 @@ export function ChannelSchedule({
     <View className="gap-5 px-4">
       {days.map(([day, programmes]) => (
         <View key={day} className="gap-2">
-          <Text className="font-sans text-muted-foreground text-xs">
+          {/* The day is the heading now that the guide has no other one. It
+              says what the cards under it are, which is the job the removed
+              "Programme Guide" was doing badly — that named the section, this
+              names the run of cards you are actually looking at, and there is
+              one for every day rather than one for the screen. */}
+          <Text
+            className="font-heading text-foreground text-base"
+            style={{ includeFontPadding: false }}
+          >
             {new Date(day).toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",

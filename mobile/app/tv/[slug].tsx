@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { router, useLocalSearchParams } from "expo-router"
-import { ChevronLeft, Layers, Tv } from "lucide-react-native"
+import { ChevronLeft, Layers } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme } from "@/lib/theme"
@@ -226,10 +226,10 @@ export default function ChannelDetailScreen() {
         onFullscreenChange={setFullscreen}
       />
 
-      {/* Above the scroller, not inside it. The channel and the heading name
-          what is being scrolled, so they are the last things that should leave
-          with it -- and on a phone the listings are long enough that scrolling
-          a few cards used to take the channel's own name off the screen. */}
+      {/* Above the scroller, not inside it. It names what is being scrolled,
+          so it is the last thing that should leave with it -- the listings are
+          long enough on a phone that a few cards used to take the channel's own
+          name off the screen. */}
       {fullscreen ? null : (
         <View>
           {/* Who this is, under the picture it belongs to. */}
@@ -269,21 +269,6 @@ export default function ChannelDetailScreen() {
             </View>
           </View>
 
-          {/* Icon and weight follow the web's guide heading. */}
-          <View className="flex-row items-center gap-2 px-4 pt-4 pb-2">
-            {/* Optically centred against the text rather than mathematically:
-            the icon's mass sits low next to a cap-height word, so it reads
-            as sunk when its box is aligned. The web nudges the same icon by
-            the same amount with -mt-0.5. */}
-            <Tv
-              size={16}
-              color={colors["muted-foreground"]}
-              style={{ marginTop: -2 }}
-            />
-            <Text className="font-heading text-foreground text-base">
-              Programme Guide
-            </Text>
-          </View>
         </View>
       )}
 
