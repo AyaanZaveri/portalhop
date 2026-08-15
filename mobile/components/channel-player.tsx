@@ -326,7 +326,7 @@ export function ChannelPlayer({
 
   if (!canPlay) {
     return (
-      <View className="my-3 aspect-video items-center justify-center bg-black px-6">
+      <View className="my-3 aspect-video w-full items-center justify-center rounded-xl bg-black px-6">
         <Text className="font-sans text-center text-sm text-white/70">
           This channel has no stream to resolve.
         </Text>
@@ -346,12 +346,13 @@ export function ChannelPlayer({
       className={
         fullscreen
           ? "flex-1 bg-black"
-          : // Edge to edge, with margin only above and below. A phone has
-            // little enough width that giving twelve points of it away shows in
-            // the picture, and a rounded corner against the screen's own edge
-            // has nothing to sit against — the inset only made sense while a
-            // header sat above the video and framed it.
-            "my-3 aspect-video overflow-hidden bg-black"
+          : // Edge to edge, with margin only above and below: a phone has little
+            // enough width that giving twelve points of it away shows in the
+            // picture. w-full rather than relying on a column parent stretching
+            // its children, because the surface inside is a native view that
+            // takes its size from this box and does not always agree about what
+            // "stretch" meant a layout ago.
+            "my-3 aspect-video w-full overflow-hidden rounded-xl bg-black"
       }
     >
       {/* The system bars have no business over a full-screen picture, and the
@@ -361,7 +362,11 @@ export function ChannelPlayer({
         <VideoView
           ref={viewRef}
           player={player}
-          style={{ flex: 1 }}
+          // Measured against the box rather than flexed into it. A SurfaceView
+          // is a native surface punched through the hierarchy, and flex: 1 left
+          // it holding a width from a previous layout — the container went full
+          // width and the picture stayed where it was, black down one side.
+          style={{ width: "100%", height: "100%" }}
           // The whole point of this screen: our own controls over the video.
           // Native controls are forced back on in fullscreen by both platforms,
           // which is a limitation worth knowing rather than fighting.
