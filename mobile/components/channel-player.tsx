@@ -326,7 +326,7 @@ export function ChannelPlayer({
 
   if (!canPlay) {
     return (
-      <View className="mx-3 aspect-video items-center justify-center rounded-xl bg-black px-6">
+      <View className="my-3 aspect-video items-center justify-center bg-black px-6">
         <Text className="font-sans text-center text-sm text-white/70">
           This channel has no stream to resolve.
         </Text>
@@ -346,11 +346,12 @@ export function ChannelPlayer({
       className={
         fullscreen
           ? "flex-1 bg-black"
-          : // The picture carries its own margin on all four sides rather than
-            // taking it from whatever sits above and below. What is around a
-            // video is part of how big it looks, and it was flush against the
-            // header on one side and the channel block on the other.
-            "mx-3 my-3 aspect-video overflow-hidden rounded-xl bg-black"
+          : // Edge to edge, with margin only above and below. A phone has
+            // little enough width that giving twelve points of it away shows in
+            // the picture, and a rounded corner against the screen's own edge
+            // has nothing to sit against — the inset only made sense while a
+            // header sat above the video and framed it.
+            "my-3 aspect-video overflow-hidden bg-black"
       }
     >
       {/* The system bars have no business over a full-screen picture, and the

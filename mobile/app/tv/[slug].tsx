@@ -50,7 +50,12 @@ export default function ChannelDetailScreen() {
     portalName?: string
   }>()
   const insets = useSafeAreaInsets()
-  const { colors } = useTheme()
+  const { colors, isDark } = useTheme()
+
+  // The two chips over the glow. Darker than what is behind them in dark mode
+  // and lighter in light mode, which is the way round that reads as a control
+  // sitting on the picture rather than a panel laid over it.
+  const chipBackground = isDark ? "rgba(0, 0, 0, 0.45)" : "rgba(255, 255, 255, 0.7)"
 
   // The portal record carries the EPG mode and, for a Stalker source, the
   // endpoint and credentials the guide request needs. Read from the cached
@@ -173,10 +178,17 @@ export default function ChannelDetailScreen() {
             preset="icon"
             hitSlop={8}
             onPress={() => router.back()}
-            // A surface of its own. It sits over the glow rather than over the
-            // page, and an unbacked glyph on a colour that changes per channel
-            // is legible by luck.
-            className="bg-muted size-9 items-center justify-center rounded-lg"
+            // A surface of its own, because it sits over the glow rather than
+            // over the page, and an unbacked glyph on a colour that changes per
+            // channel is legible by luck.
+            //
+            // Translucent rather than the muted token: that token is a step
+            // *up* from the background, so on a dark screen the chips came out
+            // lighter than everything around them and read as the brightest
+            // thing in the row. Ink of the opposite kind, at part strength,
+            // separates the glyph from the glow without adding a highlight.
+            className="size-9 items-center justify-center rounded-lg"
+            style={{ backgroundColor: chipBackground }}
           >
             <ChevronLeft size={22} color={colors.foreground} />
           </PressableScale>
@@ -187,7 +199,8 @@ export default function ChannelDetailScreen() {
               preset="icon"
               hitSlop={8}
               onPress={openSources}
-              className="bg-muted h-9 flex-row items-center gap-1.5 rounded-lg px-2.5"
+              className="h-9 flex-row items-center gap-1.5 rounded-lg px-2.5"
+              style={{ backgroundColor: chipBackground }}
             >
               <Layers size={14} color={colors["muted-foreground"]} />
               <Text
