@@ -171,6 +171,22 @@ export function TvShell({ children }: { children: ReactNode }) {
     [],
   )
 
+  /**
+   * Whether the drawer has anything to say about this channel.
+   *
+   * More than one source is the obvious case — there is a choice to make. One
+   * source still opens it, because the drawer is also where a stream's guide
+   * match is corrected, and a channel carried by a single portal is if anything
+   * the more likely one to be matched wrong: nothing else in the catalogue
+   * agrees or disagrees with it.
+   *
+   * A single stream with nothing to edit — the built-in iptv-org catalogue,
+   * which has no saved row to pin an id to — leaves the button off. There is no
+   * choice and no correction, so it would open on a list of one and a dead end.
+   */
+  const canOpenSources =
+    sources.length > 1 || sources.some((source) => toEpgMatchChannel(source))
+
   // Each row wears what its own portal shipped, not the channel's mark. Every
   // row here is the same channel, so the channel's mark would be the same
   // picture nine times and the list would say nothing.
@@ -277,7 +293,7 @@ export function TvShell({ children }: { children: ReactNode }) {
         >
           {currentChannel ? (
             <div className="flex items-center gap-2">
-              {sources.length > 1 ? (
+              {canOpenSources ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -285,13 +301,22 @@ export function TvShell({ children }: { children: ReactNode }) {
                   onClick={() => setSourcesOpen(true)}
                   aria-haspopup="dialog"
                   aria-expanded={sourcesOpen}
-                  aria-label="Choose stream source"
+                  aria-label={
+                    sources.length > 1
+                      ? "Choose stream source"
+                      : "Stream source and guide match"
+                  }
                   className="max-w-40"
                 >
                   <span className="truncate">
                     {currentChannel.portalSource?.name ?? "Manual"}
                   </span>
-                  <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
+                  {/* Only where there is a list to drop down. With one source
+                      the button still opens the drawer, but a chevron would be
+                      promising a choice that is not there. */}
+                  {sources.length > 1 ? (
+                    <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
+                  ) : null}
                 </Button>
               ) : null}
               <StreamActionsMenu channel={currentChannel} />
