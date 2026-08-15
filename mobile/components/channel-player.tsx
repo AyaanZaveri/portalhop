@@ -326,7 +326,7 @@ export function ChannelPlayer({
 
   if (!canPlay) {
     return (
-      <View className="my-3 aspect-video w-full items-center justify-center rounded-xl bg-black px-6">
+      <View className="my-3 aspect-video w-full items-center justify-center bg-black px-6">
         <Text className="font-sans text-center text-sm text-white/70">
           This channel has no stream to resolve.
         </Text>
@@ -352,7 +352,11 @@ export function ChannelPlayer({
             // its children, because the surface inside is a native view that
             // takes its size from this box and does not always agree about what
             // "stretch" meant a layout ago.
-            "my-3 aspect-video w-full overflow-hidden rounded-xl bg-black"
+            //
+            // Square, because the picture reaches both screen edges: a radius
+            // there cuts a notch out of the video and leaves the page showing
+            // through the corner, which is a frame around nothing.
+            "my-3 aspect-video w-full overflow-hidden bg-black"
       }
     >
       {/* The system bars have no business over a full-screen picture, and the

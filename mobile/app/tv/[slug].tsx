@@ -268,7 +268,7 @@ export default function ChannelDetailScreen() {
           </View>
 
           {/* Icon and weight follow the web's guide heading. */}
-          <View className="flex-row items-center gap-2 px-4 pt-6 pb-3">
+          <View className="flex-row items-center gap-2 px-4 pt-4 pb-2">
             {/* Optically centred against the text rather than mathematically:
               the icon's mass sits low next to a cap-height word, so it reads
               as sunk when its box is aligned. The web nudges the same icon by
