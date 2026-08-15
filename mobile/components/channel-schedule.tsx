@@ -132,6 +132,13 @@ export function ChannelSchedule({
               <View
                 key={programme.id}
                 className="gap-1.5 overflow-hidden rounded-xl p-3"
+                // The bar is drawn over the card's own bottom padding rather
+                // than inside the flow, so on the card that has one the text
+                // was left with eight points of clearance instead of twelve --
+                // and a solid lime line reads closer than white space of the
+                // same width. The bar's height is given back, plus a little,
+                // and only on the card that carries it.
+                style={isNow ? { paddingBottom: 18 } : undefined}
               >
                 {/* The poster again, blurred, so the card takes the colours of
                     what is on it. The web does the same and fades it leftward
