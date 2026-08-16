@@ -10,6 +10,7 @@ import { useStreamInfo } from "@/lib/stream-info"
 import { streamLabels } from "@portalhop/shared/stream-info"
 import { select } from "@/lib/haptics"
 import { useTheme } from "@/lib/theme"
+import { Badge } from "@/components/ui/badge"
 import { ChannelLogo } from "@/components/channel-logo"
 import { PressableScale } from "@/components/ui/pressable-scale"
 import { Sheet } from "@/components/ui/sheet"
@@ -79,43 +80,28 @@ export const ChannelSourcesSheet = forwardRef<
                 >
                   {item.sourceName || item.name || "Unnamed channel"}
                 </Text>
+                {/* The portal is a badge like the rest, because it is the same
+                    kind of thing: a short fact about this stream. It leads,
+                    since it is the one every row has and the one being chosen
+                    between; the figures follow, and only for streams somebody
+                    has played. A row with none is not claiming to be worse --
+                    it is one nobody has opened yet. */}
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 6,
-                    marginTop: 2,
+                    gap: 4,
+                    marginTop: 3,
                   }}
                 >
-                  <Text
-                    numberOfLines={1}
-                    className="font-sans text-muted-foreground shrink text-xs"
-                    style={{ lineHeight: 15, includeFontPadding: false }}
-                  >
-                    {item.portalSource?.name ?? "Manual"}
-                  </Text>
+                  <Badge>{item.portalSource?.name ?? "Manual"}</Badge>
 
-                  {/* Only for streams that have been played. A row with no
-                      figures is not making a claim about being worse — it is
-                      one nobody has opened yet, and inventing a placeholder
-                      would say otherwise. */}
                   {streamLabels(
                     item.savedChannelId == null
                       ? undefined
                       : streamInfo[item.savedChannelId],
                   ).map((label) => (
-                    <Text
-                      key={label}
-                      numberOfLines={1}
-                      className="text-muted-foreground font-medium text-[10px]"
-                      style={{
-                        lineHeight: 15,
-                        includeFontPadding: false,
-                        fontVariant: ["tabular-nums"],
-                      }}
-                    >
-                      {label}
-                    </Text>
+                    <Badge key={label}>{label}</Badge>
                   ))}
                 </View>
               </View>

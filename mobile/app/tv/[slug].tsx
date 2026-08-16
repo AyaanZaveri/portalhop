@@ -22,6 +22,7 @@ import { useChooseChannelSource } from "@/lib/source-order"
 import { useLogoStyle } from "@/lib/logo-style"
 
 import { TopGlow } from "@/components/top-glow"
+import { Badge } from "@/components/ui/badge"
 import { ChannelLogo } from "@/components/channel-logo"
 import { ChannelPlayer } from "@/components/channel-player"
 import { ChannelSchedule } from "@/components/channel-schedule"
@@ -301,36 +302,21 @@ export default function ChannelDetailScreen() {
 
               {/* Two badges rather than one string: they are two separate facts
                   about the stream, and a single line joined by a dot reads as
-                  one.
-                  
+                  one. The same Badge the sources sheet uses, so a resolution
+                  looks the same wherever it is read.
+
                   They fade in rather than appear. A track's figures arrive a
                   second or two after the picture — the stream has to declare
                   them — so the block grows once, under a name that has already
-                  settled, and a fade is what keeps that from reading as a jolt.
-                  Tabular figures for the same reason mono was tempting: 1080p
-                  and 720p should be the same width without a mono face doing
-                  the whole label in typewriter. */}
+                  settled, and a fade is what keeps that from reading as a
+                  jolt. */}
               {badges.length ? (
                 <Animated.View
                   entering={FadeIn.duration(180)}
-                  className="flex-row items-center gap-1.5"
+                  className="flex-row items-center gap-1"
                 >
                   {badges.map((label) => (
-                      <View
-                        key={label}
-                        className="h-5 justify-center rounded-md px-1.5"
-                        style={{ backgroundColor: withAlpha(colors.muted, 0.8) }}
-                      >
-                        <Text
-                          className="text-muted-foreground font-medium text-[10px]"
-                          style={{
-                            includeFontPadding: false,
-                            fontVariant: ["tabular-nums"],
-                          }}
-                        >
-                          {label}
-                        </Text>
-                      </View>
+                    <Badge key={label}>{label}</Badge>
                   ))}
                 </Animated.View>
               ) : null}
