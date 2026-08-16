@@ -283,11 +283,55 @@ export function ChannelPlayer({
    */
   const { mutate: recordStreamInfo } = useRecordStreamInfo()
 
+  /**
+   * The best the stream has offered, not the last thing it sent.
+   *
+   * An adaptive stream is several renditions and the player moves between them,
+   * so the track changes whenever the network wobbles. Recording the latest
+   * would be a write per switch for as long as somebody watched, and it would
+   * also be the wrong figure: a portal's 1080p stream that dipped to 480p on a
+   * bad minute is still a 1080p stream, and recording the dip would rank it
+   * below a portal that only ever offered 720p.
+   *
+   * Taking the maximum makes each figure monotonic, so the writes are bounded
+   * by the number of renditions the player climbs through rather than by how
+   * long the channel is left on.
+   */
+  const bestRef = useRef<StreamInfo>(info)
+  const sentRef = useRef("")
+
   useEffect(() => {
     if (savedChannelId == null) return
-    if (!info.width && !info.height && !info.frameRate && !info.bandwidth) return
-    recordStreamInfo({ savedChannelId, ...info })
+
+    const best = bestRef.current
+    bestRef.current = {
+      width: Math.max(info.width ?? 0, best.width ?? 0) || null,
+      height: Math.max(info.height ?? 0, best.height ?? 0) || null,
+      frameRate: Math.max(info.frameRate ?? 0, best.frameRate ?? 0) || null,
+      bandwidth: Math.max(info.bandwidth ?? 0, best.bandwidth ?? 0) || null,
+    }
+
+    const next = bestRef.current
+    if (!next.width && !next.height && !next.frameRate && !next.bandwidth) return
+
+    const payload = JSON.stringify(next)
+    if (payload === sentRef.current) return
+    sentRef.current = payload
+
+    recordStreamInfo({ savedChannelId, ...next })
   }, [savedChannelId, info, recordStreamInfo])
+
+  // A different channel is a different stream: the best seen so far belongs to
+  // the one that just left.
+  useEffect(() => {
+    bestRef.current = {
+      width: null,
+      height: null,
+      frameRate: null,
+      bandwidth: null,
+    }
+    sentRef.current = ""
+  }, [savedChannelId])
 
   // Controls fall away on their own, but never while paused — a paused player
   // with no controls gives you nothing to press.

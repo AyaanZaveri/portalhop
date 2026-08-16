@@ -529,11 +529,38 @@ export function LivePlayer({
 
       for (const [field, value] of Object.entries(learned)) {
         if (value === null || value === undefined) continue
+
         // A measurement fills a gap and never overwrites. It replaces neither a
         // declared figure, which is the better answer, nor an earlier
         // measurement of its own, which is what keeps a bitrate that moves with
         // every fragment from being a write with every fragment.
         if (measured && learnedRef.current[field]) continue
+
+        /**
+         * Declared figures keep the best seen, rather than the latest.
+         *
+         * An adaptive stream is several renditions and the player moves between
+         * them, so "latest" changes every time the network wobbles — and since
+         * a write happens whenever the payload changes, latest meant a write
+         * per switch, for as long as somebody watched.
+         *
+         * Best is also the truer answer to what the drawer asks. A portal's
+         * 1080p stream that dipped to 480p on a bad minute is still a 1080p
+         * stream; recording the dip would rank it below a portal that only ever
+         * offered 720p. Taking the maximum makes the figure monotonic, which
+         * bounds the writes to the number of renditions the player climbs
+         * through -- three or four, once each.
+         */
+        const current = learnedRef.current[field]
+        if (
+          !measured &&
+          typeof value === "number" &&
+          typeof current === "number" &&
+          value <= current
+        ) {
+          continue
+        }
+
         learnedRef.current[field] = value
       }
 
