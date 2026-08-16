@@ -91,7 +91,10 @@ export const ChannelSourcesSheet = forwardRef<
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 4,
-                    marginTop: 3,
+                    // Six, not three. The badges are a block rather than a
+                    // second line of text, and a block needs to sit clear of
+                    // the name above it or the two read as one clump.
+                    marginTop: 6,
                   }}
                 >
                   <Badge>{item.portalSource?.name ?? "Manual"}</Badge>
