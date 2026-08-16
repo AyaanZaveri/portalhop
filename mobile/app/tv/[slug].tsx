@@ -49,12 +49,12 @@ export default function ChannelDetailScreen() {
   const insets = useSafeAreaInsets()
   const { colors, isDark } = useTheme()
 
-  // The two chips over the glow. Darker than what is behind them in dark mode
-  // and lighter in light mode, which is the way round that reads as a control
-  // sitting on the picture rather than a panel laid over it.
+  // The two chips over the glow. Ink in both modes, at very different
+  // strengths: a white chip on a pale glow is a chip you cannot see, where a
+  // light wash of ink reads as a surface against any tint a channel throws.
   const chipBackground = isDark
     ? "rgba(0, 0, 0, 0.45)"
-    : "rgba(255, 255, 255, 0.7)"
+    : "rgba(0, 0, 0, 0.08)"
 
   // The portal record carries the EPG mode and, for a Stalker source, the
   // endpoint and credentials the guide request needs. Read from the cached
@@ -252,7 +252,7 @@ export default function ChannelDetailScreen() {
 
             <Text
               numberOfLines={1}
-              className="text-foreground font-rounded min-w-0 flex-1 text-[19px] tracking-tight"
+              className="text-foreground font-semibold min-w-0 flex-1 text-[19px] tracking-tight"
               // Above the sixteen-point day headings below it: a page's own
               // title should not be the same size as the headings inside it.
               style={{ lineHeight: 23, includeFontPadding: false }}

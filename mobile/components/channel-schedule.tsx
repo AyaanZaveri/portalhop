@@ -119,7 +119,10 @@ export function ChannelSchedule({
               names the run of cards you are actually looking at, and there is
               one for every day rather than one for the screen. */}
           <Text
-            className="font-heading text-foreground text-base"
+            // Medium, where the channel above is semibold. Both are headings
+            // and this is the smaller one, so it gives way in weight as well
+            // as in size.
+            className="font-medium text-foreground text-base"
             style={{ includeFontPadding: false }}
           >
             {new Date(day).toLocaleDateString(undefined, {
