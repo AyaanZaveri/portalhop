@@ -458,7 +458,6 @@ export function LivePlayer({
     let frameRateEstimated = false
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
-    const bitrateSamples: number[] = []
 
     const updateActiveCaption = () => {
       const selectedTrack = Array.from(
@@ -577,6 +576,58 @@ export function LivePlayer({
       }).catch(() => {})
     }
 
+    /**
+     * The stream's average bitrate, weighed over ten seconds of one rendition.
+     *
+     * Bytes over media duration rather than over wall-clock, so this is the
+     * encoded rate of what arrived and not a reading of the connection: a slow
+     * network delays a fragment, it does not shrink it. That is what makes the
+     * figure worth storing at all -- it can be held against another portal's
+     * copy of the same channel.
+     *
+     * Weighed rather than averaged across samples, because fragments differ in
+     * length and a mean of per-fragment rates counts a two-second one as
+     * heavily as a six. Over a window rather than instantaneously, because
+     * per-fragment rates swing by a third on variable bitrate -- a still
+     * scoreboard against a fast pan -- so one fragment describes a scene rather
+     * than a stream.
+     *
+     * Per rendition, and reset when the player switches, because a player
+     * starts low and climbs: an average taken across the ramp is an average of
+     * two different streams. Ten seconds is the shortest window that spans a
+     * few fragments at any common segment length.
+     */
+    let bandwidthLevel: number | null = null
+    let bandwidthBytes = 0
+    let bandwidthSeconds = 0
+    let bandwidthReported = false
+
+    const measureBandwidth = (
+      level: number,
+      loaded: number,
+      duration: number,
+    ) => {
+      if (loaded <= 0 || duration <= 0) return
+
+      if (level !== bandwidthLevel) {
+        bandwidthLevel = level
+        bandwidthBytes = 0
+        bandwidthSeconds = 0
+        bandwidthReported = false
+      }
+
+      bandwidthBytes += loaded
+      bandwidthSeconds += duration
+
+      if (bandwidthReported || bandwidthSeconds < 10) return
+
+      bandwidthReported = true
+      reportStream({
+        bandwidth: Math.round((bandwidthBytes * 8) / bandwidthSeconds),
+        bandwidthMeasured: true,
+      })
+    }
+
     const sampleFrameRate = () => {
       if (hasManifestFrameRate || frameRateEstimated) return
 
@@ -659,31 +710,6 @@ export function LivePlayer({
 
       const updateBitrate = (bitrate?: number) => {
         if (!bitrate) return
-
-        /**
-         * Stored once, from a handful of fragments rather than the first.
-         *
-         * The opening fragment is the worst sample there is: a player starts on
-         * a low rendition and climbs, so what it measures first is the stream
-         * being careful rather than the stream. The median of five is what the
-         * frame-rate sampler beside this uses, and for the same reason.
-         *
-         * The badge above keeps updating with every fragment. That one is a
-         * live reading and is allowed to move; this is a record, and a record
-         * that moved would be a write every few seconds for the life of the
-         * viewing.
-         */
-        if (bitrateSamples.length < 5) {
-          bitrateSamples.push(bitrate)
-          if (bitrateSamples.length === 5) {
-            const sorted = [...bitrateSamples].sort((a, b) => a - b)
-            reportStream({
-              bandwidth: Math.round(sorted[2]),
-              bandwidthMeasured: true,
-            })
-          }
-        }
-
         const bitrateLabel = formatBitrateLabel(bitrate)
         setStreamVariant((current) =>
           current.bitrateLabel === bitrateLabel
@@ -783,6 +809,7 @@ export function LivePlayer({
             ? (data.stats.loaded * 8) / data.frag.duration
             : undefined
         updateBitrate(calculatedBitrate)
+        measureBandwidth(data.frag.level, data.stats.loaded, data.frag.duration)
         updateFromLevel(data.frag.level)
       }
 
