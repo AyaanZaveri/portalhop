@@ -211,9 +211,12 @@ export default function ChannelListScreen() {
     )
   }, [filterRestored, favorites.keys.length])
 
-  // Loud on purpose while the data layer is new: a silent empty list gives no
-  // clue whether the request failed, returned nothing, or was never made.
+  // Loud while the data layer was new: a silent empty list gives no clue
+  // whether the request failed, returned nothing, or was never made. Behind
+  // __DEV__ now, like every other log here — it is a line per catalogue change
+  // in a release build, on a screen that holds tens of thousands of them.
   useEffect(() => {
+    if (!__DEV__) return
     console.log(
       `[portalhop] signedIn=${signedIn} portals=${portals?.length ?? "—"} ` +
         `active=${activePortals.length} channels=${withSource.length}` +

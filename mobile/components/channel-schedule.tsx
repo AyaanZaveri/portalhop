@@ -275,12 +275,21 @@ export function ChannelSchedule({
                       {formatRange(startAt, stopAt)}
                     </Text>
 
-                    <Text className="text-foreground font-rounded text-[15px]">
+                    {/* Selectable, both of them: a programme title is the
+                        thing somebody wants to paste into a search, and a
+                        description clipped at three lines is the thing they
+                        want to read the rest of. Long-pressing text costs
+                        nothing when it is not wanted. */}
+                    <Text
+                      selectable
+                      className="text-foreground font-rounded text-[15px]"
+                    >
                       {programme.title}
                     </Text>
 
                     {programme.description ? (
                       <Text
+                        selectable
                         numberOfLines={3}
                         className="font-sans text-muted-foreground text-[13px]"
                         style={{ lineHeight: 18 }}

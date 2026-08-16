@@ -1,4 +1,3 @@
-import { Platform } from "react-native"
 import * as Haptics from "expo-haptics"
 
 /**
@@ -19,7 +18,7 @@ import * as Haptics from "expo-haptics"
 
 /** One row passing another mid-drag: fires in quick succession, so very soft. */
 export function tick() {
-  if (Platform.OS === "android") {
+  if (process.env.EXPO_OS === "android") {
     void Haptics.performAndroidHapticsAsync(
       Haptics.AndroidHaptics.Segment_Frequent_Tick,
     )
@@ -37,7 +36,7 @@ export function tick() {
  * a drag, not fine when it is the only answer to a tap.
  */
 export function select() {
-  if (Platform.OS === "android") {
+  if (process.env.EXPO_OS === "android") {
     void Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Segment_Tick)
     return
   }
@@ -53,7 +52,7 @@ export function select() {
  * build gets for free and this app was missing.
  */
 export function longPress() {
-  if (Platform.OS === "android") {
+  if (process.env.EXPO_OS === "android") {
     void Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press)
     return
   }
@@ -69,7 +68,7 @@ export function longPress() {
  * signal that the gesture took.
  */
 export function dragStart() {
-  if (Platform.OS === "android") {
+  if (process.env.EXPO_OS === "android") {
     void Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Drag_Start)
     return
   }
