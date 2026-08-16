@@ -204,7 +204,12 @@ export default function ChannelDetailScreen() {
               <Layers size={14} color={colors["muted-foreground"]} />
               <Text
                 numberOfLines={1}
-                className="text-foreground max-w-28 font-sans text-xs"
+                // font-medium is a *family* here, not a weight. Each weight is
+                // registered as its own family because Android does not
+                // synthesise bold, so pairing it with font-sans would be two
+                // family utilities fighting and the regular face winning --
+                // naming the one family is the whole instruction.
+                className="text-foreground max-w-28 font-medium text-xs"
                 style={{ lineHeight: 15, includeFontPadding: false }}
               >
                 {portalName}
