@@ -29,6 +29,21 @@ function scaleBrightness(hex: string, factor: number) {
   return `#${channels.join("")}`
 }
 
+/**
+ * A palette colour at part strength.
+ *
+ * React Native has no colour-mix and the tokens arrive as hex, so an alpha has
+ * to be composed here. Taking the colour from the palette rather than reaching
+ * for black keeps a translucent surface in the same family as the opaque ones
+ * around it — ink at 8% is a grey nobody chose, where muted at 60% is the
+ * muted the rest of the app uses, only lighter.
+ */
+export function withAlpha(hex: string, alpha: number) {
+  const value = hex.replace("#", "")
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16))
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export function useTheme() {
   const { theme } = useUniwind()
   const isDark = theme === "dark"

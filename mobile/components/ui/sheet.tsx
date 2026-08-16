@@ -61,8 +61,19 @@ export const Sheet = forwardRef<
     children: ReactNode
     /** Omit to size to content, as the portals sheet does. */
     snapPoints?: BottomSheetModalProps["snapPoints"]
+    /**
+     * Whether to blur what is behind, or just darken it.
+     *
+     * On for every sheet but one. A blur samples the view hierarchy, and a
+     * video is not in it — it is a native surface composited separately, so the
+     * snapshot comes back with a hole where the picture is and the sheet floats
+     * over a page that is blurred everywhere except the one thing you were
+     * looking at. A scrim treats them alike, which is worse in principle and
+     * better on the screen.
+     */
+    blur?: boolean
   }
->(function Sheet({ title, children, snapPoints }, ref) {
+>(function Sheet({ title, children, snapPoints, blur = true }, ref) {
   const { colors } = useTheme()
   const { theme } = useUniwind()
   const blurTarget = useBlurTarget()
@@ -73,9 +84,10 @@ export const Sheet = forwardRef<
         {...props}
         blurTarget={blurTarget}
         dark={theme === "dark"}
+        blur={blur}
       />
     ),
-    [theme, blurTarget],
+    [theme, blurTarget, blur],
   )
 
   const body = (
@@ -140,9 +152,11 @@ function BlurBackdrop({
   style,
   blurTarget,
   dark,
+  blur,
 }: BottomSheetBackdropProps & {
   blurTarget: { current: View | null } | null
   dark: boolean
+  blur: boolean
 }) {
   const { close } = useBottomSheet()
   const [open, setOpen] = useState(false)
@@ -175,18 +189,22 @@ function BlurBackdrop({
     ),
   }))
 
+  // Heavier without the blur, because then it is the only thing saying the
+  // page has gone behind something — the same figure a build without the
+  // native module falls back to.
+  const blurring = blur && blurAvailable
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       animatedIndex.value,
       [-1, 0],
-      [0, blurAvailable ? 0.2 : 0.4],
+      [0, blurring ? 0.2 : 0.4],
       Extrapolation.CLAMP,
     ),
   }))
 
   return (
     <Pressable style={style} onPress={() => close()}>
-      {open && blurAvailable ? (
+      {open && blurring ? (
         <AnimatedBlurView
           animatedProps={blurProps}
           tint={dark ? "dark" : "light"}

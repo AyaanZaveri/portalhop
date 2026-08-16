@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { router, useLocalSearchParams } from "expo-router"
-import { ChevronLeft, Layers } from "lucide-react-native"
+import { ChevronLeft, RadioTower } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-import { useTheme } from "@/lib/theme"
+import { useTheme, withAlpha } from "@/lib/theme"
 import { useSession } from "@/lib/auth"
 import {
   useCachedStreams,
@@ -49,13 +49,6 @@ export default function ChannelDetailScreen() {
   const insets = useSafeAreaInsets()
   const { colors, isDark } = useTheme()
 
-  // The two chips over the glow. Ink in both modes, at very different
-  // strengths: a white chip on a pale glow is a chip you cannot see, where a
-  // light wash of ink reads as a surface against any tint a channel throws.
-  const chipBackground = isDark
-    ? "rgba(0, 0, 0, 0.45)"
-    : "rgba(0, 0, 0, 0.08)"
-
   // The portal record carries the EPG mode and, for a Stalker source, the
   // endpoint and credentials the guide request needs. Read from the cached
   // portals query rather than threaded through the route: it is small, already
@@ -69,6 +62,23 @@ export default function ChannelDetailScreen() {
   // Already resolved and cached by the row the user tapped, so this costs
   // nothing here.
   const logoStyle = useLogoStyle(logo)
+
+  /**
+   * The two chips over the glow: the app's own muted surface, softened.
+   *
+   * Opaque, it was the brightest thing on the row. Black at part strength
+   * fixed that and introduced a colour from nowhere — a hole punched in the
+   * glow rather than a control sitting on it. The palette's own step, at
+   * three-fifths, is the same surface every sheet and row uses, with the
+   * channel's colour showing through it.
+   *
+   * A hairline rather than a border. Light mode needs some edge — every
+   * surface in that palette sits within a few points of white, so a fill alone
+   * cannot be seen — but a one-point line is three physical pixels on a phone
+   * and reads as drawn. StyleSheet.hairlineWidth is the thinnest line the
+   * screen can make, which is the difference between an edge and an outline.
+   */
+  const chipBackground = withAlpha(colors.muted, isDark ? 0.6 : 0.75)
 
   /**
    * Switching stream without leaving the channel.
@@ -172,7 +182,7 @@ export default function ChannelDetailScreen() {
           viewer could not see yet, and pushed the video down the screen to do
           it — so what is left up here are the two controls, one at each end. */}
       {fullscreen ? null : (
-        <View className="flex-row items-center justify-between px-3 pt-2 pb-1">
+        <View className="flex-row items-center justify-between px-4 pt-2 pb-1">
           <PressableScale
             preset="icon"
             hitSlop={8}
@@ -187,21 +197,31 @@ export default function ChannelDetailScreen() {
             // thing in the row. Ink of the opposite kind, at part strength,
             // separates the glyph from the glow without adding a highlight.
             className="size-9 items-center justify-center rounded-lg"
-            style={{ backgroundColor: chipBackground }}
+            style={{
+              backgroundColor: chipBackground,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.border,
+            }}
           >
             <ChevronLeft size={22} color={colors.foreground} />
           </PressableScale>
 
-          {/* Layers, the same icon the web's sources control wears. */}
+          {/* A transmitter, not a stack. This chip names the one source that is
+              feeding the picture; layers would be describing the drawer behind
+              it, which is the part about there being several. */}
           {portalName ? (
             <PressableScale
               preset="icon"
               hitSlop={8}
               onPress={openSources}
               className="h-9 flex-row items-center gap-1.5 rounded-lg px-2.5"
-              style={{ backgroundColor: chipBackground }}
+              style={{
+                backgroundColor: chipBackground,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.border,
+              }}
             >
-              <Layers size={14} color={colors["muted-foreground"]} />
+              <RadioTower size={14} color={colors["muted-foreground"]} />
               <Text
                 numberOfLines={1}
                 // font-medium is a *family* here, not a weight. Each weight is
