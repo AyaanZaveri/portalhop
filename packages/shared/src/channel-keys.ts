@@ -103,6 +103,26 @@ function slugify(value: string) {
     .slice(0, 40)
 }
 
+/**
+ * A guide id whose slug says the whole id back.
+ *
+ * slugify collapses every run of non-alphanumerics to one hyphen, which is what
+ * makes the slugs readable and is also the one way they lie: "mgm+.us" and
+ * "mgm.us" are different channels and both come out "mgm-us". Measured over a
+ * real catalogue that was 93 channels sharing a URL with another channel, and
+ * the loser of each pair could not be reached at all -- MGM+ always opened MGM,
+ * every row in the list drawing correctly and two of them playing the same
+ * stream. Same failure as a portal writing "default" on ten thousand channels,
+ * arriving from the other end.
+ *
+ * Letters, digits and dots only, because the dot is the separator real guide
+ * ids use -- "tsn1.ca", "gameshownetwork.us" -- and mapping it to a hyphen is
+ * reversible as long as nothing else does. Ids outside this set keep their
+ * readable slug and gain a hash of the id, so they stay distinct from the plain
+ * one they would otherwise have collided with and from each other.
+ */
+const PLAIN_GUIDE_ID = /^[a-z0-9]+(?:\.[a-z0-9]+)*$/
+
 /** FNV-1a. Short, stable, and not security-sensitive — this is a URL id. */
 function shortHash(input: string) {
   let hash = 0x811c9dc5
@@ -160,7 +180,7 @@ export function channelSlug(
    */
   const guideId = identityKeyFor(channel, trusted) ? normalizeXmltvId(channel.xmltvId) : ""
   if (guideId) {
-    return slugify(guideId) || "channel"
+    return guideSlug(guideId)
   }
 
   // Nothing stable to address it by, so the old form stands: scoped to this
@@ -175,6 +195,19 @@ export function channelSlug(
     ].join("|"),
   )
   return `${name}-${hash}`
+}
+
+/**
+ * The URL form of a guide id: the id itself where that is unambiguous, and the
+ * id plus a hash of it where it is not. See PLAIN_GUIDE_ID.
+ */
+function guideSlug(guideId: string) {
+  const slug = slugify(guideId)
+  if (!slug) return "channel"
+  // Length is checked as well as shape: slugify truncates at 40, and two long
+  // ids that agree for 40 characters would collide however plain they are.
+  if (PLAIN_GUIDE_ID.test(guideId) && slug.length < 40) return slug
+  return `${slug}-${shortHash(guideId)}`
 }
 
 /** Lookup from URL id -> channel, for O(1) resolution of a deep link. */
@@ -197,6 +230,22 @@ export function buildChannelIndex<T extends ChannelWithSourceId>(
   const trusted = trustedGuideIds(channels, IDENTITY_NAME_LIMIT)
   const index = new Map<string, T>()
   const rank = new Map<string, number>()
+  /**
+   * Compatibility spellings, applied once every channel has claimed its own.
+   *
+   * They cannot be written during the pass. An alias yields to whatever is
+   * already in the index, but "already" during a single pass means "earlier in
+   * the catalogue" -- so an alias written at row 500 was still sitting on the
+   * slug that row 90,000 addresses itself by, and the primary could not take it
+   * back: primaries only displace each other on source rank, and a channel with
+   * no chosen source ranks last, which is not lower than the nothing an alias
+   * left behind. That is how fixing MGM+ took MGM's own URL away and gave it to
+   * a channel whose id was "combate..br".
+   *
+   * Held back to a second pass, every alias competes only with names nobody
+   * wanted, which is the whole of what an alias is for.
+   */
+  const aliases: Array<[string, T]> = []
 
   for (const channel of channels) {
     const id = channelSlug(channel, userId, trusted)
@@ -216,13 +265,27 @@ export function buildChannelIndex<T extends ChannelWithSourceId>(
      */
     const guideId = normalizeXmltvId(channel.xmltvId)
     if (guideId && trusted.has(guideId)) {
-      const legacy = legacyChannelSlug(channel, userId)
-      if (!index.has(legacy)) index.set(legacy, channel)
+      aliases.push([legacyChannelSlug(channel, userId), channel])
 
       // And the name-prefixed guide form this briefly had in between.
       const named = `${slugify(channel.name || "channel") || "channel"}-${slugify(guideId) || "id"}`
-      if (!index.has(named)) index.set(named, channel)
+      aliases.push([named, channel])
+
+      /**
+       * And the bare slug, for ids that now carry a hash to stay distinct.
+       *
+       * Only if nothing has claimed it, which means the channel that reads that
+       * way plainly keeps it -- "mgm-us" stays MGM, and MGM+ answers to it only
+       * where MGM is absent. A link made before the hash existed pointed at
+       * whichever of them won, so this is the one that honours it.
+       */
+      const bare = slugify(guideId)
+      if (bare) aliases.push([bare, channel])
     }
+  }
+
+  for (const [alias, channel] of aliases) {
+    if (!index.has(alias)) index.set(alias, channel)
   }
   return index
 }
