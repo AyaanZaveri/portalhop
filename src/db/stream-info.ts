@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql, type SQL } from "drizzle-orm"
+import type { PgColumn } from "drizzle-orm/pg-core"
 
 import { savedChannelStreamInfo, savedChannels, savedSources } from "@/db/schema"
 
@@ -63,10 +64,25 @@ export async function listStreamInfo(db: Db, userId: string) {
  * Ownership is checked rather than assumed: a saved channel is reachable by id,
  * so the join is what stops one account writing readings onto another's rows.
  *
- * Replaces rather than merges, and stamps the time. A stream that has been
- * requantised reports different figures, and the newer reading is the true one
- * — keeping the higher of the two would preserve a resolution the portal no
- * longer sends.
+ * Merges column by column, keeping what is already stored wherever the reading
+ * says nothing. This replaced a whole-row write, which was quietly erasing the
+ * table faster than it filled it.
+ *
+ * No client learns everything at once. The web build knows the resolution as
+ * soon as the first frame decodes and the bitrate only after ten seconds of
+ * one rendition, so the early write carried a null frame rate and a null
+ * bitrate — and overwrote the figures the last viewing had worked out. That is
+ * why a refresh emptied the badges and then filled them back in one at a time,
+ * having thrown away the answers a moment before recomputing them.
+ *
+ * Across clients it was worse, because the phone cannot measure at all. It
+ * reports whatever its video track declares and nulls for the rest, so opening
+ * a channel on mobile deleted the frame rate the browser had counted. A reading
+ * is evidence about the fields it carries and says nothing about the others;
+ * only a field it actually names may replace what is stored.
+ *
+ * A non-null figure still replaces, lower or not. A portal that requantises a
+ * stream down really has changed it, and the newer reading is the true one.
  */
 export async function recordStreamInfo(
   db: Db,
@@ -93,12 +109,27 @@ export async function recordStreamInfo(
   if (!owned.length) return false
 
   const seenAt = new Date()
+  const table = savedChannelStreamInfo
+  // Each flag is decided by its own figure, not by its own previous value: a
+  // measured frame rate arriving over a declared one has to bring its mark
+  // with it, and a reading with no frame rate must not touch either.
+  const carried = (column: PgColumn, incoming: SQL) =>
+    sql`coalesce(${incoming}, ${column})`
+
   await db
-    .insert(savedChannelStreamInfo)
+    .insert(table)
     .values({ savedChannelId, ...info, seenAt })
     .onConflictDoUpdate({
-      target: savedChannelStreamInfo.savedChannelId,
-      set: { ...info, seenAt },
+      target: table.savedChannelId,
+      set: {
+        width: carried(table.width, sql`excluded.width`),
+        height: carried(table.height, sql`excluded.height`),
+        frameRate: carried(table.frameRate, sql`excluded.frame_rate`),
+        bandwidth: carried(table.bandwidth, sql`excluded.bandwidth`),
+        frameRateMeasured: sql`case when excluded.frame_rate is null then ${table.frameRateMeasured} else excluded.frame_rate_measured end`,
+        bandwidthMeasured: sql`case when excluded.bandwidth is null then ${table.bandwidthMeasured} else excluded.bandwidth_measured end`,
+        seenAt,
+      },
     })
 
   return true

@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
-import type { StreamInfo } from "@portalhop/shared/stream-info"
+import {
+  withNewReading,
+  type StreamInfo,
+} from "@portalhop/shared/stream-info"
 
 import { apiFetch, apiJson } from "./api"
 
@@ -54,7 +57,14 @@ export function useRecordStreamInfo() {
         (current) => ({
           info: {
             ...(current?.info ?? {}),
-            [variables.savedChannelId]: variables,
+            // Merged the way the table merges it. The phone measures nothing --
+            // it reports what its video track declares and nulls for the rest --
+            // so replacing the entry outright would wipe a frame rate the
+            // browser counted, on screen and then, on the next read, for real.
+            [variables.savedChannelId]: withNewReading(
+              current?.info?.[variables.savedChannelId],
+              variables,
+            ),
           },
         }),
       )

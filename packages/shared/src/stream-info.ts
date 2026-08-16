@@ -87,37 +87,63 @@ export function resolutionLabel({ width, height }: Partial<StreamInfo>) {
  * both are common, so a figure that is nearly whole is shown whole and one that
  * is not keeps its decimals.
  */
-export function frameRateLabel({
-  frameRate,
-  frameRateMeasured,
-}: Partial<StreamInfo>) {
+export function frameRateLabel({ frameRate }: Partial<StreamInfo>) {
   if (!frameRate) return null
   const rounded = Math.round(frameRate)
   const value =
     Math.abs(frameRate - rounded) < 0.05 ? rounded : Number(frameRate.toFixed(2))
-  return `${measuredMark(frameRateMeasured)}${value} fps`
-}
-
-/**
- * A tilde where we measured it.
- *
- * It marks the one thing a reader would otherwise get wrong: a declared figure
- * is exact and comparable, a measured one is this connection on this evening.
- * Without the mark the two sit side by side looking equally authoritative,
- * which is how somebody concludes a portal is worse than it is because they
- * watched it on hotel wifi.
- */
-function measuredMark(measured: boolean | undefined) {
-  return measured ? "~" : ""
+  return `${value} fps`
 }
 
 /** Megabits, to one decimal: the difference that matters is 2.5 against 6. */
-export function bandwidthLabel({
-  bandwidth,
-  bandwidthMeasured,
-}: Partial<StreamInfo>) {
+export function bandwidthLabel({ bandwidth }: Partial<StreamInfo>) {
   if (!bandwidth) return null
-  return `${measuredMark(bandwidthMeasured)}${(bandwidth / 1_000_000).toFixed(1)} Mbps`
+  return `${(bandwidth / 1_000_000).toFixed(1)} Mbps`
+}
+
+/**
+ * A stored reading updated by a new one, the way the table does it.
+ *
+ * The mirror of what the database is told to do on conflict, and here for the
+ * same reason: a client patches its own copy the moment it reports, so if the
+ * two disagreed the screen would show something the row does not say until the
+ * next reload put it right.
+ *
+ * A figure the reading does not carry is not a figure the reading denies. No
+ * client learns all four at once and the phone cannot measure two of them at
+ * all, so overwriting wholesale means every player deletes what the last one
+ * worked out. A figure it does carry replaces what is there, lower or not,
+ * because a portal that requantises a stream really has changed it.
+ *
+ * Distinct from bestStreamInfo, which takes the larger of two figures. That one
+ * settles what a stream is across the renditions of a single viewing; this one
+ * settles what is known about it across viewings, players and machines, where
+ * larger is not better and only newer is.
+ */
+export function withNewReading(
+  stored: Partial<StreamInfo> | undefined,
+  reading: Partial<StreamInfo>,
+): StreamInfo {
+  const held = stored ?? {}
+  // Each mark moves with its own figure. A reading that carries a frame rate
+  // brings the fact of how it got it; one that carries none must leave both
+  // the stored figure and the stored mark exactly as they are.
+  const knowsFrameRate = reading.frameRate != null
+  const knowsBandwidth = reading.bandwidth != null
+
+  return {
+    width: reading.width ?? held.width ?? null,
+    height: reading.height ?? held.height ?? null,
+    frameRate: knowsFrameRate ? reading.frameRate! : (held.frameRate ?? null),
+    frameRateMeasured: knowsFrameRate
+      ? reading.frameRateMeasured
+      : held.frameRateMeasured,
+    bandwidth: knowsBandwidth ? reading.bandwidth! : (held.bandwidth ?? null),
+    bandwidthMeasured: knowsBandwidth
+      ? reading.bandwidthMeasured
+      : held.bandwidthMeasured,
+    seenAt: reading.seenAt ?? held.seenAt,
+  }
 }
 
 /** The badges a stream earns, in the order they should be read. */

@@ -17,7 +17,10 @@ import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-ty
 import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
-import type { StreamInfo } from "@portalhop/shared/stream-info"
+import {
+  withNewReading,
+  type StreamInfo,
+} from "@portalhop/shared/stream-info"
 import {
   groupKeyFor,
   identityKeyFor,
@@ -522,9 +525,16 @@ export function TvProvider({
    */
   const recordStreamInfo = useCallback(
     (savedChannelId: number, info: Omit<StreamInfo, "seenAt">) => {
+      // Merged the way the table merges it, so the drawer never shows less than
+      // the row holds. A player reports the figures it has and nulls for the
+      // rest, and replacing the entry outright would blank a frame rate on
+      // screen that the server had just been told to keep.
       setStreamInfo((current) => ({
         ...current,
-        [savedChannelId]: { ...info, seenAt: new Date().toISOString() },
+        [savedChannelId]: withNewReading(current[savedChannelId], {
+          ...info,
+          seenAt: new Date().toISOString(),
+        }),
       }))
 
       // A by-product of watching television, not an action anyone took: a
