@@ -15,7 +15,6 @@ import {
 import { useChooseChannelSource } from "@/lib/source-order"
 import { useLogoStyle } from "@/lib/logo-style"
 
-import { CategoryVisual } from "@/components/category-visual"
 import { TopGlow } from "@/components/top-glow"
 import { ChannelLogo } from "@/components/channel-logo"
 import { ChannelPlayer } from "@/components/channel-player"
@@ -36,7 +35,6 @@ export default function ChannelDetailScreen() {
     portalId,
     savedChannelId,
     logo,
-    genre,
     portalName,
   } = useLocalSearchParams<{
     slug: string
@@ -46,7 +44,6 @@ export default function ChannelDetailScreen() {
     portalId?: string
     savedChannelId?: string
     logo?: string
-    genre?: string
     portalName?: string
   }>()
   const insets = useSafeAreaInsets()
@@ -232,43 +229,32 @@ export default function ChannelDetailScreen() {
           name off the screen. */}
       {fullscreen ? null : (
         <View>
-          {/* Who this is, under the picture it belongs to. */}
-          <View className="flex-row items-center gap-3 px-4 pt-1">
+          {/* Who this is, under the picture it belongs to.
+
+              The name and nothing else. The category was the portal's filing of
+              its own copy -- "SPORTS | GENERAL" -- so it changed with the source
+              and said nothing about the channel; the web dropped it from the
+              player for the same reason. What is on now is in the guide a few
+              points below, where it belongs.
+
+              Sixteen points of clearance underneath, against two inside the
+              block. The gap between two groups has to beat the gaps within one
+              or the grouping reads as noise, and the day heading was sitting
+              closer to the category line than the category line was to the
+              name. */}
+          <View className="flex-row items-center gap-3 px-4 pt-1 pb-4">
             <ChannelLogo uri={logo} />
 
-            <View className="min-w-0 flex-1">
-              <Text
-                numberOfLines={1}
-                className="text-foreground font-rounded text-[17px] tracking-tight"
-                style={{ lineHeight: 21, includeFontPadding: false }}
-              >
-                {name || "Live stream"}
-              </Text>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 2,
-                }}
-              >
-                <CategoryVisual
-                  category={genre || "Uncategorized"}
-                  size={12}
-                  color={colors["muted-foreground"]}
-                />
-                <Text
-                  numberOfLines={1}
-                  className="text-muted-foreground shrink font-sans text-xs"
-                  style={{ lineHeight: 15, includeFontPadding: false }}
-                >
-                  {genre || "Uncategorized"}
-                </Text>
-              </View>
-            </View>
+            <Text
+              numberOfLines={1}
+              className="text-foreground font-rounded min-w-0 flex-1 text-[19px] tracking-tight"
+              // Above the sixteen-point day headings below it: a page's own
+              // title should not be the same size as the headings inside it.
+              style={{ lineHeight: 23, includeFontPadding: false }}
+            >
+              {name || "Live stream"}
+            </Text>
           </View>
-
         </View>
       )}
 
