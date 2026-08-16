@@ -25,6 +25,53 @@ export type StreamInfo = {
   seenAt?: string
 }
 
+/** The larger of two figures, treating an absent one as no claim at all. */
+function higher(a: number | null | undefined, b: number | null | undefined) {
+  if (a == null) return b ?? null
+  if (b == null) return a
+  return Math.max(a, b)
+}
+
+/**
+ * The best two readings of one stream have offered, figure by figure.
+ *
+ * The rule everything here runs on. A stream is several renditions and a player
+ * moves between them, so the reading at any moment says what is playing rather
+ * than what the stream is — and a portal's 1080p feed that dipped to 480p for a
+ * bad minute is still a 1080p feed. Taking the maximum is what makes the figure
+ * a property of the stream instead of a snapshot of the connection.
+ *
+ * It earns its keep three times over: writing, where monotonic figures bound
+ * the writes to the renditions climbed rather than to how long somebody
+ * watched; reading, where what the table holds is already the best seen and
+ * merging in a live reading must not undercut it; and drawing, where a badge
+ * that only ever climbs cannot flicker down mid-ramp.
+ *
+ * Each measured flag travels with the figure it describes, since "measured" is
+ * a fact about where one number came from and means nothing beside another's.
+ */
+export function bestStreamInfo(
+  a: Partial<StreamInfo> | undefined,
+  b: Partial<StreamInfo> | undefined,
+): StreamInfo {
+  const left = a ?? {}
+  const right = b ?? {}
+
+  const frameRate = higher(left.frameRate, right.frameRate)
+  const bandwidth = higher(left.bandwidth, right.bandwidth)
+  const frameRateFrom = frameRate === left.frameRate ? left : right
+  const bandwidthFrom = bandwidth === left.bandwidth ? left : right
+
+  return {
+    width: higher(left.width, right.width),
+    height: higher(left.height, right.height),
+    frameRate,
+    bandwidth,
+    frameRateMeasured: frameRate == null ? false : frameRateFrom.frameRateMeasured,
+    bandwidthMeasured: bandwidth == null ? false : bandwidthFrom.bandwidthMeasured,
+  }
+}
+
 /**
  * 4K is a width question. A 4K film in a letterbox is 3840x1608, and 2160 lines
  * of height is not what makes it one — which is why this takes both.

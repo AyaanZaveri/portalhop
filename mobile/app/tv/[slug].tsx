@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme, withAlpha } from "@/lib/theme"
 import {
+  bestStreamInfo,
   frameRateLabel,
   resolutionLabel,
   type StreamInfo,
@@ -19,6 +20,7 @@ import {
   type PortalChannelWithSource,
 } from "@/lib/channels"
 import { useChooseChannelSource } from "@/lib/source-order"
+import { useStreamInfo } from "@/lib/stream-info"
 import { useLogoStyle } from "@/lib/logo-style"
 
 import { TopGlow } from "@/components/top-glow"
@@ -101,13 +103,30 @@ export default function ChannelDetailScreen() {
   // Absent until then, and absent for good on a stream that declares nothing —
   // which is a truthful blank rather than a guess.
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null)
+  /**
+   * What this stream turned out to be last time, shown at once.
+   *
+   * The badges used to wait for the player: the track arrives a segment or two
+   * in, so opening a channel meant a beat of nothing and then two badges
+   * appearing under a name that had already settled. But this was written down
+   * the first time anybody watched, and it is the same stream — so the wait was
+   * for a figure already known.
+   *
+   * Merged rather than replaced, and merged by the best-seen rule. The table
+   * holds the best the stream has offered; the live track holds what is playing
+   * this second, which during the opening climb is lower. Taking the maximum is
+   * what stops a badge that read 1080p on arrival dropping to 720p a moment
+   * later and climbing back — and where the stream really has been requantised
+   * down, the write path resets per viewing and the table follows.
+   */
+  const stored = useStreamInfo(true)[Number(savedChannelId)]
+  const shown = bestStreamInfo(stored, streamInfo ?? undefined)
   // Resolution and frame rate here; the bandwidth is stored and shown in the
   // sources sheet, where comparing two portals is the point. Under a channel's
   // name it would be a third figure saying what the first two already imply.
-  const badges = [
-    resolutionLabel(streamInfo ?? {}),
-    frameRateLabel(streamInfo ?? {}),
-  ].filter((label): label is string => Boolean(label))
+  const badges = [resolutionLabel(shown), frameRateLabel(shown)].filter(
+    (label): label is string => Boolean(label),
+  )
   const getStreams = useCachedStreams(Boolean(session?.user))
   const chooseSource = useChooseChannelSource()
   // Resolved once for the screen rather than on the tap, so the badge only

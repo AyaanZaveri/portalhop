@@ -40,7 +40,7 @@ import { BackHandler } from "react-native"
 
 import { resolveChannelLink } from "@/lib/stream"
 import { useRecordStreamInfo } from "@/lib/stream-info"
-import type { StreamInfo } from "@portalhop/shared/stream-info"
+import { bestStreamInfo, type StreamInfo } from "@portalhop/shared/stream-info"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 /** How long the controls stay up after a tap. */
@@ -303,13 +303,7 @@ export function ChannelPlayer({
   useEffect(() => {
     if (savedChannelId == null) return
 
-    const best = bestRef.current
-    bestRef.current = {
-      width: Math.max(info.width ?? 0, best.width ?? 0) || null,
-      height: Math.max(info.height ?? 0, best.height ?? 0) || null,
-      frameRate: Math.max(info.frameRate ?? 0, best.frameRate ?? 0) || null,
-      bandwidth: Math.max(info.bandwidth ?? 0, best.bandwidth ?? 0) || null,
-    }
+    bestRef.current = bestStreamInfo(bestRef.current, info)
 
     const next = bestRef.current
     if (!next.width && !next.height && !next.frameRate && !next.bandwidth) return
