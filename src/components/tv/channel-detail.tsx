@@ -110,6 +110,11 @@ export function ChannelDetail() {
    * the channel opens by default and fail over again.
    *
    * replace, not push: a source that did not play is not a place to go back to.
+   *
+   * Written straight to history for the same reason the sources drawer is --
+   * this is the same act, moving between streams of one channel, and it runs
+   * while a stream is failing and the catalogue is being re-grouped. A URL that
+   * waits on that render is a URL that can be dropped. See selectSource.
    */
   const streams = channelStreams(defaultChannel ?? channel)
   const currentIndex = streams.findIndex(
@@ -134,7 +139,11 @@ export function ChannelDetail() {
     toast(
       `${channel.portalSource?.name ?? "That source"} didn't play. Trying ${nextStream.portalSource?.name ?? "the next source"}.`,
     )
-    router.replace(channelHref(channelId, nextStream.savedChannelId))
+    window.history.replaceState(
+      null,
+      "",
+      channelHref(channelId, nextStream.savedChannelId),
+    )
   }
 
   return (

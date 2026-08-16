@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   AlertCircleIcon,
@@ -94,7 +93,6 @@ export function TvShell({ children }: { children: ReactNode }) {
   const isReady = useHydratedLayout()
   const segment = useActiveChannelSlug()
   const selectedSourceId = useActiveChannelSourceId()
-  const router = useRouter()
   const defaultChannel = segment ? channelIndex.get(segment) : undefined
   const currentChannel = selectedSourceId
     ? (browserChannels.find(
@@ -116,12 +114,35 @@ export function TvShell({ children }: { children: ReactNode }) {
     ? identityKeyOf(currentChannel)
     : null
 
+  /**
+   * The URL is written directly rather than pushed through the router.
+   *
+   * Both name the same destination, and router.push is the obvious way to say
+   * it, but it defers the URL until React commits the render it starts -- and
+   * the render this one starts is the expensive one. Choosing a source rebuilds
+   * the grouping and the slug index over the whole catalogue, which on a large
+   * one is 200,000 rows, and the drawer closing right behind it is a second
+   * update arriving while that is still in flight. When the transition does not
+   * commit, the router keeps the address it already had, so every choice
+   * silently landed back on whatever the page was opened at. Switching channels
+   * escaped it only because those are prefetched links, whose commit is cheap.
+   *
+   * Next syncs usePathname and useSearchParams with the native History API, so
+   * the address changes now, the hooks see it now, and nothing waits on a
+   * render finishing. There is no route change here to give up: every one of
+   * these URLs is the same /tv document with different query parameters, which
+   * is precisely the case the History API is meant for.
+   */
   const selectSource = useCallback(
     (source: PortalChannelWithSource) => {
-      router.push(channelHref(channelSlug(source), source.savedChannelId))
+      window.history.pushState(
+        null,
+        "",
+        channelHref(channelSlug(source), source.savedChannelId),
+      )
       setSourcesOpen(false)
     },
-    [channelSlug, router],
+    [channelSlug],
   )
 
   const updateSourceOrder = useCallback(
