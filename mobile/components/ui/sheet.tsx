@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { Pressable, StyleSheet, Text, type View } from "react-native"
+import { BackHandler, Pressable, StyleSheet, Text, type View } from "react-native"
 import { BlurView } from "expo-blur"
 import { useUniwind } from "uniwind"
 import Animated, {
@@ -92,6 +92,7 @@ export const Sheet = forwardRef<
 
   const body = (
     <>
+      <DismissOnBack />
       {title ? (
         <Text
           className="font-heading text-foreground text-[22px] tracking-tight"
@@ -130,6 +131,43 @@ export const Sheet = forwardRef<
     </BottomSheetModal>
   )
 })
+
+/**
+ * Android's back gesture closes the sheet rather than leaving the screen.
+ *
+ * A sheet is a layer over the page, so back means "put this away" while it is
+ * up — going back to the channel list from behind an open drawer loses both the
+ * drawer and the place the reader was in. Every sheet in the app is this shell,
+ * so registering it here covers them all rather than each remembering to.
+ *
+ * Rendered inside the sheet, which is what gives it the right lifetime: a modal
+ * mounts its content when presented and unmounts on dismiss, so the handler
+ * exists exactly while there is something to close. With two sheets open, the
+ * later one registered wins, which is the one on top.
+ *
+ * iOS has no back button, and its own back gesture cannot reach a presented
+ * sheet, so there is nothing to intercept there.
+ *
+ * Exported for the one sheet that predates this shell and builds its own
+ * BottomSheetModal — it needs the same behaviour, and the alternative is that
+ * one drawer in the app quietly leaves the screen instead of closing.
+ */
+export function DismissOnBack() {
+  const { close } = useBottomSheet()
+
+  useEffect(() => {
+    if (process.env.EXPO_OS !== "android") return
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      close()
+      return true
+    })
+
+    return () => subscription.remove()
+  }, [close])
+
+  return null
+}
 
 /**
  * The sheet backdrop: a blur that follows the sheet, under a scrim that fades.

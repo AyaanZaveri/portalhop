@@ -9,6 +9,7 @@ import {
 import { Check, LayoutGrid, Tv } from "lucide-react-native"
 
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
+import { DismissOnBack } from "@/components/ui/sheet"
 import { useTheme } from "@/lib/theme"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
@@ -52,6 +53,9 @@ export const PortalFilterSheet = forwardRef<
       handleIndicatorStyle={{ backgroundColor: tokens["muted-foreground"] }}
     >
       <BottomSheetView className="gap-1 px-4 pt-2 pb-8">
+        {/* This sheet builds its own modal rather than using the app's shell,
+            so it takes the back handling explicitly. */}
+        <DismissOnBack />
         {/* No description: the rows say what they do, and a sentence explaining
             a list of portals is just something to read past. */}
         <Text className="font-heading text-foreground mb-3 text-[22px] tracking-tight">
