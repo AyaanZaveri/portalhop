@@ -7,6 +7,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -266,6 +267,44 @@ export const savedChannels = pgTable("saved_channels", {
     table.identityKey,
   ),
 ])
+
+/**
+ * What a stream turned out to be, once somebody watched it.
+ *
+ * Created by scripts/migrate-stream-info.sql. Written by the player rather
+ * than by a refresh: a portal's catalogue says what a channel is called, not
+ * what comes down the wire, and finding that out means opening the stream.
+ * Opening every stream in a catalogue to fill this in is not a refresh.
+ *
+ * Keyed on the saved channel — one portal's copy — because two portals
+ * carrying the same channel at different qualities is the whole reason to
+ * show it.
+ */
+export const savedChannelStreamInfo = pgTable("saved_channel_stream_info", {
+  savedChannelId: integer("saved_channel_id")
+    .primaryKey()
+    .references(() => savedChannels.id, { onDelete: "cascade" }),
+  width: integer("width"),
+  height: integer("height"),
+  // Kept as sent: 59.94 is not 60, and the difference is a broadcast feed
+  // against a re-encode.
+  frameRate: real("frame_rate"),
+  /**
+   * What the stream declares, in bits per second — never what a viewing
+   * measured.
+   *
+   * A declared bandwidth is a property of the rendition, so it can be compared
+   * between two portals. A measured average is a reading of one network on one
+   * evening, and storing it would present that as a fact about the stream.
+   */
+  bandwidth: integer("bandwidth"),
+  /**
+   * A reading has to carry its own age. A portal can requantise a channel
+   * underneath a stored row, and without this a figure from March looks
+   * exactly like one from this morning.
+   */
+  seenAt: timestamp("seen_at").notNull(),
+})
 
 /**
  * Which stream plays when the user opens a channel.

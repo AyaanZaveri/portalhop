@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/media-player"
 import { cn } from "@/lib/utils"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
+import { apiFetch } from "@/lib/api-fetch"
 import { TV_MOBILE_LAYOUT_QUERY } from "@/hooks/use-media-query"
 import {
   canResolveChannel,
@@ -114,6 +115,10 @@ export function LivePlayer({
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
+  // One report per stream. Levels switch constantly on an adaptive stream and
+  // every switch would otherwise be a write; the first one that resolves is the
+  // rendition the viewer is actually getting.
+  const reportedRef = useRef(false)
   const captionCuesRef = useRef<Map<string, CaptionCue[]>>(new Map())
   const captionDebugStateRef = useRef("")
   const [activeCaption, setActiveCaption] = useState<string | null>(null)
@@ -427,6 +432,7 @@ export function LivePlayer({
       frameRateLabel: "",
       bitrateLabel: "",
     })
+    reportedRef.current = false
     captionCuesRef.current.clear()
     captionDebugStateRef.current = ""
     setActiveCaption(null)
@@ -575,6 +581,34 @@ export function LivePlayer({
       const updateFromLevel = (levelIndex?: number) => {
         const level = getActiveLevel(levelIndex)
         if (level) {
+          /**
+           * Written down, so the sources drawer can say what a stream is
+           * without opening it.
+           *
+           * The level's own figures rather than the measured bitrate the badge
+           * shows: BANDWIDTH is what the manifest declares for this rendition
+           * and can be compared against another portal's, where a measured
+           * average is a reading of this network on this evening.
+           */
+          const savedChannelId = channel.savedChannelId
+          if (typeof savedChannelId === "number" && !reportedRef.current) {
+            reportedRef.current = true
+            void apiFetch("/api/stream-info", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                savedChannelId,
+                width: level.width,
+                height: level.height,
+                frameRate: Number(level.attrs["FRAME-RATE"]) || null,
+                bandwidth: level.bitrate,
+              }),
+              // A by-product of watching television, not an action anyone
+              // took: a failure is worth nothing on screen, and the next play
+              // reports again.
+            }).catch(() => {})
+          }
+
           const next = formatStreamVariant(level)
           if (next.frameRateLabel) {
             hasManifestFrameRate = true
@@ -711,7 +745,7 @@ export function LivePlayer({
       )
       removeHlsListeners?.()
     }
-  }, [playerElement, streamUrl])
+  }, [playerElement, streamUrl, channel.savedChannelId])
 
   if (resolveError) {
     return (

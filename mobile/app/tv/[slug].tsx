@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
+import Animated, { FadeIn } from "react-native-reanimated"
 import type { BottomSheetModal } from "@gorhom/bottom-sheet"
 import { router, useLocalSearchParams } from "expo-router"
 import { ChevronLeft, RadioTower } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useTheme, withAlpha } from "@/lib/theme"
+import {
+  frameRateLabel,
+  resolutionLabel,
+  type StreamInfo,
+} from "@portalhop/shared/stream-info"
 import { useSession } from "@/lib/auth"
 import {
   useCachedStreams,
@@ -90,6 +96,17 @@ export default function ChannelDetailScreen() {
    * that is the whole switch; nothing here reaches into it.
    */
   const sourcesSheet = useRef<BottomSheetModal>(null)
+  // What the player found the stream to be, once it has parsed enough of it.
+  // Absent until then, and absent for good on a stream that declares nothing —
+  // which is a truthful blank rather than a guess.
+  const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null)
+  // Resolution and frame rate here; the bandwidth is stored and shown in the
+  // sources sheet, where comparing two portals is the point. Under a channel's
+  // name it would be a third figure saying what the first two already imply.
+  const badges = [
+    resolutionLabel(streamInfo ?? {}),
+    frameRateLabel(streamInfo ?? {}),
+  ].filter((label): label is string => Boolean(label))
   const getStreams = useCachedStreams(Boolean(session?.user))
   const chooseSource = useChooseChannelSource()
   // Resolved once for the screen rather than on the tap, so the badge only
@@ -246,6 +263,7 @@ export default function ChannelDetailScreen() {
         savedChannelId={Number(savedChannelId)}
         fullscreen={fullscreen}
         onFullscreenChange={setFullscreen}
+        onStreamInfo={setStreamInfo}
       />
 
       {/* Above the scroller, not inside it. It names what is being scrolled,
@@ -270,15 +288,53 @@ export default function ChannelDetailScreen() {
           <View className="flex-row items-center gap-3 px-4 pt-1 pb-4">
             <ChannelLogo uri={logo} />
 
-            <Text
-              numberOfLines={1}
-              className="text-foreground font-semibold min-w-0 flex-1 text-[19px] tracking-tight"
-              // Above the sixteen-point day headings below it: a page's own
-              // title should not be the same size as the headings inside it.
-              style={{ lineHeight: 23, includeFontPadding: false }}
-            >
-              {name || "Live stream"}
-            </Text>
+            <View className="min-w-0 flex-1 gap-1.5">
+              <Text
+                numberOfLines={1}
+                className="text-foreground font-semibold text-[19px] tracking-tight"
+                // Above the sixteen-point day headings below it: a page's own
+                // title should not be the same size as the headings inside it.
+                style={{ lineHeight: 23, includeFontPadding: false }}
+              >
+                {name || "Live stream"}
+              </Text>
+
+              {/* Two badges rather than one string: they are two separate facts
+                  about the stream, and a single line joined by a dot reads as
+                  one.
+                  
+                  They fade in rather than appear. A track's figures arrive a
+                  second or two after the picture — the stream has to declare
+                  them — so the block grows once, under a name that has already
+                  settled, and a fade is what keeps that from reading as a jolt.
+                  Tabular figures for the same reason mono was tempting: 1080p
+                  and 720p should be the same width without a mono face doing
+                  the whole label in typewriter. */}
+              {badges.length ? (
+                <Animated.View
+                  entering={FadeIn.duration(180)}
+                  className="flex-row items-center gap-1.5"
+                >
+                  {badges.map((label) => (
+                      <View
+                        key={label}
+                        className="h-5 justify-center rounded-md px-1.5"
+                        style={{ backgroundColor: withAlpha(colors.muted, 0.8) }}
+                      >
+                        <Text
+                          className="text-muted-foreground font-medium text-[10px]"
+                          style={{
+                            includeFontPadding: false,
+                            fontVariant: ["tabular-nums"],
+                          }}
+                        >
+                          {label}
+                        </Text>
+                      </View>
+                  ))}
+                </Animated.View>
+              ) : null}
+            </View>
           </View>
         </View>
       )}

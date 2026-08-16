@@ -25,6 +25,8 @@ import { ChannelLogo } from "@/components/tv/channel-logo"
 import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
 import { cn } from "@/lib/utils"
+import { useTv } from "@/components/tv/tv-provider"
+import { streamLabels, type StreamInfo } from "@portalhop/shared/stream-info"
 
 export type SourceChannel = PortalChannel & {
   portalSource?: { id: number; name: string }
@@ -80,6 +82,9 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
    * grip and a pencil is two small targets on top of the one that matters,
    * which is the row itself.
    */
+  // What each of these streams turned out to be, where one has been watched.
+  // This is the drawer the readings were collected for.
+  const { streamInfo } = useTv()
   const [mode, setMode] = useState<"browse" | "edit" | "reorder">("browse")
   const didDragRef = useRef(false)
 
@@ -196,7 +201,14 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                       changes what a row does and not how tall it is. */}
                   <SortableItemHandle className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors">
                     <ChannelLogo url={getLogoUrl(source)} />
-                    <SourceLabels source={source} />
+                    <SourceLabels
+                      source={source}
+                      info={
+                        source.savedChannelId == null
+                          ? undefined
+                          : streamInfo[source.savedChannelId]
+                      }
+                    />
                     <GripVerticalIcon className="text-muted-foreground size-4 shrink-0" />
                   </SortableItemHandle>
                 </SortableItem>
@@ -218,7 +230,14 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                       className="hover:bg-accent hover:text-accent-foreground h-auto min-w-0 flex-1 justify-start gap-3 rounded-lg px-2 py-2.5 text-sm font-normal"
                     >
                       <ChannelLogo url={getLogoUrl(source)} />
-                      <SourceLabels source={source} />
+                      <SourceLabels
+                        source={source}
+                        info={
+                          source.savedChannelId == null
+                            ? undefined
+                            : streamInfo[source.savedChannelId]
+                        }
+                      />
                       {/* A dot rather than a filled row. Every row here carries
                           a logo tile of the channel's own colour, so a tinted
                           background lands behind artwork that is already loud
@@ -262,9 +281,16 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   )
 }
 
-function SourceLabels({ source }: { source: SourceChannel }) {
+function SourceLabels({
+  source,
+  info,
+}: {
+  source: SourceChannel
+  info?: StreamInfo
+}) {
   const sourceName = source.portalSource?.name ?? "Manual"
   const streamName = source.sourceName || source.name || "Unnamed channel"
+  const labels = streamLabels(info)
 
   // The channel first, the portal under it. The portal is how you tell two
   // rows apart, but it is not what either row is: reading "Max" over "TSN 1 4K"
@@ -273,8 +299,16 @@ function SourceLabels({ source }: { source: SourceChannel }) {
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-tight">
       <span className="truncate font-medium">{streamName}</span>
-      <span className="text-muted-foreground truncate text-xs">
-        {sourceName}
+      <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
+        <span className="truncate">{sourceName}</span>
+        {/* Only for streams that have been played. A row with no figures is not
+            claiming to be worse — it is one nobody has opened yet, and a
+            placeholder would say otherwise. */}
+        {labels.map((label) => (
+          <span key={label} className="shrink-0 tabular-nums">
+            {label}
+          </span>
+        ))}
       </span>
     </span>
   )

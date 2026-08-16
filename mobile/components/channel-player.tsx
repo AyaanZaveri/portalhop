@@ -39,6 +39,8 @@ import { StatusBar } from "expo-status-bar"
 import { BackHandler } from "react-native"
 
 import { resolveChannelLink } from "@/lib/stream"
+import { useRecordStreamInfo } from "@/lib/stream-info"
+import type { StreamInfo } from "@portalhop/shared/stream-info"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 /** How long the controls stay up after a tap. */
@@ -78,11 +80,14 @@ export function ChannelPlayer({
   savedChannelId,
   fullscreen,
   onFullscreenChange,
+  onStreamInfo,
 }: {
   sourceId: number | undefined
   savedChannelId: number | undefined
   fullscreen: boolean
   onFullscreenChange: (next: boolean) => void
+  /** What the stream turned out to be, for the block that names the channel. */
+  onStreamInfo?: (info: StreamInfo) => void
 }) {
   // The one palette value this overlay uses. Everything else here is white on
   // video rather than a themed surface, but an active control has to read as
@@ -226,31 +231,63 @@ export function ChannelPlayer({
     videoTrack: player.videoTrack,
   })
 
-  const height = videoTrack?.size?.height
-  // averageBitrate and peakBitrate in preference to bitrate, which is
-  // deprecated. Average describes what the stream is actually costing; peak is
-  // the ceiling, and stands in when only it is known.
-  //
-  // A raw MPEG-TS stream declares neither, which is why the Xtream channels
-  // show no bitrate: the library reports what the stream states about itself,
-  // and there is no manifest there to state it. The web's figure is measured
-  // rather than declared — hls.js weighs the bytes of each fragment — and
-  // nothing expo-video exposes can be measured the same way.
-  const bps = videoTrack?.averageBitrate ?? videoTrack?.peakBitrate ?? null
-  // Frame rate comes off the video track itself, so it survives where the
-  // bitrate does not — which is exactly the channels that would otherwise show
-  // a resolution and nothing else. Rounded the way the web rounds it.
-  const fps = videoTrack?.frameRate ?? null
-  const stream =
-    [
-      height ? `${height}p` : null,
-      fps
-        ? `${Math.abs(fps - Math.round(fps)) < 0.05 ? Math.round(fps) : Number(fps.toFixed(2))} fps`
-        : null,
-      bps ? `${(bps / 1_000_000).toFixed(1)} Mbps` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ") || null
+  // Whether anything has arrived yet, for the loading state below. What the
+  // figures are is the screen's business, not this component's — see info.
+  const stream = videoTrack?.size?.height ? "playing" : null
+
+  /**
+   * What the stream turned out to be, handed to whoever is drawing the
+   * channel.
+   *
+   * The figures describe the stream, and the block under the video is where
+   * this screen says what the stream is — so they belong there rather than
+   * over the picture, where they sat on top of the thing they were describing
+   * and left with the controls.
+   *
+   * No bitrate. It is the one figure here that is a live measurement rather
+   * than a property: resolution and frame rate identify the rendition, and a
+   * number that moves every few seconds does not belong in a block that names
+   * the channel. The web keeps it, where the overlay it lives in is transient
+   * and the screen has room.
+   */
+  /**
+   * The four figures, rebuilt only when the track changes.
+   *
+   * Memoized because two effects depend on them, and an object rebuilt every
+   * render would have both firing every render — one of them a network write.
+   */
+  const info = useMemo<StreamInfo>(
+    () => ({
+      width: videoTrack?.size?.width ?? null,
+      height: videoTrack?.size?.height ?? null,
+      frameRate: videoTrack?.frameRate ?? null,
+      // What the stream declares, in preference order: average describes the
+      // rendition, peak stands in when only it is stated. Never a measurement
+      // of this viewing — see the table this ends up in.
+      bandwidth: videoTrack?.averageBitrate ?? videoTrack?.peakBitrate ?? null,
+    }),
+    [videoTrack],
+  )
+
+  useEffect(() => {
+    onStreamInfo?.(info)
+  }, [onStreamInfo, info])
+
+  /**
+   * Written down, so the sources sheet can say what a stream is without
+   * opening it.
+   *
+   * Only what the stream states about itself, and only once it has stated it —
+   * a track arrives a segment or two in, which is why this hangs off the
+   * figures rather than being read at the first frame.
+   */
+  const { mutate: recordStreamInfo } = useRecordStreamInfo()
+
+  useEffect(() => {
+    if (savedChannelId == null) return
+    if (!info.width && !info.height && !info.frameRate && !info.bandwidth) return
+    recordStreamInfo({ savedChannelId, ...info })
+  }, [savedChannelId, info, recordStreamInfo])
 
   // Controls fall away on their own, but never while paused — a paused player
   // with no controls gives you nothing to press.
@@ -478,20 +515,6 @@ export function ChannelPlayer({
                     LIVE
                   </Text>
                 </View>
-
-                {/* What the stream is actually delivering, as the web shows
-                      it. Absent rather than guessed at when the track reports
-                      nothing useful. */}
-                {stream ? (
-                  <View className="h-6 justify-center rounded-md bg-black/50 px-2">
-                    <Text
-                      className="font-mono text-[11px] text-white/80"
-                      style={{ includeFontPadding: false }}
-                    >
-                      {stream}
-                    </Text>
-                  </View>
-                ) : null}
 
                 <View className="flex-1" />
 

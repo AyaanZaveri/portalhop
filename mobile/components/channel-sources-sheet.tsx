@@ -6,6 +6,8 @@ import {
 } from "@gorhom/bottom-sheet"
 
 import type { PortalChannelWithSource } from "@/lib/channels"
+import { useStreamInfo } from "@/lib/stream-info"
+import { streamLabels } from "@portalhop/shared/stream-info"
 import { select } from "@/lib/haptics"
 import { useTheme } from "@/lib/theme"
 import { ChannelLogo } from "@/components/channel-logo"
@@ -37,6 +39,11 @@ export const ChannelSourcesSheet = forwardRef<
   }
 >(function ChannelSourcesSheet({ streams, activeKey, onChoose }, ref) {
   const { colors } = useTheme()
+  // What each of these streams turned out to be, where one has been watched
+  // before. This is the screen the readings were collected for: five copies of
+  // a channel, and no other way to tell which is the 4K one without opening
+  // each in turn.
+  const streamInfo = useStreamInfo(streams.length > 1)
 
   return (
     // No blur on this one. It opens over the player, and a video is a native
@@ -72,17 +79,45 @@ export const ChannelSourcesSheet = forwardRef<
                 >
                   {item.sourceName || item.name || "Unnamed channel"}
                 </Text>
-                <Text
-                  numberOfLines={1}
-                  className="font-sans text-muted-foreground text-xs"
+                <View
                   style={{
-                    lineHeight: 15,
-                    includeFontPadding: false,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
                     marginTop: 2,
                   }}
                 >
-                  {item.portalSource?.name ?? "Manual"}
-                </Text>
+                  <Text
+                    numberOfLines={1}
+                    className="font-sans text-muted-foreground shrink text-xs"
+                    style={{ lineHeight: 15, includeFontPadding: false }}
+                  >
+                    {item.portalSource?.name ?? "Manual"}
+                  </Text>
+
+                  {/* Only for streams that have been played. A row with no
+                      figures is not making a claim about being worse — it is
+                      one nobody has opened yet, and inventing a placeholder
+                      would say otherwise. */}
+                  {streamLabels(
+                    item.savedChannelId == null
+                      ? undefined
+                      : streamInfo[item.savedChannelId],
+                  ).map((label) => (
+                    <Text
+                      key={label}
+                      numberOfLines={1}
+                      className="text-muted-foreground font-medium text-[10px]"
+                      style={{
+                        lineHeight: 15,
+                        includeFontPadding: false,
+                        fontVariant: ["tabular-nums"],
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  ))}
+                </View>
               </View>
 
               {/* A dot rather than a filled row. Every line here carries a logo

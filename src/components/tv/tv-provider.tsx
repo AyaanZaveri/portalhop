@@ -17,6 +17,7 @@ import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-ty
 import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
+import type { StreamInfo } from "@portalhop/shared/stream-info"
 import {
   groupKeyFor,
   identityKeyFor,
@@ -86,6 +87,8 @@ type TvContextValue = {
    * about which channel a row is.
    */
   trustedIds: ReadonlySet<string>
+  /** What each watched stream turned out to be, by saved channel id. */
+  streamInfo: Record<number, StreamInfo>
   /** Which stream each channel plays, most preferred first. */
   sourceOrder: ChannelSourceOrder
   setChannelSourceOrder: (identityKey: string, savedChannelIds: number[]) => void
@@ -467,6 +470,35 @@ export function TvProvider({
     [],
   )
 
+  /**
+   * What each stream turned out to be, where one has been watched.
+   *
+   * Sparse and read once per session, like the source order beside it. The
+   * sources drawer is what it is for: five copies of a channel, and no other
+   * way to tell which is the 4K one without opening each in turn.
+   */
+  const [streamInfo, setStreamInfo] = useState<Record<number, StreamInfo>>({})
+
+  useEffect(() => {
+    if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStreamInfo({})
+      return
+    }
+
+    let current = true
+    apiFetch("/api/stream-info", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (current && body?.info) setStreamInfo(body.info)
+      })
+      .catch(() => {})
+
+    return () => {
+      current = false
+    }
+  }, [userId])
+
   const channelIndex = useMemo(
     () => buildChannelIndex(browserChannels, userId, sourceOrder),
     [browserChannels, userId, sourceOrder],
@@ -827,6 +859,7 @@ export function TvProvider({
       channelSlug,
       channelLogoUrl,
       channelStreams,
+      streamInfo,
       identityKeyOf,
       trustedIds: catalogueGroups.identityTrusted,
       sourceOrder,
@@ -875,6 +908,7 @@ export function TvProvider({
       channelSlug,
       channelLogoUrl,
       channelStreams,
+      streamInfo,
       identityKeyOf,
       catalogueGroups,
       sourceOrder,
