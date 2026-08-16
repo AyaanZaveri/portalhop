@@ -61,19 +61,8 @@ export const Sheet = forwardRef<
     children: ReactNode
     /** Omit to size to content, as the portals sheet does. */
     snapPoints?: BottomSheetModalProps["snapPoints"]
-    /**
-     * Whether to blur what is behind, or just darken it.
-     *
-     * On for every sheet but one. A blur samples the view hierarchy, and a
-     * video is not in it — it is a native surface composited separately, so the
-     * snapshot comes back with a hole where the picture is and the sheet floats
-     * over a page that is blurred everywhere except the one thing you were
-     * looking at. A scrim treats them alike, which is worse in principle and
-     * better on the screen.
-     */
-    blur?: boolean
   }
->(function Sheet({ title, children, snapPoints, blur = true }, ref) {
+>(function Sheet({ title, children, snapPoints }, ref) {
   const { colors } = useTheme()
   const { theme } = useUniwind()
   const blurTarget = useBlurTarget()
@@ -84,10 +73,9 @@ export const Sheet = forwardRef<
         {...props}
         blurTarget={blurTarget}
         dark={theme === "dark"}
-        blur={blur}
       />
     ),
-    [theme, blurTarget, blur],
+    [theme, blurTarget],
   )
 
   const body = (
@@ -190,11 +178,9 @@ function BlurBackdrop({
   style,
   blurTarget,
   dark,
-  blur,
 }: BottomSheetBackdropProps & {
   blurTarget: { current: View | null } | null
   dark: boolean
-  blur: boolean
 }) {
   const { close } = useBottomSheet()
   const [open, setOpen] = useState(false)
@@ -227,10 +213,21 @@ function BlurBackdrop({
     ),
   }))
 
-  // Heavier without the blur, because then it is the only thing saying the
-  // page has gone behind something — the same figure a build without the
-  // native module falls back to.
-  const blurring = blur && blurAvailable
+  /**
+   * iOS blurs; Android darkens.
+   *
+   * Android has to sample a subtree and composite it per frame, and the two
+   * places that costs most are the two this app cares about: a screen with a
+   * video decoding behind the sheet, which the blur cannot see into anyway,
+   * and a list of tens of thousands of rows. iOS does none of that work — a
+   * UIVisualEffectView blurs whatever is behind it, video included, for free.
+   *
+   * So the platform that can afford it keeps it, and the one that cannot takes
+   * a heavier scrim: without a blur it is the only thing saying the page has
+   * gone behind something. The same figure a build without the native module
+   * already fell back to.
+   */
+  const blurring = blurAvailable && process.env.EXPO_OS !== "android"
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       animatedIndex.value,

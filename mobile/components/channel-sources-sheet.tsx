@@ -47,10 +47,7 @@ export const ChannelSourcesSheet = forwardRef<
   const streamInfo = useStreamInfo(streams.length > 1)
 
   return (
-    // No blur on this one. It opens over the player, and a video is a native
-    // surface the blur cannot sample -- the page came back blurred everywhere
-    // except the picture, which is the one place a viewer is looking.
-    <Sheet ref={ref} title="Sources" snapPoints={["55%"]} blur={false}>
+    <Sheet ref={ref} title="Sources" snapPoints={["55%"]}>
       <BottomSheetFlatList
         data={streams}
         keyExtractor={(stream) => stream.key}
