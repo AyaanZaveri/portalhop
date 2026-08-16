@@ -40,6 +40,8 @@ export async function PUT(request: Request) {
     height?: unknown
     frameRate?: unknown
     bandwidth?: unknown
+    frameRateMeasured?: unknown
+    bandwidthMeasured?: unknown
   } | null
 
   const savedChannelId = readNumber(body?.savedChannelId)
@@ -57,6 +59,10 @@ export async function PUT(request: Request) {
     // against a re-encode.
     frameRate: readNumber(body?.frameRate, { integer: false }),
     bandwidth: readNumber(body?.bandwidth),
+    // Whether the client worked the figure out rather than being told it. Only
+    // meaningful alongside a figure, so a flag without one is just false.
+    frameRateMeasured: body?.frameRateMeasured === true,
+    bandwidthMeasured: body?.bandwidthMeasured === true,
   }
 
   // Nothing worth storing. A stream that states none of this would otherwise

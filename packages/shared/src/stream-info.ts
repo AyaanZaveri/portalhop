@@ -10,8 +10,18 @@ export type StreamInfo = {
   width: number | null
   height: number | null
   frameRate: number | null
-  /** Declared, in bits per second. Never a measured average — see the table. */
+  /** In bits per second: the stream's own figure, or ours — see the flags. */
   bandwidth: number | null
+  /**
+   * Whether a figure was measured rather than declared.
+   *
+   * A declared figure is a property of the rendition and holds against another
+   * portal's. A measured one is what this client saw on this connection, which
+   * is worth showing — most streams declare almost nothing — but not worth
+   * passing off as the same kind of fact.
+   */
+  frameRateMeasured?: boolean
+  bandwidthMeasured?: boolean
   seenAt?: string
 }
 
@@ -30,18 +40,37 @@ export function resolutionLabel({ width, height }: Partial<StreamInfo>) {
  * both are common, so a figure that is nearly whole is shown whole and one that
  * is not keeps its decimals.
  */
-export function frameRateLabel({ frameRate }: Partial<StreamInfo>) {
+export function frameRateLabel({
+  frameRate,
+  frameRateMeasured,
+}: Partial<StreamInfo>) {
   if (!frameRate) return null
   const rounded = Math.round(frameRate)
   const value =
     Math.abs(frameRate - rounded) < 0.05 ? rounded : Number(frameRate.toFixed(2))
-  return `${value} fps`
+  return `${measuredMark(frameRateMeasured)}${value} fps`
+}
+
+/**
+ * A tilde where we measured it.
+ *
+ * It marks the one thing a reader would otherwise get wrong: a declared figure
+ * is exact and comparable, a measured one is this connection on this evening.
+ * Without the mark the two sit side by side looking equally authoritative,
+ * which is how somebody concludes a portal is worse than it is because they
+ * watched it on hotel wifi.
+ */
+function measuredMark(measured: boolean | undefined) {
+  return measured ? "~" : ""
 }
 
 /** Megabits, to one decimal: the difference that matters is 2.5 against 6. */
-export function bandwidthLabel({ bandwidth }: Partial<StreamInfo>) {
+export function bandwidthLabel({
+  bandwidth,
+  bandwidthMeasured,
+}: Partial<StreamInfo>) {
   if (!bandwidth) return null
-  return `${(bandwidth / 1_000_000).toFixed(1)} Mbps`
+  return `${measuredMark(bandwidthMeasured)}${(bandwidth / 1_000_000).toFixed(1)} Mbps`
 }
 
 /** The badges a stream earns, in the order they should be read. */

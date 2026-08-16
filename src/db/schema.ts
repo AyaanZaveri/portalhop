@@ -299,6 +299,18 @@ export const savedChannelStreamInfo = pgTable("saved_channel_stream_info", {
    */
   bandwidth: integer("bandwidth"),
   /**
+   * Whether each figure is the stream's claim or our own measurement.
+   *
+   * Most streams declare a resolution and little else, so the web build works
+   * the rest out — weighing fragments for a bitrate, counting frames for a
+   * rate. Those are worth keeping; a channel showing nothing is worse than one
+   * showing a figure with its provenance attached. Attached rather than
+   * hidden, because a declared bandwidth is comparable between two portals and
+   * a measured one is a reading of one network on one evening.
+   */
+  frameRateMeasured: boolean("frame_rate_measured").notNull().default(false),
+  bandwidthMeasured: boolean("bandwidth_measured").notNull().default(false),
+  /**
    * A reading has to carry its own age. A portal can requantise a channel
    * underneath a stored row, and without this a figure from March looks
    * exactly like one from this morning.

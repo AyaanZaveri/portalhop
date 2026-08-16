@@ -21,6 +21,7 @@ import {
   SortableItem,
   SortableItemHandle,
 } from "@/components/reui/sortable"
+import { Badge } from "@/components/ui/badge"
 import { ChannelLogo } from "@/components/tv/channel-logo"
 import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
@@ -299,15 +300,23 @@ function SourceLabels({
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-tight">
       <span className="truncate font-medium">{streamName}</span>
-      <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
-        <span className="truncate">{sourceName}</span>
-        {/* Only for streams that have been played. A row with no figures is not
-            claiming to be worse — it is one nobody has opened yet, and a
-            placeholder would say otherwise. */}
+      {/* The portal and the figures as one set of badges: they are the same
+          kind of thing, a short fact about this stream, and the portal is the
+          one every row has. The figures follow, and only for streams somebody
+          has played — a row without them is not claiming to be worse, it is one
+          nobody has opened yet. */}
+      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+        <Badge variant="secondary" className="h-5 rounded px-1.5 text-[10px]">
+          <span className="truncate">{sourceName}</span>
+        </Badge>
         {labels.map((label) => (
-          <span key={label} className="shrink-0 tabular-nums">
+          <Badge
+            key={label}
+            variant="secondary"
+            className="h-5 shrink-0 rounded px-1.5 text-[10px] tabular-nums"
+          >
             {label}
-          </span>
+          </Badge>
         ))}
       </span>
     </span>

@@ -9,6 +9,8 @@ export type StreamInfo = {
   height: number | null
   frameRate: number | null
   bandwidth: number | null
+  frameRateMeasured: boolean
+  bandwidthMeasured: boolean
   seenAt: string
 }
 
@@ -28,6 +30,8 @@ export async function listStreamInfo(db: Db, userId: string) {
       height: savedChannelStreamInfo.height,
       frameRate: savedChannelStreamInfo.frameRate,
       bandwidth: savedChannelStreamInfo.bandwidth,
+      frameRateMeasured: savedChannelStreamInfo.frameRateMeasured,
+      bandwidthMeasured: savedChannelStreamInfo.bandwidthMeasured,
       seenAt: savedChannelStreamInfo.seenAt,
     })
     .from(savedChannelStreamInfo)
@@ -45,6 +49,8 @@ export async function listStreamInfo(db: Db, userId: string) {
       height: row.height,
       frameRate: row.frameRate,
       bandwidth: row.bandwidth,
+      frameRateMeasured: row.frameRateMeasured,
+      bandwidthMeasured: row.bandwidthMeasured,
       seenAt: row.seenAt.toISOString(),
     }
   }
@@ -71,6 +77,8 @@ export async function recordStreamInfo(
     height: number | null
     frameRate: number | null
     bandwidth: number | null
+    frameRateMeasured: boolean
+    bandwidthMeasured: boolean
   },
 ) {
   const owned = await db

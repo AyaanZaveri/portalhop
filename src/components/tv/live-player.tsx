@@ -115,10 +115,21 @@ export function LivePlayer({
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
-  // One report per stream. Levels switch constantly on an adaptive stream and
-  // every switch would otherwise be a write; the first one that resolves is the
-  // rendition the viewer is actually getting.
-  const reportedRef = useRef(false)
+  /**
+   * What has been learned about the stream so far, and what was last sent.
+   *
+   * Two sources feed this and they arrive at different times. The manifest
+   * declares what it declares the moment a level resolves; everything it omits
+   * the player works out for itself over the next few seconds — fragments
+   * weighed for a bitrate, frames counted for a rate. A single report at the
+   * first level would store the first half and throw away the second, which is
+   * most of what is known about a raw MPEG-TS stream.
+   *
+   * So it reports again as figures arrive, and the signature is what stops that
+   * being a write per level switch on an adaptive stream.
+   */
+  const learnedRef = useRef<Record<string, number | boolean | null>>({})
+  const reportedRef = useRef("")
   const captionCuesRef = useRef<Map<string, CaptionCue[]>>(new Map())
   const captionDebugStateRef = useRef("")
   const [activeCaption, setActiveCaption] = useState<string | null>(null)
@@ -432,7 +443,8 @@ export function LivePlayer({
       frameRateLabel: "",
       bitrateLabel: "",
     })
-    reportedRef.current = false
+    learnedRef.current = {}
+    reportedRef.current = ""
     captionCuesRef.current.clear()
     captionDebugStateRef.current = ""
     setActiveCaption(null)
@@ -446,6 +458,7 @@ export function LivePlayer({
     let frameRateEstimated = false
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
+    const bitrateSamples: number[] = []
 
     const updateActiveCaption = () => {
       const selectedTrack = Array.from(
@@ -489,6 +502,54 @@ export function LivePlayer({
       setActiveCaption(lines.length ? lines.join("\n") : null)
     }
 
+    /**
+     * Records what is known, once it is worth recording.
+     *
+     * Declared figures win over measured ones for the same field — a manifest's
+     * FRAME-RATE is a property of the rendition, where a count over five
+     * seconds is this player on this connection — so a measurement only fills a
+     * gap, and says so when it does.
+     */
+    const reportStream = (
+      learned: Partial<{
+        width: number | null
+        height: number | null
+        frameRate: number | null
+        bandwidth: number | null
+        frameRateMeasured: boolean
+        bandwidthMeasured: boolean
+      }>,
+    ) => {
+      const savedChannelId = channel.savedChannelId
+      if (typeof savedChannelId !== "number") return
+
+      const measured = Boolean(
+        learned.frameRateMeasured || learned.bandwidthMeasured,
+      )
+
+      for (const [field, value] of Object.entries(learned)) {
+        if (value === null || value === undefined) continue
+        // A measurement fills a gap and never overwrites. It replaces neither a
+        // declared figure, which is the better answer, nor an earlier
+        // measurement of its own, which is what keeps a bitrate that moves with
+        // every fragment from being a write with every fragment.
+        if (measured && learnedRef.current[field]) continue
+        learnedRef.current[field] = value
+      }
+
+      const payload = JSON.stringify({ savedChannelId, ...learnedRef.current })
+      if (payload === reportedRef.current) return
+      reportedRef.current = payload
+
+      // A by-product of watching television, not an action anyone took: a
+      // failure is worth nothing on screen, and the next play reports again.
+      void apiFetch("/api/stream-info", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).catch(() => {})
+    }
+
     const sampleFrameRate = () => {
       if (hasManifestFrameRate || frameRateEstimated) return
 
@@ -522,6 +583,7 @@ export function LivePlayer({
         const snapped = snapToCommonFrameRate(median)
 
         frameRateEstimated = true
+        reportStream({ frameRate: snapped, frameRateMeasured: true })
         setStreamVariant((current) =>
           current.frameRateLabel
             ? current
@@ -570,6 +632,31 @@ export function LivePlayer({
 
       const updateBitrate = (bitrate?: number) => {
         if (!bitrate) return
+
+        /**
+         * Stored once, from a handful of fragments rather than the first.
+         *
+         * The opening fragment is the worst sample there is: a player starts on
+         * a low rendition and climbs, so what it measures first is the stream
+         * being careful rather than the stream. The median of five is what the
+         * frame-rate sampler beside this uses, and for the same reason.
+         *
+         * The badge above keeps updating with every fragment. That one is a
+         * live reading and is allowed to move; this is a record, and a record
+         * that moved would be a write every few seconds for the life of the
+         * viewing.
+         */
+        if (bitrateSamples.length < 5) {
+          bitrateSamples.push(bitrate)
+          if (bitrateSamples.length === 5) {
+            const sorted = [...bitrateSamples].sort((a, b) => a - b)
+            reportStream({
+              bandwidth: Math.round(sorted[2]),
+              bandwidthMeasured: true,
+            })
+          }
+        }
+
         const bitrateLabel = formatBitrateLabel(bitrate)
         setStreamVariant((current) =>
           current.bitrateLabel === bitrateLabel
@@ -581,33 +668,12 @@ export function LivePlayer({
       const updateFromLevel = (levelIndex?: number) => {
         const level = getActiveLevel(levelIndex)
         if (level) {
-          /**
-           * Written down, so the sources drawer can say what a stream is
-           * without opening it.
-           *
-           * The level's own figures rather than the measured bitrate the badge
-           * shows: BANDWIDTH is what the manifest declares for this rendition
-           * and can be compared against another portal's, where a measured
-           * average is a reading of this network on this evening.
-           */
-          const savedChannelId = channel.savedChannelId
-          if (typeof savedChannelId === "number" && !reportedRef.current) {
-            reportedRef.current = true
-            void apiFetch("/api/stream-info", {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                savedChannelId,
-                width: level.width,
-                height: level.height,
-                frameRate: Number(level.attrs["FRAME-RATE"]) || null,
-                bandwidth: level.bitrate,
-              }),
-              // A by-product of watching television, not an action anyone
-              // took: a failure is worth nothing on screen, and the next play
-              // reports again.
-            }).catch(() => {})
-          }
+          reportStream({
+            width: level.width || null,
+            height: level.height || null,
+            frameRate: Number(level.attrs["FRAME-RATE"]) || null,
+            bandwidth: level.bitrate || null,
+          })
 
           const next = formatStreamVariant(level)
           if (next.frameRateLabel) {
