@@ -725,7 +725,15 @@ export function LivePlayer({
             width: level.width || null,
             height: level.height || null,
             frameRate: Number(level.attrs["FRAME-RATE"]) || null,
-            bandwidth: level.bitrate || null,
+            // AVERAGE-BANDWIDTH, not BANDWIDTH. The latter is the peak a
+            // rendition is allowed to reach and runs a third to double the
+            // average, so storing it would put two different quantities in one
+            // column: a channel somebody watched long enough to measure would
+            // read lower than the same channel opened once, and the drawer
+            // ranks those against each other. hls.js falls this getter back to
+            // the peak where a manifest states no average, which is the same
+            // order the phone asks its track for.
+            bandwidth: level.averageBitrate || null,
           })
 
           const next = formatStreamVariant(level)
