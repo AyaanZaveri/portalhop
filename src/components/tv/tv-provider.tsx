@@ -89,6 +89,11 @@ type TvContextValue = {
   trustedIds: ReadonlySet<string>
   /** What each watched stream turned out to be, by saved channel id. */
   streamInfo: Record<number, StreamInfo>
+  /** Records what a stream turned out to be, and shows it at once. */
+  recordStreamInfo: (
+    savedChannelId: number,
+    info: Omit<StreamInfo, "seenAt">,
+  ) => void
   /** Which stream each channel plays, most preferred first. */
   sourceOrder: ChannelSourceOrder
   setChannelSourceOrder: (identityKey: string, savedChannelIds: number[]) => void
@@ -439,6 +444,7 @@ export function TvProvider({
     }
   }, [userId])
 
+
   /**
    * Applied here and saved in the background.
    *
@@ -498,6 +504,39 @@ export function TvProvider({
       current = false
     }
   }, [userId])
+
+  /**
+   * Writes a reading down, and shows it immediately.
+   *
+   * The write lives here rather than in the player because the map does. Sent
+   * straight from the player, the row reached the database and nothing on
+   * screen knew: the map is read once a session, so the sources drawer went on
+   * showing what it had loaded with, and the figures for the stream playing
+   * right now only appeared after a reload. Which is the one stream the viewer
+   * has just proved something about.
+   *
+   * The local copy is updated first and not rolled back. There is nothing to
+   * roll back to -- the alternative to this reading is no reading -- and a
+   * failed write costs a badge until the next play, which is the same nothing
+   * it cost before.
+   */
+  const recordStreamInfo = useCallback(
+    (savedChannelId: number, info: Omit<StreamInfo, "seenAt">) => {
+      setStreamInfo((current) => ({
+        ...current,
+        [savedChannelId]: { ...info, seenAt: new Date().toISOString() },
+      }))
+
+      // A by-product of watching television, not an action anyone took: a
+      // failure is worth nothing on screen, and the next play reports again.
+      void apiFetch("/api/stream-info", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ savedChannelId, ...info }),
+      }).catch(() => {})
+    },
+    [],
+  )
 
   const channelIndex = useMemo(
     () => buildChannelIndex(browserChannels, userId, sourceOrder),
@@ -860,6 +899,7 @@ export function TvProvider({
       channelLogoUrl,
       channelStreams,
       streamInfo,
+      recordStreamInfo,
       identityKeyOf,
       trustedIds: catalogueGroups.identityTrusted,
       sourceOrder,
@@ -909,6 +949,7 @@ export function TvProvider({
       channelLogoUrl,
       channelStreams,
       streamInfo,
+      recordStreamInfo,
       identityKeyOf,
       catalogueGroups,
       sourceOrder,

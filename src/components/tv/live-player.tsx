@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/media-player"
 import { cn } from "@/lib/utils"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
-import { apiFetch } from "@/lib/api-fetch"
 import { TV_MOBILE_LAYOUT_QUERY } from "@/hooks/use-media-query"
 import {
   canResolveChannel,
@@ -107,7 +106,16 @@ export function LivePlayer({
     useImageProxy,
     epgChannels,
     customEpgChannels,
+    recordStreamInfo,
   } = useTv()
+
+  // Held in a ref rather than in the player effect's dependencies: the effect
+  // tears down and rebuilds the HLS engine, which is not something a callback
+  // identity should be able to cause.
+  const recordStreamRef = useRef(recordStreamInfo)
+  useEffect(() => {
+    recordStreamRef.current = recordStreamInfo
+  }, [recordStreamInfo])
   const { currentProgramme } = useChannelEpg()
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
@@ -567,13 +575,16 @@ export function LivePlayer({
       if (payload === reportedRef.current) return
       reportedRef.current = payload
 
-      // A by-product of watching television, not an action anyone took: a
-      // failure is worth nothing on screen, and the next play reports again.
-      void apiFetch("/api/stream-info", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-      }).catch(() => {})
+      // Through the provider, so the sources drawer shows this without waiting
+      // for a reload -- it reads the map once a session, and this is the stream
+      // the viewer is watching right now.
+      recordStreamRef.current(savedChannelId, {
+        width: null,
+        height: null,
+        frameRate: null,
+        bandwidth: null,
+        ...learnedRef.current,
+      })
     }
 
     /**
@@ -675,10 +686,29 @@ export function LivePlayer({
     }
 
     const updateFromNativeVideo = () => {
+      if (!playerElement.videoHeight) return
+
+      /**
+       * The decoded frame, which is the only place some streams say their size.
+       *
+       * This drew the badge and stopped there, so a stream whose manifest omits
+       * RESOLUTION showed 1080p over the player and stored nothing -- the
+       * drawer had a bitrate and a frame rate for it and no resolution, for a
+       * figure that was on screen the whole time.
+       *
+       * No measured mark. A tilde says "this connection on this evening", which
+       * is honest about a bitrate and wrong about this: the frame the decoder
+       * produced is the size the portal sent, exactly, and does not vary with
+       * the network. If anything it is the better witness of the two, since a
+       * manifest can claim a resolution it does not deliver.
+       */
+      reportStream({
+        width: playerElement.videoWidth || null,
+        height: playerElement.videoHeight,
+      })
+
       setStreamVariant((current) => {
-        if (current.resolutionLabel || !playerElement.videoHeight) {
-          return current
-        }
+        if (current.resolutionLabel) return current
         return {
           resolutionLabel: formatResolutionLabel({
             width: playerElement.videoWidth,
@@ -850,6 +880,12 @@ export function LivePlayer({
     }
 
     playerElement.addEventListener("loadedmetadata", updateFromNativeVideo)
+    // And whenever the frame changes size, which is what a rendition switch
+    // looks like from here. loadedmetadata alone catches the size the stream
+    // opened at, and a player opens low and climbs -- so on a manifest that
+    // declares no RESOLUTION we would have recorded the 480p it started on and
+    // never the 1080p it settled at.
+    playerElement.addEventListener("resize", updateFromNativeVideo)
     playerElement.addEventListener("timeupdate", updateActiveCaption)
     playerElement.textTracks.addEventListener("change", updateActiveCaption)
     playerElement.textTracks.addEventListener("addtrack", updateActiveCaption)
@@ -862,6 +898,7 @@ export function LivePlayer({
         window.clearInterval(frameRateSampleIntervalId)
       }
       playerElement.removeEventListener("loadedmetadata", updateFromNativeVideo)
+      playerElement.removeEventListener("resize", updateFromNativeVideo)
       playerElement.removeEventListener("timeupdate", updateActiveCaption)
       playerElement.textTracks.removeEventListener(
         "change",
