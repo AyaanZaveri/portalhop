@@ -40,7 +40,11 @@ import { BackHandler } from "react-native"
 
 import { resolveChannelLink } from "@/lib/stream"
 import { useRecordStreamInfo } from "@/lib/stream-info"
-import { bestStreamInfo, type StreamInfo } from "@portalhop/shared/stream-info"
+import {
+  bestStreamInfo,
+  withNewReading,
+  type StreamInfo,
+} from "@portalhop/shared/stream-info"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
 /** How long the controls stay up after a tap. */
@@ -81,6 +85,8 @@ export function ChannelPlayer({
   fullscreen,
   onFullscreenChange,
   onStreamInfo,
+  storedInfo,
+  storedInfoLoaded,
 }: {
   sourceId: number | undefined
   savedChannelId: number | undefined
@@ -88,6 +94,20 @@ export function ChannelPlayer({
   onFullscreenChange: (next: boolean) => void
   /** What the stream turned out to be, for the block that names the channel. */
   onStreamInfo?: (info: StreamInfo) => void
+  /**
+   * What the table already says about this stream, where it says anything.
+   *
+   * The player starts from this rather than from nothing, which is what makes
+   * the write conditional: with it, a phone that learns only the resolution can
+   * tell that the resolution is already on file and say nothing at all.
+   */
+  storedInfo?: Partial<StreamInfo>
+  /**
+   * Whether the table has been read yet. Absent is not the same as empty, and
+   * reporting before the read lands is reporting without knowing what is on
+   * file -- see the effect that writes.
+   */
+  storedInfoLoaded?: boolean
 }) {
   // The one palette value this overlay uses. Everything else here is white on
   // video rather than a themed surface, but an active control has to read as
@@ -300,20 +320,44 @@ export function ChannelPlayer({
   const bestRef = useRef<StreamInfo>(info)
   const sentRef = useRef("")
 
+  /**
+   * Read first, then report, and only where reporting adds something.
+   *
+   * The phone measures nothing -- it repeats what its video track declares --
+   * so for most streams it arrives knowing strictly less than the table does.
+   * Reporting anyway put a row on the wire whose only new information was the
+   * time, and, worse, patched this client's own copy of the map with it: the
+   * sheet then showed a resolution and nothing else for a stream the browser
+   * had already measured a frame rate and a bitrate for.
+   *
+   * The stored reading is the starting point, so what goes out is the two
+   * merged, and the write happens only when that differs from what was stored.
+   * A phone that learns nothing new stays quiet, which is also what stops it
+   * racing the fetch it is reading from.
+   */
   useEffect(() => {
-    if (savedChannelId == null) return
+    if (savedChannelId == null || !storedInfoLoaded) return
 
     bestRef.current = bestStreamInfo(bestRef.current, info)
-
-    const next = bestRef.current
+    const next = withNewReading(storedInfo, bestRef.current)
     if (!next.width && !next.height && !next.frameRate && !next.bandwidth) return
 
-    const payload = JSON.stringify(next)
-    if (payload === sentRef.current) return
+    // Compared against the stored row rather than against the last thing sent,
+    // so a second viewing of an unchanged stream is silent rather than a repeat.
+    const figures = (reading: Partial<StreamInfo> | undefined) =>
+      JSON.stringify([
+        reading?.width ?? null,
+        reading?.height ?? null,
+        reading?.frameRate ?? null,
+        reading?.bandwidth ?? null,
+      ])
+
+    const payload = figures(next)
+    if (payload === figures(storedInfo) || payload === sentRef.current) return
     sentRef.current = payload
 
     recordStreamInfo({ savedChannelId, ...next })
-  }, [savedChannelId, info, recordStreamInfo])
+  }, [savedChannelId, storedInfoLoaded, info, storedInfo, recordStreamInfo])
 
   // A different channel is a different stream: the best seen so far belongs to
   // the one that just left.

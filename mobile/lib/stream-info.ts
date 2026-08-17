@@ -19,6 +19,19 @@ const EMPTY: Record<number, StreamInfo> = {}
  * them is the 4K one before opening it.
  */
 export function useStreamInfo(enabled: boolean) {
+  return useStreamInfoQuery(enabled).info
+}
+
+/**
+ * The same map, and whether it has actually arrived yet.
+ *
+ * An empty map and a map that has not loaded look identical to a reader, and
+ * for the sheet that is fine -- it draws nothing either way. For the player it
+ * is the whole question: reporting before the read lands means reporting
+ * without knowing what is already on file, which is a write that can only
+ * repeat what the table says or, on a cold start, race it.
+ */
+export function useStreamInfoQuery(enabled: boolean) {
   const query = useQuery({
     queryKey: KEY,
     queryFn: () => apiJson<{ info: Record<number, StreamInfo> }>("/api/stream-info"),
@@ -26,7 +39,7 @@ export function useStreamInfo(enabled: boolean) {
     enabled,
   })
 
-  return query.data ?? EMPTY
+  return { info: query.data ?? EMPTY, loaded: query.data !== undefined }
 }
 
 /**
@@ -54,19 +67,37 @@ export function useRecordStreamInfo() {
       // readings, and the one that just changed is the one in hand.
       queryClient.setQueryData<{ info: Record<number, StreamInfo> }>(
         KEY,
-        (current) => ({
-          info: {
-            ...(current?.info ?? {}),
-            // Merged the way the table merges it. The phone measures nothing --
-            // it reports what its video track declares and nulls for the rest --
-            // so replacing the entry outright would wipe a frame rate the
-            // browser counted, on screen and then, on the next read, for real.
-            [variables.savedChannelId]: withNewReading(
-              current?.info?.[variables.savedChannelId],
-              variables,
-            ),
-          },
-        }),
+        (current) => {
+          /**
+           * Nothing patched until the map has arrived.
+           *
+           * A player reports within a second or two of opening a channel,
+           * which is easily before the first fetch resolves -- and building a
+           * map from `current ?? {}` then stands one entry up as the whole
+           * table. Every other stream loses its figures on screen until
+           * something refetches, which is a fair description of the sheet
+           * showing a lone resolution for a channel the browser had measured
+           * in full.
+           *
+           * The read already on its way carries the server's answer, which
+           * includes this write. There is nothing here worth racing it with.
+           */
+          if (!current) return current
+
+          // Merged the way the table merges it. The phone measures nothing --
+          // it reports what its video track declares and nulls for the rest --
+          // so replacing the entry outright would wipe a frame rate the
+          // browser counted, on screen and then, on the next read, for real.
+          return {
+            info: {
+              ...current.info,
+              [variables.savedChannelId]: withNewReading(
+                current.info[variables.savedChannelId],
+                variables,
+              ),
+            },
+          }
+        },
       )
     },
   })

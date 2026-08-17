@@ -20,7 +20,7 @@ import {
   type PortalChannelWithSource,
 } from "@/lib/channels"
 import { useChooseChannelSource } from "@/lib/source-order"
-import { useStreamInfo } from "@/lib/stream-info"
+import { useStreamInfoQuery } from "@/lib/stream-info"
 import { useLogoStyle } from "@/lib/logo-style"
 
 import { TopGlow } from "@/components/top-glow"
@@ -119,7 +119,9 @@ export default function ChannelDetailScreen() {
    * later and climbing back — and where the stream really has been requantised
    * down, the write path resets per viewing and the table follows.
    */
-  const stored = useStreamInfo(true)[Number(savedChannelId)]
+  const { info: storedInfoMap, loaded: storedInfoLoaded } =
+    useStreamInfoQuery(true)
+  const stored = storedInfoMap[Number(savedChannelId)]
   const shown = bestStreamInfo(stored, streamInfo ?? undefined)
   // Resolution and frame rate here; the bandwidth is stored and shown in the
   // sources sheet, where comparing two portals is the point. Under a channel's
@@ -284,6 +286,8 @@ export default function ChannelDetailScreen() {
         fullscreen={fullscreen}
         onFullscreenChange={setFullscreen}
         onStreamInfo={setStreamInfo}
+        storedInfo={stored}
+        storedInfoLoaded={storedInfoLoaded}
       />
 
       {/* Above the scroller, not inside it. It names what is being scrolled,
