@@ -12,6 +12,7 @@ import {
   AlertCircleIcon,
   CheckIcon,
   ChevronDownIcon,
+  RadioTowerIcon,
   CopyIcon,
   TvIcon,
 } from "lucide-react"
@@ -329,6 +330,10 @@ export function TvShell({ children }: { children: ReactNode }) {
                   }
                   className="max-w-40"
                 >
+                  {/* The mark says what the control is about; the chevron says
+                      it opens something. Neither stands in for the other, and
+                      the phone's version of this chip wears the same tower. */}
+                  <RadioTowerIcon className="size-4 shrink-0 opacity-70" />
                   <span className="truncate">
                     {currentChannel.portalSource?.name ?? "Manual"}
                   </span>
