@@ -123,6 +123,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { chipButtonProps } from "@/components/tv/chip-button"
+import { useTv } from "@/components/tv/tv-provider"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
 
@@ -479,6 +480,7 @@ export function FavoriteGroupsDrawer({
   onSelectGroup: (group: FavoriteGroup) => void
   userId: string | null
 }) {
+  const { countResolvedChannels } = useTv()
   const [open, setOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<FavoriteGroup | null>(null)
@@ -712,7 +714,13 @@ export function FavoriteGroupsDrawer({
                       </span>
                       {isManagingGroups ? null : (
                         <span className="text-muted-foreground shrink-0 pl-2 font-mono text-xs tabular-nums">
-                          {group.channelKeys.length.toLocaleString()}
+                          {/* Channels, not stored keys. A key that names
+                              nothing -- a guide id reassigned out from under
+                              it -- and two keys naming one channel both count
+                              once here, which is what the list below does when
+                              it resolves them. The two numbers disagreeing is
+                              how this was found: a group of three reading six. */}
+                          {countResolvedChannels(group.channelKeys).toLocaleString()}
                         </span>
                       )}
                     </Button>

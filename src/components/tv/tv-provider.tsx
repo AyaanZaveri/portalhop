@@ -166,6 +166,8 @@ type TvContextValue = {
   isChannelFavorited: (channel: PortalChannelWithSource) => boolean
   /** The key a new favourite for this channel should be written under. */
   favoriteKeyFor: (channel: PortalChannelWithSource) => string
+  /** How many channels a set of stored keys actually resolves to. */
+  countResolvedChannels: (keys: readonly string[]) => number
   toggleFavorite: (key: string) => void
 
   // Add-portal sheet
@@ -913,6 +915,56 @@ export function TvProvider({
     [browserChannels, isChannelFavorited],
   )
 
+  /**
+   * Every key a stored row might name, pointing at the channel it resolves to.
+   *
+   * Built once over the whole catalogue and in the same grouping the list draws
+   * from, so a count taken from it is a count of rows the user would see. All
+   * three spellings are indexed for the reason favourites read all three: a
+   * channel can carry a per-copy key, an identity key and a legacy key at
+   * different points in its life, and a catalogue holds channels of every kind
+   * at once.
+   */
+  const channelKeyRows = useMemo(() => {
+    const rows = new Map<string, number>()
+    let row = 0
+
+    for (const members of catalogueGroups.streams.values()) {
+      for (const channel of members) {
+        const identity = identityKeyFor(channel, catalogueGroups.identityTrusted)
+        if (identity) rows.set(identity, row)
+        rows.set(getChannelKey(channel), row)
+        rows.set(getLegacyChannelKey(channel), row)
+      }
+      row += 1
+    }
+
+    return rows
+  }, [catalogueGroups])
+
+  /**
+   * How many channels a set of stored keys comes to.
+   *
+   * Not how many keys there are, which is what a group's badge used to report
+   * and is a different number for two reasons. A key can name nothing -- a
+   * channel whose guide id was reassigned leaves its old identity behind in
+   * every group it belonged to -- and two keys can name the same channel, since
+   * a channel that gains an identity keeps its per-copy key readable. Both
+   * inflate the badge, and the list underneath it, which resolves the keys
+   * properly, then shows fewer channels than the badge promised.
+   */
+  const countResolvedChannels = useCallback(
+    (keys: readonly string[]) => {
+      const rows = new Set<number>()
+      for (const key of keys) {
+        const row = channelKeyRows.get(key)
+        if (row !== undefined) rows.add(row)
+      }
+      return rows.size
+    },
+    [channelKeyRows],
+  )
+
   // Auto-default the filter to favorites/all until the user picks one.
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(
     initialBrowseFilter ?? { type: "all" },
@@ -1044,6 +1096,7 @@ export function TvProvider({
       favorites,
       isChannelFavorited,
       favoriteKeyFor,
+      countResolvedChannels,
       toggleFavorite,
       sheetOpen,
       setSheetOpen,
@@ -1093,6 +1146,7 @@ export function TvProvider({
       favorites,
       isChannelFavorited,
       favoriteKeyFor,
+      countResolvedChannels,
       toggleFavorite,
       sheetOpen,
       onSheetSaved,
