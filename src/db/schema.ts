@@ -131,6 +131,12 @@ export const userSettings = pgTable("user_settings", {
   logoSource: text("logo_source").notNull().default("provider"),
   useProxy: boolean("use_proxy").notNull().default(true),
   useImageProxy: boolean("use_image_proxy").notNull().default(true),
+  // Which kind of guide wins when a channel's sources offer more than one.
+  // See packages/shared/src/epg-preference.ts.
+  epgKindOrder: jsonb("epg_kind_order")
+    .notNull()
+    .$type<string[]>()
+    .default(["iptv-org", "custom", "portal"]),
   // A random, revocable secret that authorizes the public favorites-playlist
   // export URL without a session cookie (M3U players can't send one). Null
   // until the user first requests a playlist link; regenerating it rotates
@@ -349,6 +355,37 @@ export const channelIdentitySourceOrder = pgTable(
       columns: [table.userId, table.identityKey, table.savedChannelId],
     }),
   ],
+)
+
+/**
+ * Per-channel exceptions to the guide ranking.
+ *
+ * Sparse on purpose, and that sparseness is the feature: a row exists only
+ * where someone has overruled the automatic choice, so changing the global
+ * ranking re-resolves every channel except the handful that were pinned. There
+ * is no way for a stored default to be mistaken for a decision, because
+ * defaults are never stored.
+ *
+ * The table is created by scripts/migrate-channel-identities.sql, which also
+ * carries epg_mode and epg_source_id columns from an earlier design. This
+ * pins the concrete stream instead: a kind is ambiguous the moment two of a
+ * channel's sources share one, and the row in the drawer is what the person
+ * was actually looking at when they chose.
+ */
+export const channelIdentityPrefs = pgTable(
+  "channel_identity_prefs",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    identityKey: text("identity_key").notNull(),
+    epgSavedChannelId: integer("epg_saved_channel_id").references(
+      () => savedChannels.id,
+      { onDelete: "set null" },
+    ),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.identityKey] })],
 )
 
 // The iptv-epg.org channel directory. Public, global, identical for every user;

@@ -5,6 +5,7 @@ import {
   DEFAULT_USER_SETTINGS,
   type UserSettingsData,
 } from "@portalhop/shared/user-settings"
+import { sanitizeEpgKindOrder } from "@portalhop/shared/epg-preference"
 
 type Db = ReturnType<typeof import("@/db/client").getDb>
 
@@ -29,6 +30,10 @@ export async function getUserSettings(
     iptvOrgEnabled: row.iptvOrgEnabled,
     useProxy: row.useProxy,
     useImageProxy: row.useImageProxy,
+    // Sanitized on the way out as well as in: the column predates nothing, but
+    // a row written before it existed carries the default, and a hand-edited
+    // one can carry anything.
+    epgKindOrder: sanitizeEpgKindOrder(row.epgKindOrder),
   }
 }
 

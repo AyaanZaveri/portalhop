@@ -18,6 +18,11 @@ import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {
+  resolveChannelEpg,
+  type EpgChoice,
+  type EpgKind,
+} from "@portalhop/shared/epg-preference"
+import {
   withNewReading,
   type StreamInfo,
 } from "@portalhop/shared/stream-info"
@@ -80,6 +85,14 @@ type TvContextValue = {
   channelLogoUrl: (channel: PortalChannelWithSource) => string
   /** Every stream carrying this channel, the chosen one first. */
   channelStreams: (channel: PortalChannelWithSource) => PortalChannelWithSource[]
+  /** Which of a channel's streams supplies its guide, and whether that was pinned. */
+  channelEpg: (channel: PortalChannelWithSource) => EpgChoice | null
+  /** Pins a channel's guide to one stream, or clears the pin with null. */
+  setChannelEpgChoice: (
+    identityKey: string,
+    savedChannelId: number | null,
+  ) => void
+  epgKindOrder: EpgKind[]
   /** What a channel is, for anything that stores or addresses one. */
   identityKeyOf: (channel: PortalChannelWithSource) => string | null
   /**
@@ -194,6 +207,7 @@ export function TvProvider({
     iptvOrgEnabled,
     useProxy,
     useImageProxy,
+    epgKindOrder,
   } = settings
   const { favorites, isFavorite, toggleFavorite, migrateFavoriteKeys } =
     useFavorites()
@@ -480,6 +494,61 @@ export function TvProvider({
   )
 
   /**
+   * Channels whose guide the user has pinned, as identity key -> stream.
+   *
+   * Sparse, and deliberately so: nothing writes the automatic choice down, so a
+   * key here always means someone overruled the ranking. That is what lets the
+   * global ranking change without disturbing the handful of channels that were
+   * decided by hand — there is no stored default for it to be confused with.
+   */
+  const [epgChoices, setEpgChoices] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEpgChoices({})
+      return
+    }
+
+    let current = true
+    apiFetch("/api/channel-epg-choice", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (current && body?.choices) setEpgChoices(body.choices)
+      })
+      .catch(() => {})
+
+    return () => {
+      current = false
+    }
+  }, [userId])
+
+  /** Optimistic, for the reason setChannelSourceOrder is. */
+  const setChannelEpgChoice = useCallback(
+    (identityKey: string, savedChannelId: number | null) => {
+      setEpgChoices((current) => {
+        const next = { ...current }
+        if (savedChannelId == null) delete next[identityKey]
+        else next[identityKey] = savedChannelId
+        return next
+      })
+
+      apiFetch("/api/channel-epg-choice", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identityKey, savedChannelId }),
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error()
+        })
+        .catch(() => {
+          toast.error("Could not save which guide this channel uses.")
+        })
+    },
+    [],
+  )
+
+  /**
    * What each stream turned out to be, where one has been watched.
    *
    * Sparse and read once per session, like the source order beside it. The
@@ -603,6 +672,33 @@ export function TvProvider({
       )
     },
     [catalogueGroups, sourceOrder],
+  )
+
+  /**
+   * Which of a channel's streams supplies its guide.
+   *
+   * One answer per channel, not per stream — the same shape as channelLogoUrl a
+   * few lines up, and for the same reason. Every source carrying a channel is
+   * describing the same broadcast, so reading the schedule off whichever stream
+   * happens to be playing made the guide change when the picture did not, and
+   * made a channel on eight sources need its match corrected eight times.
+   *
+   * Ranked by what kind of guide it is rather than by which stream plays, so
+   * dragging a source to the top for a better picture leaves the schedule
+   * alone. See packages/shared/src/epg-preference.ts.
+   */
+  const channelEpg = useCallback(
+    (channel: PortalChannelWithSource) => {
+      const identityKey = identityKeyFor(
+        channel,
+        catalogueGroups.identityTrusted,
+      )
+      return resolveChannelEpg(channelStreams(channel), {
+        kindOrder: epgKindOrder,
+        pinnedSavedChannelId: identityKey ? epgChoices[identityKey] : null,
+      })
+    },
+    [catalogueGroups, channelStreams, epgChoices, epgKindOrder],
   )
 
   /**
@@ -908,6 +1004,9 @@ export function TvProvider({
       channelSlug,
       channelLogoUrl,
       channelStreams,
+      channelEpg,
+      setChannelEpgChoice,
+      epgKindOrder,
       streamInfo,
       recordStreamInfo,
       identityKeyOf,
@@ -958,6 +1057,9 @@ export function TvProvider({
       channelSlug,
       channelLogoUrl,
       channelStreams,
+      channelEpg,
+      setChannelEpgChoice,
+      epgKindOrder,
       streamInfo,
       recordStreamInfo,
       identityKeyOf,

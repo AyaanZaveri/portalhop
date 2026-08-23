@@ -5,6 +5,7 @@
 export * from "./browse-filter"
 export * from "./category-flags"
 export * from "./country-codes"
+export * from "./epg-preference"
 export * from "./epg-search"
 export * from "./epg-sources"
 export * from "./errors"

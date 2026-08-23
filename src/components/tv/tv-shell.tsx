@@ -84,6 +84,8 @@ export function TvShell({ children }: { children: ReactNode }) {
     channelSlug,
     channelStreams,
     identityKeyOf,
+    channelEpg,
+    setChannelEpgChoice,
     setChannelSourceOrder,
     applyChannelXmltvId,
     useImageProxy,
@@ -114,6 +116,14 @@ export function TvShell({ children }: { children: ReactNode }) {
   const sourceIdentityKey = currentChannel
     ? identityKeyOf(currentChannel)
     : null
+
+  // Which stream's guide this channel reads. Resolved from the channel rather
+  // than from whatever is playing, so the drawer reports the same guide the
+  // player is showing no matter which row is lit.
+  const guideChoice = currentChannel ? channelEpg(currentChannel) : null
+  const guideSourceKey = guideChoice
+    ? getChannelKey(guideChoice.stream as PortalChannelWithSource)
+    : undefined
 
   /**
    * The URL is written directly rather than pushed through the router.
@@ -370,6 +380,24 @@ export function TvShell({ children }: { children: ReactNode }) {
             onEditGuideMatch={
               sources.some((source) => toEpgMatchChannel(source))
                 ? (source) => setEpgMatchChannel(toEpgMatchChannel(source))
+                : undefined
+            }
+            guideSourceKey={guideSourceKey}
+            guidePinned={Boolean(guideChoice?.pinned)}
+            // Only where there is a channel to hang the choice on. An identity
+            // key is an id: key, so a channel with no trusted guide id has
+            // nowhere to store a pin -- and, having one stream, no choice to
+            // make either.
+            onUseGuide={
+              sourceIdentityKey
+                ? (source) =>
+                    source.savedChannelId != null &&
+                    setChannelEpgChoice(sourceIdentityKey, source.savedChannelId)
+                : undefined
+            }
+            onResetGuide={
+              sourceIdentityKey && guideChoice?.pinned
+                ? () => setChannelEpgChoice(sourceIdentityKey, null)
                 : undefined
             }
             getLogoUrl={sourceLogoUrl}

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarIcon, GlobeIcon, Loader2Icon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon, TvIcon } from "lucide-react"
+import { CalendarIcon, ChevronDownIcon, ChevronUpIcon, GlobeIcon, Loader2Icon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon, TvIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import type { EpgManifest } from "@/lib/epg-store"
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
+import type { EpgKind } from "@portalhop/shared/epg-preference"
 import { apiFetch } from "@/lib/api-fetch"
 
 const WSRV_LOGO_LIGHT = "/proxy/wsrv-light.svg"
@@ -108,7 +109,11 @@ export default function EpgAndLogosSettingsPage() {
         aria-label="Use image proxy"
       />
     </div>
-    <section className="flex flex-col gap-3"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">iptv-epg.org is available per portal from its EPG selector.</p></div><Button size="sm" onClick={refreshBuiltIn} disabled={refreshing === "builtin"}>{refreshing === "builtin" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Refresh EPG</Button></div>
+    <GuidePreference
+      order={settings.epgKindOrder}
+      onChange={(epgKindOrder) => updateSettings({ epgKindOrder })}
+    />
+    <section className="flex flex-col gap-3 border-t pt-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">iptv-epg.org is available per portal from its EPG selector.</p></div><Button size="sm" onClick={refreshBuiltIn} disabled={refreshing === "builtin"}>{refreshing === "builtin" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Refresh EPG</Button></div>
       <div className="grid grid-cols-3 gap-3"><Stat label="Last updated" value={manifest?.lastFetchedAt ? new Date(manifest.lastFetchedAt).toLocaleDateString(undefined, { dateStyle: "medium" }) : "Never"} /><Stat label="Countries" value={String(manifest?.countries.length ?? 0)} /><Stat label="Total channels" value={total.toLocaleString()} /></div>
     </section>
     <section className="flex flex-col gap-3 border-t pt-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Custom EPG sources</h2><p className="text-sm text-muted-foreground">Reusable XMLTV sources for your portals.</p></div><Button size="sm" onClick={() => { setEditing(null); setSheetOpen(true) }}><PlusIcon />Add source</Button></div>
@@ -172,4 +177,68 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
     </DrawerContent>
   </Drawer>
 }
+const GUIDE_KINDS: Record<EpgKind, { title: string; detail: string }> = {
+  "iptv-org": {
+    title: "Built-in EPG",
+    detail: "iptv-epg.org. One curated dataset, the same everywhere.",
+  },
+  custom: {
+    title: "Custom EPG sources",
+    detail: "The XMLTV sources you added above.",
+  },
+  portal: {
+    title: "The source's own EPG",
+    detail: "Whatever each portal serves for its own channels.",
+  },
+}
+
+/**
+ * Which kind of guide wins when a channel's sources offer more than one.
+ *
+ * About kinds rather than about sources, and that is the whole reason it can be
+ * one short global list. Guide quality is a property of a source *for a given
+ * channel* -- a portal with excellent listings for its own region has none for
+ * a channel it merely resells -- so a ranking of sources would be right for
+ * half a catalogue and quietly wrong for the other half.
+ *
+ * Nothing here writes a per-channel answer. Channels are resolved against this
+ * order every time, so changing it re-decides the whole catalogue at once,
+ * except for the ones somebody pinned by hand in the sources drawer. Those are
+ * the only guide choices stored anywhere.
+ */
+function GuidePreference({
+  order,
+  onChange,
+}: {
+  order: EpgKind[]
+  onChange: (order: EpgKind[]) => void
+}) {
+  // Buttons rather than the drag the rest of the app uses for ordering. Three
+  // fixed rows is not a list you drag through, it is a ranking you nudge -- and
+  // this is the one ordered list that renders on first paint rather than behind
+  // a mode toggle, where dnd-kit's generated aria ids differ between the server
+  // pass and the client one and trip a hydration mismatch.
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= order.length) return
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onChange(next)
+  }
+
+  return <section className="flex flex-col gap-3">
+    <div><h2 className="text-base font-medium">Guide preference</h2><p className="text-sm text-muted-foreground">When a channel comes from several sources, the highest of these that has a schedule for it supplies the guide — whichever source you are actually watching.</p></div>
+    <div className="flex flex-col gap-2">
+      {order.map((kind, index) => <div key={kind} className="flex items-center gap-3 rounded-lg border p-3">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/15 font-mono text-xs font-medium text-primary tabular-nums brightness-85 dark:brightness-100">{index + 1}</span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"><span className="truncate text-sm font-medium">{GUIDE_KINDS[kind].title}</span><span className="truncate text-xs text-muted-foreground">{GUIDE_KINDS[kind].detail}</span></span>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button type="button" variant="ghost" size="icon-sm" disabled={index === 0} aria-label={`Move ${GUIDE_KINDS[kind].title} up`} onClick={() => move(index, index - 1)}><ChevronUpIcon className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="icon-sm" disabled={index === order.length - 1} aria-label={`Move ${GUIDE_KINDS[kind].title} down`} onClick={() => move(index, index + 1)}><ChevronDownIcon className="size-4" /></Button>
+        </div>
+      </div>)}
+    </div>
+  </section>
+}
+
 function Stat({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 truncate text-sm font-medium">{value}</p></div> }

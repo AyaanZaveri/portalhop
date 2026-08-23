@@ -19,6 +19,18 @@ type UseUserSettings = {
   updateSettings: (patch: Partial<UserSettingsData>) => void
 }
 
+/**
+ * Filled in from the defaults on the way in.
+ *
+ * A server that predates a setting simply omits it, and a component reading one
+ * that is missing does not get a default -- it gets undefined, and something
+ * like epgKindOrder.map throws. Merging here means every reader downstream can
+ * treat the shape as complete, which is what the type already promises.
+ */
+function receivedSettings(value: unknown): UserSettingsData {
+  return { ...DEFAULT_USER_SETTINGS, ...(value as Partial<UserSettingsData>) }
+}
+
 export function useUserSettings(): UseUserSettings {
   const { data, isPending: sessionPending } = authClient.useSession()
   const userId = data?.user?.id ?? null
@@ -52,7 +64,7 @@ export function useUserSettings(): UseUserSettings {
       .then((body) => {
         if (cancelled) return
         if (body?.settings) {
-          setSettings(body.settings as UserSettingsData)
+          setSettings(receivedSettings(body.settings))
         }
         setSettingsLoaded(true)
       })
@@ -79,7 +91,7 @@ export function useUserSettings(): UseUserSettings {
         .then((res) => (res.ok ? res.json() : null))
         .then((body) => {
           if (body?.settings) {
-            setSettings(body.settings as UserSettingsData)
+            setSettings(receivedSettings(body.settings))
           }
         })
         .catch(() => {})

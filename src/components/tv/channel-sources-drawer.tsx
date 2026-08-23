@@ -3,9 +3,11 @@
 import { useRef, useState } from "react"
 import {
   ArrowUpDownIcon,
+  CalendarClockIcon,
   CheckIcon,
   GripVerticalIcon,
   PencilIcon,
+  RotateCcwIcon,
 } from "lucide-react"
 
 import {
@@ -25,12 +27,21 @@ import { Badge } from "@/components/ui/badge"
 import { ChannelLogo } from "@/components/tv/channel-logo"
 import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
+import type { EpgMode } from "@portalhop/shared/source-types"
 import { cn } from "@/lib/utils"
 import { useTv } from "@/components/tv/tv-provider"
 import { streamLabels, type StreamInfo } from "@portalhop/shared/stream-info"
+import { canSupplyEpg } from "@portalhop/shared/epg-preference"
 
 export type SourceChannel = PortalChannel & {
-  portalSource?: { id: number; name: string }
+  // epgMode and epgSourceId are here because the drawer is where a channel's
+  // guide is chosen, and whether a row can supply one at all depends on them.
+  portalSource?: {
+    id: number
+    name: string
+    epgMode: EpgMode
+    epgSourceId: number | null
+  }
 }
 
 /**
@@ -46,6 +57,10 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   onSelect,
   onOrderChange,
   onEditGuideMatch,
+  guideSourceKey,
+  guidePinned = false,
+  onUseGuide,
+  onResetGuide,
   getLogoUrl,
   open,
   onOpenChange,
@@ -66,6 +81,22 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
    * which guide entry they are, and fixing one is not fixing the others.
    */
   onEditGuideMatch?: (source: T) => void
+  /**
+   * The stream currently supplying this channel's guide, and whether that was
+   * chosen or worked out.
+   *
+   * One per channel, unlike the guide *match* above it: a match says which
+   * entry in a guide this stream is, which is a fact about the stream. This
+   * says which of the streams' guides the channel reads, which is a fact about
+   * the channel. The drawer is the only place both are visible at once, which
+   * is why the distinction has to be legible here.
+   */
+  guideSourceKey?: string
+  guidePinned?: boolean
+  /** Pins the channel's guide to one stream. */
+  onUseGuide?: (source: T) => void
+  /** Drops the channel back to the ranking. */
+  onResetGuide?: () => void
   getLogoUrl: (source: T) => string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -87,6 +118,9 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   // This is the drawer the readings were collected for.
   const { streamInfo } = useTv()
   const [mode, setMode] = useState<"browse" | "edit" | "reorder">("browse")
+  const guideSource = guideSourceKey
+    ? sources.find((source) => getChannelKey(source) === guideSourceKey)
+    : undefined
   const didDragRef = useRef(false)
 
   const toggle = (next: "edit" | "reorder") =>
@@ -164,6 +198,36 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
             </div>
           </div>
         </DrawerHeader>
+        {/* Stated once, above the list, rather than left to be inferred from a
+            badge on one row. Someone opening this drawer because the schedule
+            looks wrong needs to know which source it came from before they know
+            which row to look at — and whether it was their choice or ours. */}
+        {guideSource ? (
+          <div className="text-muted-foreground flex items-center gap-2 px-4 pt-3 text-xs">
+            <CalendarClockIcon className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              Guide from{" "}
+              <span className="text-foreground font-medium">
+                {guideSource.portalSource?.name ?? "Manual"}
+              </span>
+              <span className="ml-1.5">
+                {guidePinned ? "· chosen" : "· default"}
+              </span>
+            </span>
+            {guidePinned && onResetGuide ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground -my-1 h-7 shrink-0 px-2"
+                onClick={onResetGuide}
+              >
+                <RotateCcwIcon className="size-3.5" />
+                Reset
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <ScrollArea
           className="min-h-0 flex-1"
           viewportTabIndex={-1}
@@ -219,6 +283,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
             <div className="flex flex-col gap-1.5">
               {sources.map((source) => {
                 const isActive = getChannelKey(source) === activeSourceKey
+                const isGuide = getChannelKey(source) === guideSourceKey
                 return (
                   <div
                     key={getChannelKey(source)}
@@ -259,6 +324,30 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                     {/* Only once the pencil above has been pressed, and beside
                         the row rather than inside it: a button cannot contain a
                         button, and the row's job is to play this stream. */}
+                    {/* Two edits, and they are not the same one. The pencil
+                        changes which guide entry this stream is; the calendar
+                        makes this stream's guide the channel's. Only rows that
+                        could actually answer get the calendar, and the one
+                        already answering gets it filled rather than hidden, so
+                        the list says which is which without a legend. */}
+                    {mode === "edit" && onUseGuide && canSupplyEpg(source) ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "shrink-0",
+                          isGuide
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                        aria-pressed={isGuide}
+                        aria-label={`Use the guide from ${source.portalSource?.name ?? "this source"}`}
+                        onClick={() => onUseGuide(source)}
+                      >
+                        <CalendarClockIcon className="size-4" />
+                      </Button>
+                    ) : null}
                     {mode === "edit" && onEditGuideMatch ? (
                       <Button
                         type="button"

@@ -181,6 +181,7 @@ export function ChannelList({
     hiddenCategories,
     setCategoryHidden,
     channelLogoUrl,
+    channelEpg,
     identityKeyOf,
     trustedIds,
     userId,
@@ -603,22 +604,34 @@ export function ChannelList({
     rowVirtualizer.scrollToIndex(0)
   }, [groupedChannels, rowVirtualizer])
 
+  /**
+   * The guide each visible row reads, resolved per channel.
+   *
+   * The row stands for a channel rather than for the stream that represents it,
+   * so the strip has to ask the same question the player does. Reading the
+   * representative's own ids meant a row went blank whenever the top-ranked
+   * source happened to be the copy with no guide match, while a sibling copy
+   * two sources down was matched correctly all along.
+   */
   const renderedEpgChannels = useMemo(
     () =>
       rowVirtualizer
         .getVirtualItems()
         .map((row) => groupedChannels[row.index])
         .filter(Boolean)
-        .map((channel) => ({
-          xmltvId: channel.xmltvId ?? "",
+        .map((channel) => channelEpg(channel)?.stream)
+        .filter((stream) => stream != null)
+        .map((stream) => ({
+          xmltvId: stream.xmltvId ?? "",
           epgSourceId:
-            channel.portalSource?.epgMode === "custom"
-              ? channel.portalSource.epgSourceId
+            stream.portalSource?.epgMode === "custom"
+              ? stream.portalSource.epgSourceId
               : null,
         }))
         .filter((entry) => entry.xmltvId),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- virtual items change identity every scroll frame.
     [
+      channelEpg,
       groupedChannels,
       rowVirtualizer.getVirtualItems().length,
       rowVirtualizer.scrollOffset,
@@ -1327,8 +1340,11 @@ export function ChannelList({
               // out after the row is drawn is a name the row has to correct.
               const displayName = channel.name
               const channelBadgeId = channel.xmltvId ?? ""
+              // The guide id of whichever stream supplies this channel's guide,
+              // which is not always this row's own: the strip is looked up
+              // under the id that was fetched under.
               const nowPlaying = nowPlayingById.get(
-                normalizeXmltvId(channel.xmltvId),
+                normalizeXmltvId(channelEpg(channel)?.stream.xmltvId),
               )
               const nowProgress = nowPlaying
                 ? Math.min(

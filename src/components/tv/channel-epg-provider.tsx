@@ -14,6 +14,7 @@ import {
 import type { EpgProgramme } from "@portalhop/shared/stalker-types"
 import type { PortalChannelWithSource } from "@/lib/tv-channels"
 import { useTv } from "@/components/tv/tv-provider"
+import { epgChoiceKey } from "@portalhop/shared/epg-preference"
 import { apiFetch } from "@/lib/api-fetch"
 
 type ChannelEpgContextValue = {
@@ -36,7 +37,7 @@ export function ChannelEpgProvider({
   channel: PortalChannelWithSource
   children: ReactNode
 }) {
-  const { endpoint, previewSourceRequest } = useTv()
+  const { endpoint, previewSourceRequest, channelEpg } = useTv()
   const [programmes, setProgrammes] = useState<EpgProgramme[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -50,18 +51,33 @@ export function ChannelEpgProvider({
     return () => window.clearInterval(intervalId)
   }, [])
 
+  /**
+   * The guide is the channel's, not the playing stream's.
+   *
+   * Every source carrying this channel describes the same broadcast, so the
+   * schedule has no business changing when someone switches source for a better
+   * picture. Resolving to one stream per channel also means switching source
+   * does not refetch: the request below is identical either way, so the effect
+   * below does not even re-run.
+   */
+  const epgChoice = channelEpg(channel)
+  const epgStream = (epgChoice?.stream ?? channel) as PortalChannelWithSource
+  // A string rather than the object, because the object is rebuilt every render
+  // and the whole point is for this effect to stay still while it does.
+  const epgKey = epgChoiceKey(epgChoice)
+
   useEffect(() => {
     const controller = new AbortController()
-    const sourceRequest = channel.portalSource?.request ?? previewSourceRequest
-    const sourceEndpoint = channel.portalSource?.endpoint ?? endpoint
+    const sourceRequest = epgStream.portalSource?.request ?? previewSourceRequest
+    const sourceEndpoint = epgStream.portalSource?.endpoint ?? endpoint
     const requestBody = {
       ...sourceRequest,
-      epgMode: channel.portalSource?.epgMode ?? "portal",
-      epgSourceId: channel.portalSource?.epgSourceId ?? null,
+      epgMode: epgStream.portalSource?.epgMode ?? "portal",
+      epgSourceId: epgStream.portalSource?.epgSourceId ?? null,
       endpoint: sourceEndpoint,
-      channelId: channel.id,
-      channelName: channel.name,
-      xmltvId: channel.xmltvId,
+      channelId: epgStream.id,
+      channelName: epgStream.name,
+      xmltvId: epgStream.xmltvId,
     }
     requestBodyRef.current = requestBody
 
@@ -106,7 +122,11 @@ export function ChannelEpgProvider({
 
     loadChannelEpg()
     return () => controller.abort()
-  }, [channel, endpoint, previewSourceRequest])
+    // epgKey rather than epgStream: two streams of one channel that resolve to
+    // the same guide produce the same key, so switching between them leaves
+    // this effect -- and the schedule on screen -- untouched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- epgKey stands in for epgStream by construction.
+  }, [epgKey, endpoint, previewSourceRequest])
 
   const loadMore = useCallback(async () => {
     const requestBody = requestBodyRef.current
