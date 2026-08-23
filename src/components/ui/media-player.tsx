@@ -6,8 +6,10 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { useRender } from "@base-ui/react/use-render";
 import {
+  AirplayIcon,
   AlertTriangleIcon,
   CaptionsOffIcon,
+  CastIcon,
   CheckIcon,
   DownloadIcon,
   FastForwardIcon,
@@ -41,6 +43,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { cn } from "@/lib/utils";
 import { useLazyRef } from "@/hooks/use-lazy-ref";
+import { useGoogleCast } from "@/hooks/use-google-cast";
 import { useComposedRefs } from "@/lib/compose-refs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2927,6 +2930,133 @@ function MediaPlayerPiP(props: MediaPlayerPiPProps) {
   );
 }
 
+interface MediaPlayerCastProps
+  extends Omit<React.ComponentProps<typeof Button>, "children" | "title"> {
+  /**
+   * The URL to hand the receiver.
+   *
+   * Deliberately not read off the media element: under MSE playback its src is
+   * a blob backed by hls.js, which no receiver can fetch. This is the manifest
+   * the player was pointed at.
+   */
+  src?: string | null;
+  title?: string;
+  subtitle?: string;
+  poster?: string;
+  live?: boolean;
+  children?: React.ReactNode | ((isCasting: boolean) => React.ReactNode);
+}
+
+/**
+ * One button for both ways a stream leaves the device.
+ *
+ * WebKit resolves AirPlay against the element itself, so there it is a picker
+ * call and nothing more. Chromium needs the sender SDK and the manifest URL,
+ * which is what {@link useGoogleCast} carries. Where neither is on offer —
+ * Firefox, the packaged Android WebView — the button renders nothing rather
+ * than a control that can't do anything.
+ */
+function MediaPlayerCast(props: MediaPlayerCastProps) {
+  const {
+    children,
+    className,
+    disabled,
+    src,
+    title,
+    subtitle,
+    poster,
+    live,
+    ...castProps
+  } = props;
+
+  const context = useMediaPlayerContext("MediaPlayerCast");
+  const dispatch = useMediaDispatch();
+
+  const isAirplayAvailable = useMediaSelector(
+    (state) => state.mediaAirplayUnavailable === undefined,
+  );
+
+  const castMedia = React.useMemo(
+    () => (src ? { src, title, subtitle, poster, live } : null),
+    [src, title, subtitle, poster, live],
+  );
+  const { state: castState, startCasting, stopCasting } =
+    useGoogleCast(castMedia);
+
+  const isCasting = castState === "casting";
+
+  // The receiver has the stream now; two copies playing at once is one copy
+  // too many, and the local one is the one nobody is watching.
+  React.useEffect(() => {
+    if (!isCasting) return;
+    dispatch({ type: MediaActionTypes.MEDIA_PAUSE_REQUEST });
+  }, [isCasting, dispatch]);
+
+  const isDisabled = disabled || context.disabled || castState === "connecting";
+
+  const onCast = React.useCallback<ButtonClickHandler>(
+    (event) => {
+      props.onClick?.(event);
+
+      if (event.defaultPrevented) return;
+
+      if (isAirplayAvailable) {
+        dispatch({ type: MediaActionTypes.MEDIA_AIRPLAY_REQUEST });
+        return;
+      }
+
+      if (isCasting) {
+        stopCasting();
+        return;
+      }
+
+      void startCasting();
+    },
+    [
+      dispatch,
+      isAirplayAvailable,
+      isCasting,
+      props.onClick,
+      startCasting,
+      stopCasting,
+    ],
+  );
+
+  if (!isAirplayAvailable && castState === "unavailable") return null;
+
+  return (
+    <MediaPlayerTooltip
+      tooltip={isAirplayAvailable ? "AirPlay" : isCasting ? "Stop casting" : "Cast"}
+    >
+      <Button
+        type="button"
+        aria-controls={context.mediaId}
+        aria-label={
+          isAirplayAvailable
+            ? "Play on AirPlay device"
+            : isCasting
+              ? "Stop casting"
+              : "Cast to device"
+        }
+        data-disabled={isDisabled ? "" : undefined}
+        data-slot="media-player-cast"
+        data-state={isCasting ? "on" : "off"}
+        disabled={isDisabled}
+        {...castProps}
+        variant="ghost"
+        size="icon"
+        className={cn("size-8", className)}
+        onClick={onCast}
+      >
+        {typeof children === "function"
+          ? children(isCasting)
+          : (children ??
+            (isAirplayAvailable ? <AirplayIcon /> : <CastIcon />))}
+      </Button>
+    </MediaPlayerTooltip>
+  );
+}
+
 function MediaPlayerCaptions(props: React.ComponentProps<typeof Button>) {
   const { children, className, disabled, ...captionsProps } = props;
 
@@ -3369,6 +3499,7 @@ export {
   MediaPlayer,
   MediaPlayerAudio,
   MediaPlayerCaptions,
+  MediaPlayerCast,
   MediaPlayerControls,
   MediaPlayerControlsOverlay,
   MediaPlayerDownload,

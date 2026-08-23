@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { AlertCircleIcon, RotateCcwIcon, RotateCwIcon } from "lucide-react"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
@@ -9,6 +9,7 @@ import { useTheme } from "next-themes"
 import { Badge } from "@/components/ui/badge"
 import {
   MediaPlayer,
+  MediaPlayerCast,
   MediaPlayerControls,
   MediaPlayerControlsOverlay,
   MediaPlayerError,
@@ -159,6 +160,20 @@ export function LivePlayer({
       customEpgChannels,
       useImageProxy,
     )
+
+  // The receiver fetches this itself, from its own place on the network, so a
+  // path relative to this page would resolve against the wrong host.
+  const castArtworkUrl = currentProgramme?.posterUrl
+    ? proxyImageUrl(currentProgramme.posterUrl, useImageProxy)
+    : logoUrl
+  const castPosterUrl = useMemo(() => {
+    if (!castArtworkUrl || typeof window === "undefined") return undefined
+    try {
+      return new URL(castArtworkUrl, window.location.href).href
+    } catch {
+      return undefined
+    }
+  }, [castArtworkUrl])
 
   // Native media controls on Android and iPhone use this metadata for their
   // Now Playing surfaces. Programme art is more useful when present; the
@@ -1041,6 +1056,16 @@ export function LivePlayer({
           <div className="flex items-center gap-2">
             <MediaPlayerVolume expandable />
             <MediaPlayerSettings />
+            {/* No narrow-width hiding, unlike picture-in-picture: casting is
+                most of the point of holding a phone, and the button already
+                takes itself away wherever no receiver can be reached. */}
+            <MediaPlayerCast
+              src={streamUrl}
+              title={channel.name || "Live stream"}
+              subtitle={channel.portalSource?.name}
+              poster={castPosterUrl}
+              live
+            />
             <MediaPlayerPiP className="max-[939px]:hidden" />
             <MediaPlayerFullscreen />
           </div>
