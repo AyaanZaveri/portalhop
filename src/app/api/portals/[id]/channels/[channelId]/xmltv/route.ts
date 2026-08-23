@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
+import { rekeyChannelIdentity } from "@/db/channel-identity-rekey"
 import { setSavedChannelXmltvId } from "@/db/saved-channels"
 import { selectSavedSource } from "@/db/saved-sources"
 import { requireUser } from "@/lib/session"
@@ -62,6 +63,16 @@ export async function PATCH(
   if (!channel) {
     return NextResponse.json({ error: "Channel not found." }, { status: 404 })
   }
+
+  // The id has moved, so everything keyed on it moves too. Correcting a wrong
+  // match is a statement about metadata and nothing else -- a channel does not
+  // leave the group someone put it in because its guide id was wrong.
+  await rekeyChannelIdentity(db, user.id, {
+    sourceId,
+    savedChannelId,
+    previousXmltvId: channel.previousXmltvId,
+    nextXmltvId: channel.xmltvId,
+  })
 
   return NextResponse.json({ channel })
 }

@@ -238,6 +238,20 @@ export async function setSavedChannelXmltvId(
   const db = getDb()
   const normalized = normalizeXmltvId(xmltvId)
 
+  // Read before the write, and returned to the caller: everything the user has
+  // saved about this channel is keyed on the guide id, so the row the update is
+  // about to overwrite is the only record of where those rows currently live.
+  const [before] = await db
+    .select({ xmltvId: savedChannels.xmltvId })
+    .from(savedChannels)
+    .where(
+      and(
+        eq(savedChannels.id, savedChannelId),
+        eq(savedChannels.sourceId, sourceId),
+      ),
+    )
+    .limit(1)
+
   const [row] = await db
     .update(savedChannels)
     .set({
@@ -270,5 +284,7 @@ export async function setSavedChannelXmltvId(
       .where(eq(savedSources.id, sourceId))
   }
 
-  return row ?? null
+  if (!row) return null
+
+  return { ...row, previousXmltvId: before?.xmltvId ?? "" }
 }
