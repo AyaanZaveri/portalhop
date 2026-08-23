@@ -53,20 +53,34 @@ export async function POST(
 
   const now = new Date()
 
-  await db.transaction(async (tx) => {
-    await syncSavedChannels(tx, portal.id, portal.sourceType, result.channels, now)
+  const changed = await db.transaction(async (tx) => {
+    const written = await syncSavedChannels(
+      tx,
+      portal.id,
+      portal.sourceType,
+      result.channels,
+      now,
+    )
 
-    await tx
-      .update(savedSources)
-      .set({ channelCount: result.channels.length, updatedAt: now })
-      .where(eq(savedSources.id, portal.id))
+    // Every client treats a source's updatedAt as the version of its channel
+    // list, so bumping it on a refetch that changed nothing would throw away
+    // each device's cached catalogue — megabytes re-downloaded to arrive at the
+    // same list. A refetch that found no news leaves the row alone.
+    if (written || portal.channelCount !== result.channels.length) {
+      await tx
+        .update(savedSources)
+        .set({ channelCount: result.channels.length, updatedAt: now })
+        .where(eq(savedSources.id, portal.id))
+    }
 
-    if (portal.sourceType === "stalker") {
+    if (portal.sourceType === "stalker" && portal.endpoint !== result.endpoint) {
       await tx
         .update(savedStalkerSources)
         .set({ endpoint: result.endpoint })
         .where(eq(savedStalkerSources.sourceId, portal.id))
     }
+
+    return written
   })
 
   return NextResponse.json({
@@ -74,8 +88,9 @@ export async function POST(
       ...portal,
       endpoint: result.endpoint,
       channelCount: result.channels.length,
-      updatedAt: now,
+      updatedAt: changed ? now : portal.updatedAt,
     },
+    changed,
     result,
   })
 }

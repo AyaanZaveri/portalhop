@@ -151,6 +151,7 @@ export default function SourcesSettingsPage() {
   const [refetchingPortalId, setRefetchingPortalId] = React.useState<
     number | null
   >(null)
+  const [isRefetchingActive, setIsRefetchingActive] = React.useState(false)
   const [copyingPortalId, setCopyingPortalId] = React.useState<number | null>(
     null,
   )
@@ -273,11 +274,12 @@ export default function SourcesSettingsPage() {
     updateSettings({ enabledSourceIds: next })
   }
 
-  async function handleRefetchPortal(portal: SavedPortalRecord) {
-    setRefetchingPortalId(portal.id)
-    const toastId = toast.loading(`Refetching ${portal.name}...`)
-    const startedAt = performance.now()
-
+  /**
+   * Refetch one source and fold the returned record back into the list. Kept
+   * free of toasts so a single refetch and a run over every active source can
+   * each narrate the run their own way.
+   */
+  async function refetchPortal(portal: SavedPortalRecord) {
     try {
       const response = await apiFetch(`/api/portals/${portal.id}/refetch`, {
         method: "POST",
@@ -285,8 +287,7 @@ export default function SourcesSettingsPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
-        return
+        return false
       }
 
       if (data.portal) {
@@ -295,15 +296,75 @@ export default function SourcesSettingsPage() {
         )
       }
 
-      toast.success(
-        `${portal.name} refetched in ${formatElapsed(performance.now() - startedAt)}`,
-        { id: toastId },
-      )
+      return true
     } catch {
-      toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
-    } finally {
-      setRefetchingPortalId(null)
+      return false
     }
+  }
+
+  async function handleRefetchPortal(portal: SavedPortalRecord) {
+    setRefetchingPortalId(portal.id)
+    const toastId = toast.loading(`Refetching ${portal.name}...`)
+    const startedAt = performance.now()
+
+    const succeeded = await refetchPortal(portal)
+    setRefetchingPortalId(null)
+
+    if (!succeeded) {
+      toast.error(`Failed to refetch ${portal.name}`, { id: toastId })
+      return
+    }
+
+    toast.success(
+      `${portal.name} refetched in ${formatElapsed(performance.now() - startedAt)}`,
+      { id: toastId },
+    )
+  }
+
+  async function handleRefetchActivePortals() {
+    const portals = savedPortals.filter((portal) =>
+      activePortalIds.includes(portal.id),
+    )
+    if (!portals.length) return
+
+    setIsRefetchingActive(true)
+    const toastId = toast.loading(`Refetching 1 of ${portals.length}...`, {
+      description: portals[0].name,
+    })
+    const startedAt = performance.now()
+    const failed: string[] = []
+
+    // One at a time. Each refetch pulls a provider's entire channel list and
+    // writes it in a transaction, and firing a dozen of those at once is how
+    // both the provider and the connection pool start refusing.
+    for (const [index, portal] of portals.entries()) {
+      toast.loading(`Refetching ${index + 1} of ${portals.length}...`, {
+        id: toastId,
+        description: portal.name,
+      })
+      setRefetchingPortalId(portal.id)
+      if (!(await refetchPortal(portal))) {
+        failed.push(portal.name)
+      }
+    }
+
+    setRefetchingPortalId(null)
+    setIsRefetchingActive(false)
+
+    const elapsed = formatElapsed(performance.now() - startedAt)
+
+    if (failed.length === portals.length) {
+      toast.error("Could not refetch your active sources", { id: toastId })
+      return
+    }
+
+    toast.success(
+      `${portals.length - failed.length} of ${portals.length} refetched in ${elapsed}`,
+      {
+        id: toastId,
+        description: failed.length ? `Failed: ${failed.join(", ")}` : undefined,
+      },
+    )
   }
 
   async function handleEnrichPortal(portal: SavedPortalRecord) {
@@ -880,9 +941,36 @@ export default function SourcesSettingsPage() {
               Your sources
             </span>
             {savedPortals.length ? (
-              <span className="text-muted-foreground text-xs tabular-nums">
-                {activePortalIds.length} active
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {activePortalIds.length} active
+                </span>
+                {activePortalIds.length ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={isRefetchingActive}
+                          onClick={handleRefetchActivePortals}
+                          aria-label="Refetch active sources"
+                        >
+                          {isRefetchingActive ? (
+                            <Loader2Icon className="size-4 animate-spin" />
+                          ) : (
+                            <RefreshCwIcon className="size-4" />
+                          )}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent align="center">
+                      Refetch every active source
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </div>
             ) : null}
           </div>
           {savedPortals.length ? (
@@ -891,6 +979,7 @@ export default function SourcesSettingsPage() {
                 const isActive = activePortalIds.includes(portal.id)
 
                 const isBusy =
+                  isRefetchingActive ||
                   refetchingPortalId === portal.id ||
                   copyingPortalId === portal.id ||
                   deletingPortalId === portal.id ||

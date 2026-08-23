@@ -99,10 +99,33 @@ export async function insertSavedChannels(
   }
 }
 
+// The columns a provider can change between refreshes. A refresh that touched
+// every row regardless would rewrite the whole table each time — a new tuple
+// version, a new index entry, and the WAL for both, per channel — when in
+// practice a provider changes a handful. Comparing here turns the unchanged
+// ones into no-ops that cost a lookup and nothing else.
+function channelRowChanged() {
+  return sql`
+    ${savedChannels.channelId} is distinct from excluded.channel_id
+    or (${savedChannels.xmltvIdLocked} = false
+        and ${savedChannels.xmltvId} is distinct from excluded.xmltv_id)
+    or ${savedChannels.number} is distinct from excluded.number
+    or ${savedChannels.name} is distinct from excluded.name
+    or ${savedChannels.genreId} is distinct from excluded.genre_id
+    or ${savedChannels.genre} is distinct from excluded.genre
+    or ${savedChannels.cmd} is distinct from excluded.cmd
+    or ${savedChannels.logo} is distinct from excluded.logo
+    or ${savedChannels.logoUrl} is distinct from excluded.logo_url
+  `
+}
+
 /**
  * Refresh a source without replacing its channel rows. Favorites, groups,
  * playback links, and channel URLs reference those row IDs, so a refresh must
  * update matching rows in place and remove only rows that truly disappeared.
+ *
+ * Returns how many rows were actually written — inserted, updated, or deleted.
+ * Callers use that to decide whether the source is worth marking as changed.
  */
 export async function syncSavedChannels(
   db: ChannelDatabase,
@@ -112,10 +135,11 @@ export async function syncSavedChannels(
   timestamp: Date,
 ) {
   const keyedChannels = channelsWithIdentityKeys(channels, sourceType)
+  let written = 0
 
   for (let index = 0; index < keyedChannels.length; index += CHANNEL_INSERT_BATCH_SIZE) {
     const batch = keyedChannels.slice(index, index + CHANNEL_INSERT_BATCH_SIZE)
-    await db
+    const touched = await db
       .insert(savedChannels)
       .values(
         batch.map(({ channel, identityKey }) =>
@@ -138,28 +162,43 @@ export async function syncSavedChannels(
           logoUrl: sql`excluded.logo_url`,
           updatedAt: timestamp,
         },
+        // Rows the provider left alone are skipped rather than rewritten, so
+        // they return nothing here either — which is what makes `written` a
+        // real count of changes rather than of channels.
+        setWhere: channelRowChanged(),
       })
+      .returning({ id: savedChannels.id })
+
+    written += touched.length
   }
 
   if (!keyedChannels.length) {
-    await db.delete(savedChannels).where(eq(savedChannels.sourceId, sourceId))
-    return
+    const removed = await db
+      .delete(savedChannels)
+      .where(eq(savedChannels.sourceId, sourceId))
+      .returning({ id: savedChannels.id })
+    return written + removed.length
   }
 
   // notInArray() binds one parameter per key, and Postgres caps a bind message
   // at 65,535 parameters — a large source blows straight past that. Passing the
   // keys as a single text[] keeps this to one parameter at any size, and the
   // anti-join against unnest() hashes the set instead of rescanning it per row.
-  await db.delete(savedChannels).where(
-    and(
-      eq(savedChannels.sourceId, sourceId),
-      sql`not exists (
-        select 1
-        from unnest(${sql.param(keyedChannels.map(({ identityKey }) => identityKey))}::text[]) as provided(identity_key)
-        where provided.identity_key = ${savedChannels.identityKey}
-      )`,
-    ),
-  )
+  const removed = await db
+    .delete(savedChannels)
+    .where(
+      and(
+        eq(savedChannels.sourceId, sourceId),
+        sql`not exists (
+          select 1
+          from unnest(${sql.param(keyedChannels.map(({ identityKey }) => identityKey))}::text[]) as provided(identity_key)
+          where provided.identity_key = ${savedChannels.identityKey}
+        )`,
+      ),
+    )
+    .returning({ id: savedChannels.id })
+
+  return written + removed.length
 }
 
 export type SavedChannelRow = {
