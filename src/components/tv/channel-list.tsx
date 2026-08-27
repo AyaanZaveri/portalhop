@@ -1269,7 +1269,7 @@ export function ChannelList({
                           <TvIcon className="text-muted-foreground size-[18px]" />
                         </div>
                       )}
-                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate font-medium">
                           {channel.name ||
                             `Channel ${channel.number || index + 1}`}
@@ -1440,7 +1440,7 @@ export function ChannelList({
                           <TvIcon className="text-muted-foreground size-[18px]" />
                         </div>
                       )}
-                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate font-medium">
                           {displayName ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
@@ -1638,7 +1638,7 @@ export function ChannelList({
                     <TvIcon className="text-muted-foreground" />
                   )}
                 </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate font-medium">
                     {contextChannel.name || "Channel"}
                   </span>
