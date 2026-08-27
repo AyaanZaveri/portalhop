@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { bearer } from "better-auth/plugins"
+import { bearer, username } from "better-auth/plugins"
 
 import { getDb } from "@/db/client"
 import * as schema from "@/db/schema"
@@ -13,7 +13,7 @@ export const auth = betterAuth({
   // Lets the mobile build authenticate with `Authorization: Bearer <token>`
   // instead of a cookie, which can't cross origins. Browsers keep using the
   // cookie — the plugin only engages when the header is present.
-  plugins: [bearer()],
+  plugins: [bearer(), username()],
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   secret:
     process.env.BETTER_AUTH_SECRET ??

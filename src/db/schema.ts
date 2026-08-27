@@ -37,6 +37,10 @@ export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  // Username is an optional, case-insensitive login identifier. Existing
+  // email-only accounts keep this null until a username is assigned.
+  username: text("username").unique(),
+  displayUsername: text("display_username"),
   emailVerified: boolean("email_verified").notNull(),
   image: text("image"),
   createdAt: timestamp("created_at").notNull(),

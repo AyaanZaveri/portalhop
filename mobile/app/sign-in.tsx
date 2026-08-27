@@ -7,19 +7,21 @@ import { toast } from "sonner-native"
 import { signIn } from "@/lib/auth"
 import { PressableScale } from "@/components/ui/pressable-scale"
 
-// Email and password only for now. Google works in principle via the Expo
+// Username/password and email/password work here. Google works in principle via the Expo
 // plugin's scheme redirect, but it needs a console change and is worth doing
 // once the rest is proven.
 export default function SignInScreen() {
   const insets = useSafeAreaInsets()
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [busy, setBusy] = useState(false)
 
   async function submit() {
     setBusy(true)
     try {
-      const { error } = await signIn.email({ email: email.trim(), password })
+      const { error } = identifier.includes("@")
+        ? await signIn.email({ email: identifier.trim(), password })
+        : await signIn.username({ username: identifier.trim(), password })
       if (error) {
         toast.error(error.message ?? "Could not sign in.")
         return
@@ -40,14 +42,13 @@ export default function SignInScreen() {
       <Text className="font-heading text-foreground text-xl">Sign in</Text>
 
       <View className="gap-2">
-        <Text className="font-sans text-muted-foreground text-sm">Email</Text>
+        <Text className="font-sans text-muted-foreground text-sm">Username or email</Text>
         <TextInput
-          value={email}
-          onChangeText={setEmail}
+          value={identifier}
+          onChangeText={setIdentifier}
           autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          placeholder="you@example.com"
+          autoComplete="username"
+          placeholder="portalhopaz or you@example.com"
           placeholderTextColor="#737373"
           className="border-border text-foreground h-11 rounded-lg border px-3 font-sans text-[15px]"
         />

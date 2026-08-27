@@ -1,6 +1,7 @@
 "use client"
 
 import { createAuthClient } from "better-auth/react"
+import { usernameClient } from "better-auth/client/plugins"
 
 import {
   apiBaseUrl,
@@ -26,8 +27,9 @@ export const authClient = createAuthClient({
           const token = ctx.response.headers.get("set-auth-token")
           if (token) setBearerToken(token)
         },
-      }
+    }
     : undefined,
+  plugins: [usernameClient()],
 })
 
 /** Clears the stored mobile session token; safe to call on the web build. */

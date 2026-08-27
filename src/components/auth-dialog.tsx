@@ -78,6 +78,8 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
   const [isSigningIn, setIsSigningIn] = React.useState(false)
   const [mode, setMode] = React.useState<"signIn" | "signUp">("signIn")
   const [name, setName] = React.useState("")
+  const [identifier, setIdentifier] = React.useState("")
+  const [username, setUsername] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -96,7 +98,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
     }
   }
 
-  async function submitEmail(event: React.FormEvent) {
+  async function submitCredentials(event: React.FormEvent) {
     event.preventDefault()
     setIsSubmitting(true)
 
@@ -106,12 +108,18 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
           ? await authClient.signUp.email({
             name: name.trim() || email.split("@")[0],
             email: email.trim(),
+            username: username.trim(),
             password,
           })
-          : await authClient.signIn.email({
-            email: email.trim(),
-            password,
-          })
+          : identifier.includes("@")
+            ? await authClient.signIn.email({
+              email: identifier.trim(),
+              password,
+            })
+            : await authClient.signIn.username({
+              username: identifier.trim(),
+              password,
+            })
 
       if (result.error) {
         toast.error(
@@ -159,7 +167,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
         <Separator className="flex-1" />
       </div>
 
-      <form className="flex flex-col gap-3" onSubmit={submitEmail}>
+      <form className="flex flex-col gap-3" onSubmit={submitCredentials}>
         {mode === "signUp" ? (
           <div className="flex flex-col gap-2.5">
             <Label htmlFor="auth-name">Name</Label>
@@ -173,16 +181,38 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
             />
           </div>
         ) : null}
+        {mode === "signUp" ? (
+          <div className="flex flex-col gap-2.5">
+            <Label htmlFor="auth-username">Username</Label>
+            <Input
+              id="auth-username"
+              type="text"
+              autoComplete="username"
+              required
+              minLength={3}
+              maxLength={30}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="portalhopaz"
+            />
+          </div>
+        ) : null}
         <div className="flex flex-col gap-2.5">
-          <Label htmlFor="auth-email">Email</Label>
+          <Label htmlFor="auth-identifier">
+            {mode === "signUp" ? "Email" : "Username or email"}
+          </Label>
           <Input
-            id="auth-email"
-            type="email"
-            autoComplete="email"
+            id="auth-identifier"
+            type={mode === "signUp" ? "email" : "text"}
+            autoComplete={mode === "signUp" ? "email" : "username"}
             required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
+            value={mode === "signUp" ? email : identifier}
+            onChange={(event) =>
+              mode === "signUp"
+                ? setEmail(event.target.value)
+                : setIdentifier(event.target.value)
+            }
+            placeholder={mode === "signUp" ? "you@example.com" : "portalhopaz or you@example.com"}
           />
         </div>
         <div className="flex flex-col gap-2.5">
