@@ -18,6 +18,7 @@ import {
   MoreVerticalIcon,
   PencilIcon,
   ArrowUpDownIcon,
+  CalendarSearchIcon,
   GripVerticalIcon,
   SearchIcon,
   ShapesIcon,
@@ -164,6 +165,8 @@ export function ChannelList({
     filteredChannels: channels,
     query,
     setQuery,
+    programmeSearchEnabled,
+    setProgrammeSearchEnabled,
     browseFilter,
     chooseFilter,
     selectedPortalIds,
@@ -679,6 +682,25 @@ export function ChannelList({
           />
           <InputGroupAddon align="inline-start">
             <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton
+              aria-label={
+                programmeSearchEnabled
+                  ? "Turn off programme search"
+                  : "Search programme titles and descriptions"
+              }
+              aria-pressed={programmeSearchEnabled}
+              className={cn(
+                "aria-pressed:bg-muted aria-pressed:text-foreground",
+                programmeSearchEnabled && "text-primary",
+              )}
+              onClick={() => setProgrammeSearchEnabled(!programmeSearchEnabled)}
+              title="Search programme titles and descriptions"
+            >
+              <CalendarSearchIcon />
+              <span className="sr-only">Search programmes</span>
+            </InputGroupButton>
           </InputGroupAddon>
           {portals.length > 1 && isMobileLayout ? (
             <InputGroupAddon align="inline-end">

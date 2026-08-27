@@ -15,17 +15,22 @@ export type NowPlaying = {
   stopAt: number
 }
 
-type Slot = [number, number, string]
+export type ProgrammeMatch = NowPlaying & { description?: string }
+
+type Slot = [number, number, string, string?]
 type Windows = Record<string, Record<string, Slot[]>>
 
-// Guide ids carry their country: "tsn1.ca". That suffix is the EPG file to ask
-// for, so no extra lookup is needed to know where a channel's schedule lives.
 function countryOf(xmltvId: string) {
   const suffix = xmltvId.toLowerCase().match(/\.([a-z]{2})$/)?.[1]
   return suffix ?? null
 }
 
-// Re-render on a slow tick so the progress bar advances without a request.
+function feedKeyFor(entry: EpgNowChannel) {
+  if (entry.epgSourceId) return `source:${entry.epgSourceId}`
+  const country = countryOf(normalizeXmltvId(entry.xmltvId))
+  return country ? `country:${country}` : null
+}
+
 const TICK_MS = 30_000
 
 export type EpgNowChannel = {
@@ -34,23 +39,21 @@ export type EpgNowChannel = {
   epgSourceId?: number | null
 }
 
-export function useEpgNow(entries: EpgNowChannel[]) {
+function useEpgWindows(
+  entries: EpgNowChannel[],
+  { active, includeDescriptions }: { active: boolean; includeDescriptions: boolean },
+) {
   const [windows, setWindows] = useState<Windows>({})
-  const [now, setNow] = useState(() => Date.now())
 
-  // "country:ca" or "source:7" — one key per file to fetch and cache.
   const feedKey = useMemo(() => {
+    if (!active) return ""
     const found = new Set<string>()
     for (const entry of entries) {
-      if (entry.epgSourceId) {
-        found.add(`source:${entry.epgSourceId}`)
-        continue
-      }
-      const country = countryOf(normalizeXmltvId(entry.xmltvId))
-      if (country) found.add(`country:${country}`)
+      const key = feedKeyFor(entry)
+      if (key) found.add(key)
     }
     return [...found].sort().join("|")
-  }, [entries])
+  }, [active, entries])
 
   useEffect(() => {
     if (!feedKey) return
@@ -59,21 +62,23 @@ export function useEpgNow(entries: EpgNowChannel[]) {
 
     for (const key of feedKey.split("|")) {
       const [kind, value] = key.split(":")
-      const query =
-        kind === "source" ? `sourceId=${value}` : `country=${value}`
+      const query = kind === "source" ? `sourceId=${value}` : `country=${value}`
+      const cacheKey = `${includeDescriptions ? "details:" : ""}${key}`
 
       void (async () => {
-        const cached = await getCachedEpgWindow(key)
+        const cached = await getCachedEpgWindow(cacheKey)
 
         if (cached) {
           if (!cancelled) {
-            setWindows((current) => ({ ...current, [key]: cached.channels }))
+            setWindows((current) => ({ ...current, [cacheKey]: cached.channels }))
           }
           return
         }
 
         try {
-          const response = await apiFetch(`/api/epg/now?${query}`)
+          const response = await apiFetch(
+            `/api/epg/now?${query}${includeDescriptions ? "&details=1" : ""}`,
+          )
           if (!response.ok) return
 
           const data = (await response.json()) as {
@@ -82,8 +87,8 @@ export function useEpgNow(entries: EpgNowChannel[]) {
           }
 
           if (cancelled) return
-          setWindows((current) => ({ ...current, [key]: data.channels }))
-          void setCachedEpgWindow({ key, to: data.to, channels: data.channels })
+          setWindows((current) => ({ ...current, [cacheKey]: data.channels }))
+          void setCachedEpgWindow({ key: cacheKey, to: data.to, channels: data.channels })
         } catch {
           // A missing guide just means no strip under the row.
         }
@@ -93,7 +98,17 @@ export function useEpgNow(entries: EpgNowChannel[]) {
     return () => {
       cancelled = true
     }
-  }, [feedKey])
+  }, [feedKey, includeDescriptions])
+
+  return windows
+}
+
+export function useEpgNow(entries: EpgNowChannel[]) {
+  const windows = useEpgWindows(entries, {
+    active: true,
+    includeDescriptions: false,
+  })
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), TICK_MS)
@@ -105,10 +120,8 @@ export function useEpgNow(entries: EpgNowChannel[]) {
 
     for (const entry of entries) {
       const normalized = normalizeXmltvId(entry.xmltvId)
-      const key = entry.epgSourceId
-        ? `source:${entry.epgSourceId}`
-        : `country:${countryOf(normalized) ?? ""}`
-      if (key === "country:") continue
+      const key = feedKeyFor(entry)
+      if (!key) continue
 
       const slot = windows[key]?.[normalized]?.find(
         ([startAt, stopAt]) => startAt <= now && stopAt > now,
@@ -121,4 +134,42 @@ export function useEpgNow(entries: EpgNowChannel[]) {
 
     return byId
   }, [windows, entries, now])
+}
+
+/** Searches the current six-hour EPG window after the user opts in. */
+export function useEpgProgrammeSearch(
+  entries: EpgNowChannel[],
+  query: string,
+  enabled: boolean,
+) {
+  const normalizedQuery = query.trim().toLowerCase()
+  const windows = useEpgWindows(entries, {
+    active: enabled && normalizedQuery.length >= 2,
+    includeDescriptions: true,
+  })
+
+  return useMemo(() => {
+    const byId = new Map<string, ProgrammeMatch>()
+    if (!enabled || normalizedQuery.length < 2) return byId
+
+    for (const entry of entries) {
+      const normalized = normalizeXmltvId(entry.xmltvId)
+      const key = feedKeyFor(entry)
+      if (!key) continue
+
+      const slot = windows[`details:${key}`]?.[normalized]?.find(([, , title, description]) =>
+        `${title} ${description ?? ""}`.toLowerCase().includes(normalizedQuery),
+      )
+      if (slot) {
+        byId.set(normalized, {
+          title: slot[2],
+          description: slot[3],
+          startAt: slot[0],
+          stopAt: slot[1],
+        })
+      }
+    }
+
+    return byId
+  }, [enabled, entries, normalizedQuery, windows])
 }

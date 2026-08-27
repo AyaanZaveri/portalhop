@@ -191,7 +191,7 @@ export async function setCachedIptvOrgChannels(
 type CachedEpgWindow = {
   key: string
   to: number
-  channels: Record<string, [number, number, string][]>
+  channels: Record<string, [number, number, string, string?][]>
 }
 
 /** Null when nothing is cached or the window has already run out. */

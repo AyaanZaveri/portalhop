@@ -291,8 +291,11 @@ function decodeXmlText(value: string) {
     .replace(/&gt;/g, ">")
 }
 
-/** [startMs, stopMs, title] — positional to keep the cached payload small. */
-export type EpgSlot = [number, number, string]
+/**
+ * [startMs, stopMs, title, description?] — positional to keep guide windows
+ * compact. Descriptions are requested only for an explicit programme search.
+ */
+export type EpgSlot = [number, number, string, string?]
 
 export type EpgWindow = {
   from: number
@@ -307,7 +310,7 @@ export type EpgWindow = {
  */
 export async function fetchEpgWindow(
   url: string,
-  options: { from?: Date; hours?: number } = {},
+  options: { from?: Date; hours?: number; includeDescriptions?: boolean } = {},
 ): Promise<EpgWindow> {
   const from = options.from ?? new Date()
   const to = new Date(from.getTime() + (options.hours ?? 6) * 60 * 60 * 1000)
@@ -329,11 +332,12 @@ export async function fetchEpgWindow(
       const title = readXmlText(block, "title")
       if (!title) continue
 
-      ;(channels[channelId.toLowerCase()] ??= []).push([
-        startAt.getTime(),
-        stopAt.getTime(),
-        title,
-      ])
+      const slot: EpgSlot = [startAt.getTime(), stopAt.getTime(), title]
+      if (options.includeDescriptions) {
+        const description = readXmlText(block, "desc")
+        if (description) slot.push(description)
+      }
+      ;(channels[channelId.toLowerCase()] ??= []).push(slot)
     }
   } finally {
     cleanup()

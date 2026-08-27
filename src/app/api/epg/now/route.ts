@@ -24,11 +24,14 @@ const cache = new Map<string, { expires: number; window: EpgWindow }>()
 
 // s-maxage only helps where something in front honours it. Self-hosted with no
 // CDN, this is what stops every request re-parsing the file.
-async function loadWindow(key: string, url: string) {
+async function loadWindow(key: string, url: string, includeDescriptions: boolean) {
   const hit = cache.get(key)
   if (hit && hit.expires > Date.now()) return hit.window
 
-  const window = await fetchEpgWindow(url, { hours: WINDOW_HOURS })
+  const window = await fetchEpgWindow(url, {
+    hours: WINDOW_HOURS,
+    includeDescriptions,
+  })
   cache.set(key, { expires: Date.now() + CACHE_MS, window })
   return window
 }
@@ -36,6 +39,7 @@ async function loadWindow(key: string, url: string) {
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const country = params.get("country")
+  const includeDescriptions = params.get("details") === "1"
   // Read before parsing: Number(null) is 0, which would look like a valid id.
   const sourceIdParam = params.get("sourceId")
 
@@ -51,7 +55,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Unknown country." }, { status: 404 })
       }
 
-      const window = await loadWindow(`country:${resolved}`, source.url)
+      const window = await loadWindow(
+        `country:${resolved}${includeDescriptions ? ":details" : ""}`,
+        source.url,
+        includeDescriptions,
+      )
 
       // Identical for every user, so the edge can serve one parse to everyone.
       return NextResponse.json(window, {
@@ -77,7 +85,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Source not found." }, { status: 404 })
       }
 
-      const window = await loadWindow(`source:${sourceId}`, source.url)
+      const window = await loadWindow(
+        `source:${sourceId}${includeDescriptions ? ":details" : ""}`,
+        source.url,
+        includeDescriptions,
+      )
 
       // A user's own source: never shared at the edge, browser only.
       return NextResponse.json(window, {

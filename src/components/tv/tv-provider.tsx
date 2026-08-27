@@ -40,7 +40,7 @@ import {
   type BrowseFilter,
 } from "@portalhop/shared/browse-filter"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
-import { useEpgNow } from "@/hooks/use-epg-now"
+import { useEpgProgrammeSearch } from "@/hooks/use-epg-now"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
 import {
@@ -153,6 +153,8 @@ type TvContextValue = {
   // Search + filters
   query: string
   setQuery: (value: string) => void
+  programmeSearchEnabled: boolean
+  setProgrammeSearchEnabled: (enabled: boolean) => void
   browseFilter: BrowseFilter
   chooseFilter: (filter: BrowseFilter) => void
   selectedPortalIds: Set<number>
@@ -217,6 +219,7 @@ export function TvProvider({
     useFavorites()
 
   const [query, setQuery] = useState("")
+  const [programmeSearchEnabled, setProgrammeSearchEnabled] = useState(false)
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
     useState<SourceRequest>(defaultSourceRequest)
@@ -697,12 +700,11 @@ export function TvProvider({
 
   // Search every catalogue stream, as mobile does. A channel can have its
   // current listing available from a source that is not the desktop row's
-  // preferred guide, and restricting this to that one resolved source makes a
-  // live programme title fail to find the channel.
-  // Keep this empty until a useful query exists: downloading guide windows is
-  // only warranted when they can widen the search results.
+  // preferred guide. Keep this empty unless programme search is explicitly
+  // enabled: detailed guide windows include descriptions and are unnecessary
+  // for normal channel search.
   const epgSearchEntries = useMemo(() => {
-    if (deferredQuery.trim().length < 2) return []
+    if (!programmeSearchEnabled || deferredQuery.trim().length < 2) return []
 
     return browserChannels
       .map((channel) => {
@@ -718,31 +720,33 @@ export function TvProvider({
         }
       })
       .filter((entry) => entry !== null)
-  }, [browserChannels, deferredQuery])
-  const nowPlayingById = useEpgNow(epgSearchEntries)
+  }, [browserChannels, deferredQuery, programmeSearchEnabled])
+  const programmeMatchesById = useEpgProgrammeSearch(
+    epgSearchEntries,
+    deferredQuery,
+    programmeSearchEnabled,
+  )
 
   const filteredChannels = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase()
     if (!q) return browserChannels
 
-    // Keep direct channel matches first, just as mobile does. Programme title
-    // matches are an additive second pass, so the familiar channel named after
-    // the query does not get buried under every channel currently showing it.
+    // Keep direct channel matches first. Programme matches are an additive
+    // second pass, so a channel named after the query does not get buried.
     const direct = searchableChannels
       .filter((entry) => entry.searchText.includes(q))
       .map((entry) => entry.channel)
 
-    if (q.length < 2 || !nowPlayingById.size) return direct
+    if (!programmeSearchEnabled || q.length < 2 || !programmeMatchesById.size) {
+      return direct
+    }
 
     const directChannels = new Set(direct)
     const programmeMatches = epgSearchEntries
       .filter(
         (entry) =>
           !directChannels.has(entry.channel) &&
-          nowPlayingById
-            .get(normalizeXmltvId(entry.xmltvId))
-            ?.title.toLowerCase()
-            .includes(q),
+          programmeMatchesById.has(normalizeXmltvId(entry.xmltvId)),
       )
       .map((entry) => entry.channel)
 
@@ -751,7 +755,8 @@ export function TvProvider({
     browserChannels,
     deferredQuery,
     epgSearchEntries,
-    nowPlayingById,
+    programmeMatchesById,
+    programmeSearchEnabled,
     searchableChannels,
   ])
 
@@ -1150,6 +1155,8 @@ export function TvProvider({
       iptvOrgLoading,
       query,
       setQuery,
+      programmeSearchEnabled,
+      setProgrammeSearchEnabled,
       browseFilter,
       chooseFilter,
       selectedPortalIds,
@@ -1203,6 +1210,7 @@ export function TvProvider({
       applyChannelXmltvId,
       iptvOrgLoading,
       query,
+      programmeSearchEnabled,
       browseFilter,
       chooseFilter,
       selectedPortalIds,
