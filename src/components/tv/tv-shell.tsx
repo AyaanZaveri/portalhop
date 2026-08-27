@@ -70,7 +70,6 @@ import {
 export function TvShell({ children }: { children: ReactNode }) {
   const {
     isLoadingPortals,
-    iptvOrgLoading,
     browserChannels,
     userId,
     settingsLoaded,
@@ -234,7 +233,10 @@ export function TvShell({ children }: { children: ReactNode }) {
     </>
   )
 
-  const isLoading = isLoadingPortals || iptvOrgLoading
+  // The public IPTV-org catalogue is additive. Waiting for a background fetch
+  // here hid an already-cached personal catalogue (including Favorites) behind
+  // the loading shell, even though it was ready to draw.
+  const isLoading = isLoadingPortals
   const hasChannels = browserChannels.length > 0
 
   let content: ReactNode

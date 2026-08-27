@@ -26,6 +26,7 @@ import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import {
   getCachedPortalChannels,
   setCachedPortalChannels,
+  type CachedPortalChannels,
 } from "@/lib/portal-channels-cache"
 import { apiFetch } from "@/lib/api-fetch"
 
@@ -361,11 +362,14 @@ async function fetchSavedPortalResult(
 // refresh doesn't re-download every enabled portal's full channel list.
 export async function loadPortalChannels(
   portal: SavedPortalRecord,
+  cachedEntry?: CachedPortalChannels | null,
 ): Promise<PortalResponse> {
   const updatedAt = new Date(portal.updatedAt).getTime()
-  const cached = Number.isFinite(updatedAt)
-    ? await getCachedPortalChannels(portal.id)
-    : null
+  const cached = cachedEntry === undefined
+    ? (Number.isFinite(updatedAt)
+      ? await getCachedPortalChannels(portal.id)
+      : null)
+    : cachedEntry
 
   if (cached && cached.updatedAt === updatedAt) {
     return {
@@ -379,7 +383,7 @@ export async function loadPortalChannels(
   const result = await fetchSavedPortalResult(portal)
 
   if (Number.isFinite(updatedAt)) {
-    setCachedPortalChannels({
+    await setCachedPortalChannels({
       sourceId: portal.id,
       updatedAt,
       channels: result.channels,
@@ -473,7 +477,6 @@ export function uniqueGenres(channels: PortalChannel[]) {
 }
 
 // --- URL identity -----------------------------------------------------------
-
 
 
 

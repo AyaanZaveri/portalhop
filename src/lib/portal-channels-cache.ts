@@ -23,7 +23,7 @@ const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 const EPG_WINDOW_STORE_NAME = "epgWindows"
 
-type CachedPortalChannels = {
+export type CachedPortalChannels = {
   sourceId: number
   updatedAt: number
   channels: PortalChannel[]
@@ -89,6 +89,50 @@ export async function getCachedPortalChannels(
   sourceId: number
 ): Promise<CachedPortalChannels | null> {
   return withStore(STORE_NAME, "readonly", (store) => store.get(sourceId))
+}
+
+/**
+ * Reads several source catalogues through one IndexedDB transaction.
+ *
+ * A page reload commonly opens many enabled sources. Opening the database and
+ * starting one transaction per source serializes that otherwise local work,
+ * so callers that need a whole catalogue should use this instead of looping
+ * over getCachedPortalChannels().
+ */
+export async function getCachedPortalChannelsBatch(
+  sourceIds: number[],
+): Promise<Map<number, CachedPortalChannels>> {
+  if (typeof indexedDB === "undefined" || !sourceIds.length) {
+    return new Map()
+  }
+
+  try {
+    const db = await openDb()
+
+    return await new Promise<Map<number, CachedPortalChannels>>((resolve) => {
+      const cached = new Map<number, CachedPortalChannels>()
+      const tx = db.transaction(STORE_NAME, "readonly")
+      const store = tx.objectStore(STORE_NAME)
+
+      for (const sourceId of new Set(sourceIds)) {
+        const request = store.get(sourceId)
+        request.onsuccess = () => {
+          const entry = request.result
+          if (entry && typeof entry === "object") {
+            cached.set(sourceId, entry as CachedPortalChannels)
+          }
+        }
+      }
+
+      // A transaction completes only after every get request has finished, so
+      // this also avoids reporting a partial cache hit as a completed read.
+      tx.oncomplete = () => resolve(cached)
+      tx.onerror = () => resolve(new Map())
+      tx.onabort = () => resolve(new Map())
+    })
+  } catch {
+    return new Map()
+  }
 }
 
 export async function setCachedPortalChannels(

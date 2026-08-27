@@ -44,6 +44,7 @@ import { useEpgNow } from "@/hooks/use-epg-now"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
 import {
+  getCachedPortalChannelsBatch,
   getCachedIptvOrgChannels,
   prunePortalChannelsCache,
   setCachedIptvOrgChannels,
@@ -839,26 +840,40 @@ export function TvProvider({
 
         prunePortalChannelsCache(portals.map((portal) => portal.id))
 
-        const loaded: Record<number, LoadedPortal> = {}
+        // Read every local catalogue in one IndexedDB transaction, then commit
+        // the complete result once. The prior one-at-a-time loop made an
+        // eight-source cache hit rebuild the growing global catalogue eight
+        // times before the loading shell could disappear.
+        const cachedBySourceId = await getCachedPortalChannelsBatch(
+          portalsToOpen.map((portal) => portal.id),
+        )
+        if (!isMounted) return
 
-        for (const portal of portalsToOpen) {
-          if (!isMounted) return
-          try {
-            const portalResult = await loadPortalChannels(portal)
-            if (!isMounted) return
-            loaded[portal.id] = { portal, response: portalResult }
-            setLoadedPortals((current) => ({
-              ...current,
-              [portal.id]: { portal, response: portalResult },
-            }))
-          } catch (error) {
-            if (!isMounted) return
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : "Could not load a saved portal.",
-            )
-          }
+        const entries = await Promise.all(
+          portalsToOpen.map(async (portal) => {
+            try {
+              const response = await loadPortalChannels(
+                portal,
+                cachedBySourceId.get(portal.id) ?? null,
+              )
+              return [portal.id, { portal, response }] as const
+            } catch (error) {
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : "Could not load a saved portal.",
+              )
+              return null
+            }
+          }),
+        )
+
+        if (!isMounted) return
+        const loaded: Record<number, LoadedPortal> = {}
+        for (const entry of entries) {
+          if (!entry) continue
+          const [sourceId, portal] = entry
+          loaded[sourceId] = portal
         }
 
         if (isMounted) setLoadedPortals(loaded)
