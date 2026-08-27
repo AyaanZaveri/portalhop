@@ -731,8 +731,9 @@ export function TvProvider({
     const q = deferredQuery.trim().toLowerCase()
     if (!q) return browserChannels
 
-    // Keep direct channel matches first. Programme matches are an additive
-    // second pass, so a channel named after the query does not get buried.
+    // Normal search prioritizes channel names. When programme search is on,
+    // guide hits lead so the result the person searched for is immediately
+    // visible, with name matches following it.
     const direct = searchableChannels
       .filter((entry) => entry.searchText.includes(q))
       .map((entry) => entry.channel)
@@ -741,16 +742,18 @@ export function TvProvider({
       return direct
     }
 
-    const directChannels = new Set(direct)
     const programmeMatches = epgSearchEntries
       .filter(
-        (entry) =>
-          !directChannels.has(entry.channel) &&
-          programmeMatchesById.has(normalizeXmltvId(entry.xmltvId)),
+        (entry) => programmeMatchesById.has(normalizeXmltvId(entry.xmltvId)),
       )
       .map((entry) => entry.channel)
 
-    return programmeMatches.length ? direct.concat(programmeMatches) : direct
+    if (!programmeMatches.length) return direct
+
+    const programmeChannels = new Set(programmeMatches)
+    return programmeMatches.concat(
+      direct.filter((channel) => !programmeChannels.has(channel)),
+    )
   }, [
     browserChannels,
     deferredQuery,
