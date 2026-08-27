@@ -978,12 +978,15 @@ export default function SourcesSettingsPage() {
               {savedPortals.map((portal) => {
                 const isActive = activePortalIds.includes(portal.id)
 
+                // During a bulk refresh, only the source currently on the
+                // network gets a loader. Other rows remain visibly intact,
+                // though their actions stay disabled until the run finishes.
                 const isBusy =
-                  isRefetchingActive ||
                   refetchingPortalId === portal.id ||
                   copyingPortalId === portal.id ||
                   deletingPortalId === portal.id ||
                   enrichingPortalId === portal.id
+                const isActionsDisabled = isRefetchingActive || isBusy
 
                 return (
                   <div
@@ -1034,7 +1037,7 @@ export default function SourcesSettingsPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              disabled={isBusy}
+                              disabled={isActionsDisabled}
                               aria-label={`More actions for ${portal.name}`}
                             >
                               {isBusy ? (
