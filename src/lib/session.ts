@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth"
 
 export type SessionUser = {
   id: string
-  email: string
+  email: string | null
   name: string
 }
 

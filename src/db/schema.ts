@@ -36,7 +36,9 @@ const encryptedText = customType<{ data: string; driverData: string }>({
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  email: text("email").notNull().unique(),
+  // Username-only shared accounts intentionally have no email address. Email
+  // remains unique when present for individual email and Google accounts.
+  email: text("email").unique(),
   // Username is an optional, case-insensitive login identifier. Existing
   // email-only accounts keep this null until a username is assigned.
   username: text("username").unique(),
