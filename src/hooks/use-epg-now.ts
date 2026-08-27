@@ -136,17 +136,23 @@ export function useEpgNow(entries: EpgNowChannel[]) {
   }, [windows, entries, now])
 }
 
-/** Searches the current six-hour EPG window after the user opts in. */
+/** Searches only the programme airing now after the user opts in. */
 export function useEpgProgrammeSearch(
   entries: EpgNowChannel[],
   query: string,
   enabled: boolean,
 ) {
   const normalizedQuery = query.trim().toLowerCase()
+  const [now, setNow] = useState(() => Date.now())
   const windows = useEpgWindows(entries, {
     active: enabled && normalizedQuery.length >= 2,
     includeDescriptions: true,
   })
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
 
   return useMemo(() => {
     const byId = new Map<string, ProgrammeMatch>()
@@ -157,8 +163,11 @@ export function useEpgProgrammeSearch(
       const key = feedKeyFor(entry)
       if (!key) continue
 
-      const slot = windows[`details:${key}`]?.[normalized]?.find(([, , title, description]) =>
-        `${title} ${description ?? ""}`.toLowerCase().includes(normalizedQuery),
+      const slot = windows[`details:${key}`]?.[normalized]?.find(
+        ([startAt, stopAt, title, description]) =>
+          startAt <= now &&
+          stopAt > now &&
+          `${title} ${description ?? ""}`.toLowerCase().includes(normalizedQuery),
       )
       if (slot) {
         byId.set(normalized, {
@@ -171,5 +180,5 @@ export function useEpgProgrammeSearch(
     }
 
     return byId
-  }, [enabled, entries, normalizedQuery, windows])
+  }, [enabled, entries, normalizedQuery, now, windows])
 }
