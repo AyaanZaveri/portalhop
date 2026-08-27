@@ -40,6 +40,7 @@ import {
   type BrowseFilter,
 } from "@portalhop/shared/browse-filter"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
+import { useEpgNow } from "@/hooks/use-epg-now"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
 import {
@@ -422,16 +423,6 @@ export function TvProvider({
     }))
   }, [browserChannels])
 
-  const filteredChannels = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase()
-    if (!q) {
-      return browserChannels
-    }
-    return searchableChannels
-      .filter((entry) => entry.searchText.includes(q))
-      .map((entry) => entry.channel)
-  }, [browserChannels, deferredQuery, searchableChannels])
-
   /**
    * Which stream each channel plays, as the user has chosen it.
    *
@@ -702,6 +693,66 @@ export function TvProvider({
     },
     [catalogueGroups, channelStreams, epgChoices, epgKindOrder],
   )
+
+  // A guide match needs the same resolved stream that a row uses. Asking the
+  // representative stream directly makes a channel disappear from a programme
+  // search when a lower-ranked source is the one with its guide assigned.
+  // Keep this empty until a useful query exists: downloading guide windows is
+  // only warranted when they can widen the search results.
+  const epgSearchEntries = useMemo(() => {
+    if (deferredQuery.trim().length < 2) return []
+
+    return browserChannels
+      .map((channel) => {
+        const stream = channelEpg(channel)?.stream
+        if (!stream?.xmltvId) return null
+
+        return {
+          channel,
+          xmltvId: stream.xmltvId,
+          epgSourceId:
+            stream.portalSource?.epgMode === "custom"
+              ? stream.portalSource.epgSourceId
+              : null,
+        }
+      })
+      .filter((entry) => entry !== null)
+  }, [browserChannels, channelEpg, deferredQuery])
+  const nowPlayingById = useEpgNow(epgSearchEntries)
+
+  const filteredChannels = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase()
+    if (!q) return browserChannels
+
+    // Keep direct channel matches first, just as mobile does. Programme title
+    // matches are an additive second pass, so the familiar channel named after
+    // the query does not get buried under every channel currently showing it.
+    const direct = searchableChannels
+      .filter((entry) => entry.searchText.includes(q))
+      .map((entry) => entry.channel)
+
+    if (q.length < 2 || !nowPlayingById.size) return direct
+
+    const directChannels = new Set(direct)
+    const programmeMatches = epgSearchEntries
+      .filter(
+        (entry) =>
+          !directChannels.has(entry.channel) &&
+          nowPlayingById
+            .get(normalizeXmltvId(entry.xmltvId))
+            ?.title.toLowerCase()
+            .includes(q),
+      )
+      .map((entry) => entry.channel)
+
+    return programmeMatches.length ? direct.concat(programmeMatches) : direct
+  }, [
+    browserChannels,
+    deferredQuery,
+    epgSearchEntries,
+    nowPlayingById,
+    searchableChannels,
+  ])
 
   /**
    * What a channel looks like, wherever it is drawn.
