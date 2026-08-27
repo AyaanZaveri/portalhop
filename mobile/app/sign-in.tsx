@@ -48,7 +48,7 @@ export default function SignInScreen() {
           onChangeText={setIdentifier}
           autoCapitalize="none"
           autoComplete="username"
-          placeholder="portalhopaz or you@example.com"
+          placeholder="your-username or you@example.com"
           placeholderTextColor="#737373"
           className="border-border text-foreground h-11 rounded-lg border px-3 font-sans text-[15px]"
         />

@@ -193,7 +193,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
               maxLength={30}
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="portalhopaz"
+              placeholder="your-username"
             />
           </div>
         ) : null}
@@ -212,7 +212,7 @@ function SignInContent({ onSignedIn }: { onSignedIn?: () => void }) {
                 ? setEmail(event.target.value)
                 : setIdentifier(event.target.value)
             }
-            placeholder={mode === "signUp" ? "you@example.com" : "portalhopaz or you@example.com"}
+            placeholder={mode === "signUp" ? "you@example.com" : "your-username or you@example.com"}
           />
         </div>
         <div className="flex flex-col gap-2.5">
