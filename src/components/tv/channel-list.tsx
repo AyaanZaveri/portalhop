@@ -696,6 +696,7 @@ export function ChannelList({
                 programmeSearchEnabled && "text-primary",
               )}
               onClick={() => setProgrammeSearchEnabled(!programmeSearchEnabled)}
+              size="icon-xs"
               title="Search programme titles and descriptions"
             >
               <CalendarSearchIcon />
@@ -717,7 +718,7 @@ export function ChannelList({
                   render={
                     <InputGroupButton
                       aria-label="Filter by portal"
-                      className="gap-1"
+                      size={isPortalFiltered ? "xs" : "icon-xs"}
                     />
                   }
                 >
@@ -799,7 +800,7 @@ export function ChannelList({
                   render={
                     <InputGroupButton
                       aria-label="Filter by portal"
-                      className="gap-1"
+                      size={isPortalFiltered ? "xs" : "icon-xs"}
                     />
                   }
                 >
