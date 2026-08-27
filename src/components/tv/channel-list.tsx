@@ -692,7 +692,7 @@ export function ChannelList({
               }
               aria-pressed={programmeSearchEnabled}
               className={cn(
-                "aria-pressed:bg-muted aria-pressed:text-foreground",
+                "!mr-0.5 aria-pressed:bg-muted aria-pressed:text-foreground",
                 programmeSearchEnabled && "text-primary",
               )}
               onClick={() => setProgrammeSearchEnabled(!programmeSearchEnabled)}
@@ -718,6 +718,7 @@ export function ChannelList({
                   render={
                     <InputGroupButton
                       aria-label="Filter by portal"
+                      className="!mr-0.5"
                       size={isPortalFiltered ? "xs" : "icon-xs"}
                     />
                   }
@@ -800,6 +801,7 @@ export function ChannelList({
                   render={
                     <InputGroupButton
                       aria-label="Filter by portal"
+                      className="!mr-0.5"
                       size={isPortalFiltered ? "xs" : "icon-xs"}
                     />
                   }
