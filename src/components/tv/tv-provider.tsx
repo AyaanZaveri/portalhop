@@ -694,9 +694,10 @@ export function TvProvider({
     [catalogueGroups, channelStreams, epgChoices, epgKindOrder],
   )
 
-  // A guide match needs the same resolved stream that a row uses. Asking the
-  // representative stream directly makes a channel disappear from a programme
-  // search when a lower-ranked source is the one with its guide assigned.
+  // Search every catalogue stream, as mobile does. A channel can have its
+  // current listing available from a source that is not the desktop row's
+  // preferred guide, and restricting this to that one resolved source makes a
+  // live programme title fail to find the channel.
   // Keep this empty until a useful query exists: downloading guide windows is
   // only warranted when they can widen the search results.
   const epgSearchEntries = useMemo(() => {
@@ -704,20 +705,19 @@ export function TvProvider({
 
     return browserChannels
       .map((channel) => {
-        const stream = channelEpg(channel)?.stream
-        if (!stream?.xmltvId) return null
+        if (!channel.xmltvId) return null
 
         return {
           channel,
-          xmltvId: stream.xmltvId,
+          xmltvId: channel.xmltvId,
           epgSourceId:
-            stream.portalSource?.epgMode === "custom"
-              ? stream.portalSource.epgSourceId
+            channel.portalSource?.epgMode === "custom"
+              ? channel.portalSource.epgSourceId
               : null,
         }
       })
       .filter((entry) => entry !== null)
-  }, [browserChannels, channelEpg, deferredQuery])
+  }, [browserChannels, deferredQuery])
   const nowPlayingById = useEpgNow(epgSearchEntries)
 
   const filteredChannels = useMemo(() => {
