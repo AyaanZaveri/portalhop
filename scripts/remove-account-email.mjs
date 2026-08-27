@@ -35,12 +35,12 @@ try {
   }
 
   await pool.query(
-    'update "user" set email = null, email_verified = false, updated_at = now() where id = $1',
-    [targetUser.id]
+    'update "user" set email = null, email_verified = false, name = $1, updated_at = now() where id = $2',
+    [targetUsername, targetUser.id]
   )
 
   await pool.query("commit")
-  console.log("Removed the email from the shared account.")
+  console.log("Removed the email and updated the display name for the shared account.")
 } catch (error) {
   await pool.query("rollback")
   throw error
