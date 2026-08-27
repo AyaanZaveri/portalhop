@@ -673,7 +673,7 @@ export function ChannelList({
         </div>
         <InputGroup>
           <InputGroupInput
-            placeholder={`Search ${visibleChannels.length.toLocaleString()} channels`}
+            placeholder={`Search ${groupedChannels.length.toLocaleString()} channels`}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
