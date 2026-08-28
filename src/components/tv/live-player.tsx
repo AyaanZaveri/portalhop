@@ -842,6 +842,25 @@ export function LivePlayer({
         )
         updateActiveCaption()
       }
+      const handleHlsError = (
+        _event: typeof Hls.Events.ERROR,
+        data: { fatal: boolean; details?: string },
+      ) => {
+        /*
+         * A few live MPEG-TS feeds signal AAC Main (mp4a.40.1) rather than a
+         * browser-decodable AAC profile. hls.js can download and transmux the
+         * fragments, so the controls look buffered, but MediaSource rejects
+         * the audio SourceBuffer and video can never start. Do not leave that
+         * state looking like an indefinitely-loading black frame: report it
+         * immediately so the caller can try another source, and the existing
+         * Open in player menu remains available for VLC/mpv.
+         */
+        if (data.fatal && data.details === "bufferAddCodecError") {
+          setResolveError(
+            "This stream's audio codec is not supported by this browser. Try another source or open it in VLC.",
+          )
+        }
+      }
       const handleLevelSwitching = (
         _event: typeof Hls.Events.LEVEL_SWITCHING,
         data: { level: number },
@@ -868,6 +887,7 @@ export function LivePlayer({
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
       hls.on(Hls.Events.CUES_PARSED, handleCuesParsed)
+      hls.on(Hls.Events.ERROR, handleHlsError)
       hls.on(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
       hls.on(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
       hls.on(Hls.Events.FRAG_BUFFERED, handleFragBuffered)
@@ -877,6 +897,7 @@ export function LivePlayer({
       removeHlsListeners = () => {
         hls.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
         hls.off(Hls.Events.CUES_PARSED, handleCuesParsed)
+        hls.off(Hls.Events.ERROR, handleHlsError)
         hls.off(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
         hls.off(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
         hls.off(Hls.Events.FRAG_BUFFERED, handleFragBuffered)
