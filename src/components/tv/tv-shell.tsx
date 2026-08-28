@@ -110,6 +110,17 @@ export function TvShell({ children }: { children: ReactNode }) {
     : defaultChannel
   const [sourcesOpen, setSourcesOpen] = useState(false)
 
+  // The failure surface lives beneath the channel-detail route, while this
+  // shell owns the source drawer. A browser event keeps that one-off recovery
+  // action local: no URL mutation, no global selection state, just open the
+  // chooser the viewer would otherwise reach from the header.
+  useEffect(() => {
+    const openSources = () => setSourcesOpen(true)
+    window.addEventListener("portalhop:open-sources", openSources)
+    return () =>
+      window.removeEventListener("portalhop:open-sources", openSources)
+  }, [])
+
   // The provider's grouping rather than a second one of this component's own:
   // the drawer, the list and the failover have to agree about what a channel's
   // sources are, and three groupings over three sets is how they stop agreeing.

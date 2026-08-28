@@ -207,6 +207,10 @@ export function ChannelDetail() {
               channel={channel}
               logoUrl={logoUrl}
               onUnplayable={onUnplayable}
+              hasNextSource={Boolean(nextStream)}
+              onChooseSource={() => {
+                window.dispatchEvent(new Event("portalhop:open-sources"))
+              }}
             />
             <ProgrammeGuide />
           </div>

@@ -1,12 +1,19 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { AlertCircleIcon, RotateCcwIcon, RotateCwIcon } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  AlertCircleIcon,
+  ExternalLinkIcon,
+  LoaderCircleIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
+} from "lucide-react"
 import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { useTheme } from "next-themes"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   MediaPlayer,
   MediaPlayerCast,
@@ -37,6 +44,7 @@ import {
   formatStreamVariant,
   getChannelKey,
   getChannelLogoUrl,
+  getExternalPlayerUrl,
   resolveChannelLink,
   snapToCommonFrameRate,
   type CaptionCue,
@@ -73,11 +81,14 @@ const isBuffered = (video: HTMLVideoElement, time: number) => {
  * this source, and the next one has its own several seconds to spend.
  */
 const START_DEADLINE_MS = 8000
+const FAILOVER_DELAY_SECONDS = 3
 
 export function LivePlayer({
   channel,
   logoUrl: channelLogoUrl,
   onUnplayable,
+  hasNextSource = false,
+  onChooseSource,
 }: {
   channel: PortalChannelWithSource
   /**
@@ -98,6 +109,10 @@ export function LivePlayer({
    * does not know -- it has been handed one stream.
    */
   onUnplayable?: (reason: string) => void
+  /** Whether the channel has another saved stream to try after a failure. */
+  hasNextSource?: boolean
+  /** Opens the source chooser without committing to a fallback. */
+  onChooseSource?: () => void
 }) {
   const { resolvedTheme } = useTheme()
   const {
@@ -121,6 +136,8 @@ export function LivePlayer({
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [resolveError, setResolveError] = useState("")
+  const [fallbackSeconds, setFallbackSeconds] = useState<number | null>(null)
+  const [fallbackCancelled, setFallbackCancelled] = useState(false)
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
@@ -147,6 +164,12 @@ export function LivePlayer({
     frameRateLabel: "",
     bitrateLabel: "",
   })
+
+  const failStream = useCallback((reason: string) => {
+    setResolveError(reason)
+    setFallbackSeconds(FAILOVER_DELAY_SECONDS)
+    setFallbackCancelled(false)
+  }, [])
 
   const channelKey = getChannelKey(channel)
   // Falls back to this stream's own, which is all there is when the player is
@@ -274,8 +297,10 @@ export function LivePlayer({
   // with fresh loading and error state.
   useEffect(() => {
     if (!canResolveChannel(channel)) {
+      // This is a synchronous input validation failure, not an async player
+      // event; rendering its recovery surface is the effect's purpose.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setResolveError("This channel can't be played.")
+      failStream("This channel can't be played.")
       return
     }
 
@@ -292,7 +317,7 @@ export function LivePlayer({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
-        setResolveError(
+        failStream(
           error instanceof Error
             ? error.message
             : "Could not pull the latest stream.",
@@ -302,7 +327,7 @@ export function LivePlayer({
     return () => {
       controller.abort()
     }
-  }, [channel, endpoint, previewSourceRequest, useProxy])
+  }, [channel, endpoint, failStream, previewSourceRequest, useProxy])
 
   /**
    * The deadline, and the two ways it is cancelled.
@@ -330,9 +355,20 @@ export function LivePlayer({
   }, [onUnplayable])
 
   useEffect(() => {
-    if (!resolveError) return
-    reportUnplayable.current?.(resolveError)
-  }, [resolveError])
+    if (!resolveError || !hasNextSource || fallbackCancelled) return
+
+    const deadline = Date.now() + FAILOVER_DELAY_SECONDS * 1000
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+      setFallbackSeconds(remaining)
+      if (remaining !== 0) return
+      setFallbackCancelled(true)
+      reportUnplayable.current?.(resolveError)
+    }
+    tick()
+    const interval = window.setInterval(tick, 250)
+    return () => window.clearInterval(interval)
+  }, [fallbackCancelled, hasNextSource, resolveError])
 
   useEffect(() => {
     const video = playerElement
@@ -344,7 +380,7 @@ export function LivePlayer({
 
     const started = () => window.clearTimeout(timer)
     const timer = window.setTimeout(() => {
-      reportUnplayable.current?.("This source did not start.")
+      failStream("This source did not start.")
     }, START_DEADLINE_MS)
 
     video.addEventListener("playing", started)
@@ -353,7 +389,7 @@ export function LivePlayer({
       window.clearTimeout(timer)
       video.removeEventListener("playing", started)
     }
-  }, [playerElement, streamUrl])
+  }, [failStream, playerElement, streamUrl])
 
   // hls.js snaps to the live edge once the playhead leaves the sliding playlist
   // window, so resuming skips ahead. Pull it back, but only while that frame is
@@ -856,7 +892,7 @@ export function LivePlayer({
          * Open in player menu remains available for VLC/mpv.
          */
         if (data.fatal && data.details === "bufferAddCodecError") {
-          setResolveError(
+          failStream(
             "This stream's audio codec is not supported by this browser. Try another source or open it in VLC.",
           )
         }
@@ -946,13 +982,58 @@ export function LivePlayer({
       )
       removeHlsListeners?.()
     }
-  }, [playerElement, streamUrl, channel.savedChannelId])
+  }, [failStream, playerElement, streamUrl, channel.savedChannelId])
 
   if (resolveError) {
     return (
-      <div className="border-destructive/40 bg-destructive/10 text-destructive flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border p-4 text-center text-sm">
+      <div className="border-destructive/40 bg-destructive/10 text-destructive flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg border p-4 text-center text-sm">
         <AlertCircleIcon className="size-6" />
-        {resolveError}
+        <p className="max-w-md">{resolveError}</p>
+        {hasNextSource && !fallbackCancelled ? (
+          <p className="text-destructive/75 flex items-center gap-1.5 text-xs tabular-nums">
+            <LoaderCircleIcon className="size-3.5 animate-spin" />
+            Trying the next source in{" "}
+            {fallbackSeconds ?? FAILOVER_DELAY_SECONDS}…
+          </p>
+        ) : null}
+        <div className="flex flex-wrap justify-center gap-2">
+          {hasNextSource ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                setFallbackCancelled(true)
+                reportUnplayable.current?.(resolveError)
+              }}
+            >
+              Try next source
+            </Button>
+          ) : null}
+          {onChooseSource ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onChooseSource}
+            >
+              Choose source
+            </Button>
+          ) : null}
+          {streamUrl ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                window.location.assign(getExternalPlayerUrl("vlc", streamUrl))
+              }}
+            >
+              <ExternalLinkIcon />
+              Open in VLC
+            </Button>
+          ) : null}
+        </div>
       </div>
     )
   }
