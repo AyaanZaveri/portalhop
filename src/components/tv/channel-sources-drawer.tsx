@@ -6,8 +6,11 @@ import {
   CalendarClockIcon,
   CheckIcon,
   GripVerticalIcon,
+  ListChecksIcon,
+  LoaderCircleIcon,
   PencilIcon,
   RotateCcwIcon,
+  ScanSearchIcon,
 } from "lucide-react"
 
 import {
@@ -61,6 +64,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   guidePinned = false,
   onUseGuide,
   onResetGuide,
+  onProbeAll,
   getLogoUrl,
   open,
   onOpenChange,
@@ -97,6 +101,8 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   onUseGuide?: (source: T) => void
   /** Drops the channel back to the ranking. */
   onResetGuide?: () => void
+  /** Probes all source streams, reporting completion one row at a time. */
+  onProbeAll?: (sources: T[], onProgress: () => void) => Promise<void>
   getLogoUrl: (source: T) => string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -118,6 +124,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   // This is the drawer the readings were collected for.
   const { streamInfo } = useTv()
   const [mode, setMode] = useState<"browse" | "edit" | "reorder">("browse")
+  const [probeProgress, setProbeProgress] = useState<number | null>(null)
   const guideSource = guideSourceKey
     ? sources.find((source) => getChannelKey(source) === guideSourceKey)
     : undefined
@@ -139,6 +146,18 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
     onSelect(source)
   }
 
+  const probeAll = async () => {
+    if (!onProbeAll || probeProgress !== null) return
+    setProbeProgress(0)
+    try {
+      await onProbeAll(sources, () => {
+        setProbeProgress((current) => (current ?? 0) + 1)
+      })
+    } finally {
+      setProbeProgress(null)
+    }
+  }
+
   return (
     <Drawer
       open={open}
@@ -150,31 +169,10 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
         <DrawerHeader className="group-data-[swipe-axis=y]/drawer-popup:text-left">
           <div className="flex items-center justify-between gap-3">
             <DrawerTitle className="text-lg">Sources</DrawerTitle>
-            {/* Each icon says what its own mode does: the pencil changes what
-                a stream is, the arrows change which one plays first. Both live
-                up here rather than on the rows, so the list at rest is a list
-                of sources and nothing else. */}
+            {/* Source management stays together: ordering first, then guide
+                matching. Probing is an independent read-only action, so the
+                divider keeps it from reading as a third editing mode. */}
             <div className="flex items-center gap-0.5">
-              {onEditGuideMatch ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={
-                    mode === "edit"
-                      ? "Finish editing guide matches"
-                      : "Edit guide matches"
-                  }
-                  aria-pressed={mode === "edit"}
-                  onClick={() => toggle("edit")}
-                >
-                  {mode === "edit" ? (
-                    <CheckIcon className="size-4 stroke-[2.25]" />
-                  ) : (
-                    <PencilIcon className="size-4 stroke-[2.25]" />
-                  )}
-                </Button>
-              ) : null}
               {canRemember && sources.length > 1 ? (
                 <Button
                   type="button"
@@ -192,6 +190,54 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                     <CheckIcon className="size-4 stroke-[2.25]" />
                   ) : (
                     <ArrowUpDownIcon className="size-4 stroke-[2.25]" />
+                  )}
+                </Button>
+              ) : null}
+              {onEditGuideMatch ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={
+                    mode === "edit"
+                      ? "Finish editing guide matches"
+                      : "Edit guide matches"
+                  }
+                  aria-pressed={mode === "edit"}
+                  onClick={() => toggle("edit")}
+                >
+                  {mode === "edit" ? (
+                    <CheckIcon className="size-4 stroke-[2.25]" />
+                  ) : (
+                    <ListChecksIcon className="size-4 stroke-[2.25]" />
+                  )}
+                </Button>
+              ) : null}
+              {onProbeAll &&
+              sources.length > 0 &&
+              (onEditGuideMatch || (canRemember && sources.length > 1)) ? (
+                <span
+                  aria-hidden
+                  className="bg-border mx-1 h-4 w-px shrink-0"
+                />
+              ) : null}
+              {onProbeAll && sources.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={probeProgress !== null}
+                  aria-label={
+                    probeProgress === null
+                      ? "Probe all stream sources"
+                      : `Probing source ${probeProgress + 1} of ${sources.length}`
+                  }
+                  onClick={() => void probeAll()}
+                >
+                  {probeProgress === null ? (
+                    <ScanSearchIcon className="size-4 stroke-[2.25]" />
+                  ) : (
+                    <LoaderCircleIcon className="size-4 animate-spin stroke-[2.25]" />
                   )}
                 </Button>
               ) : null}

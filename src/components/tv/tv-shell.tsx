@@ -36,6 +36,7 @@ import { AddPortalSheet } from "@/components/add-portal-sheet"
 import { AuthDialog } from "@/components/auth-dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { copyTextToClipboard } from "@/lib/clipboard"
+import { probeHlsStream } from "@/lib/stream-probe"
 import { useHydratedLayout } from "@/hooks/use-hydrated-layout"
 import { TV_MOBILE_LAYOUT_QUERY, useMediaQuery } from "@/hooks/use-media-query"
 import {
@@ -88,6 +89,10 @@ export function TvShell({ children }: { children: ReactNode }) {
     setChannelSourceOrder,
     applyChannelXmltvId,
     useImageProxy,
+    endpoint,
+    previewSourceRequest,
+    useProxy,
+    recordStreamInfo,
     browseFilter,
   } = useTv()
 
@@ -115,6 +120,62 @@ export function TvShell({ children }: { children: ReactNode }) {
   const sourceIdentityKey = currentChannel
     ? identityKeyOf(currentChannel)
     : null
+
+  /**
+   * One portal gets one probe at a time: IPTV backends commonly cap concurrent
+   * connections per account, and three streams from one source would otherwise
+   * make each other look slow or fail. Separate portals are independent, so
+   * their queues run together and a five-source comparison does not take five
+   * times as long.
+   */
+  const probeSources = useCallback(
+    async (streams: PortalChannelWithSource[], onProgress: () => void) => {
+      const queues = new Map<string, PortalChannelWithSource[]>()
+      for (const stream of streams) {
+        const sourceKey = `source:${stream.portalSource?.id ?? stream.portalSource?.name ?? "manual"}`
+        const queue = queues.get(sourceKey) ?? []
+        queue.push(stream)
+        queues.set(sourceKey, queue)
+      }
+
+      let succeeded = 0
+      let failed = 0
+      await Promise.all(
+        [...queues.values()].map(async (queue) => {
+          for (const stream of queue) {
+            try {
+              const streamUrl = await resolveChannelLink(stream, {
+                endpoint,
+                portalRequest: previewSourceRequest,
+                useProxy,
+              })
+              await probeHlsStream(streamUrl, (info) => {
+                if (stream.savedChannelId != null) {
+                  recordStreamInfo(stream.savedChannelId, info)
+                }
+              })
+              succeeded += 1
+            } catch {
+              failed += 1
+            } finally {
+              onProgress()
+            }
+          }
+        }),
+      )
+
+      if (failed) {
+        toast.warning(
+          `Probed ${succeeded} ${succeeded === 1 ? "source" : "sources"}; ${failed} could not be read.`,
+        )
+      } else {
+        toast.success(
+          `Probed ${succeeded} ${succeeded === 1 ? "source" : "sources"}.`,
+        )
+      }
+    },
+    [endpoint, previewSourceRequest, recordStreamInfo, useProxy],
+  )
 
   // Which stream's guide this channel reads. Resolved from the channel rather
   // than from whatever is playing, so the drawer reports the same guide the
@@ -222,7 +283,8 @@ export function TvShell({ children }: { children: ReactNode }) {
   // row here is the same channel, so the channel's mark would be the same
   // picture nine times and the list would say nothing.
   const sourceLogoUrl = useCallback(
-    (source: PortalChannelWithSource) => getStreamLogoUrl(source, useImageProxy),
+    (source: PortalChannelWithSource) =>
+      getStreamLogoUrl(source, useImageProxy),
     [useImageProxy],
   )
 
@@ -394,7 +456,10 @@ export function TvShell({ children }: { children: ReactNode }) {
               sourceIdentityKey
                 ? (source) =>
                     source.savedChannelId != null &&
-                    setChannelEpgChoice(sourceIdentityKey, source.savedChannelId)
+                    setChannelEpgChoice(
+                      sourceIdentityKey,
+                      source.savedChannelId,
+                    )
                 : undefined
             }
             onResetGuide={
@@ -402,6 +467,7 @@ export function TvShell({ children }: { children: ReactNode }) {
                 ? () => setChannelEpgChoice(sourceIdentityKey, null)
                 : undefined
             }
+            onProbeAll={probeSources}
             getLogoUrl={sourceLogoUrl}
             open={sourcesOpen}
             onOpenChange={setSourcesOpen}
