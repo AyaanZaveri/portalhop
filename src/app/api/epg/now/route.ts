@@ -4,7 +4,13 @@ import { selectUserEpgSource } from "@/db/user-epg-sources"
 import { getDb } from "@/db/client"
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
 import { fetchEpgWindow, type EpgWindow } from "@/lib/epg-parser"
+import {
+  getCachedIptvEpgWindow,
+  markIptvEpgCountryActive,
+  requestIptvEpgRefresh,
+} from "@/lib/iptv-epg-cache"
 import { requireUser } from "@/lib/session"
+import { refreshIptvEpgCountryTask } from "@/trigger/refresh-iptv-epg"
 
 export const runtime = "nodejs"
 // Without this the handler is treated as static and replays one response for
@@ -55,11 +61,20 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Unknown country." }, { status: 404 })
       }
 
-      const window = await loadWindow(
-        `country:${resolved}${includeDescriptions ? ":details" : ""}`,
-        source.url,
-        includeDescriptions,
-      )
+      await markIptvEpgCountryActive(resolved)
+      const cachedWindow = await getCachedIptvEpgWindow(resolved, { includeDescriptions })
+      const window = cachedWindow
+        ?? await loadWindow(
+          `country:${resolved}${includeDescriptions ? ":details" : ""}`,
+          source.url,
+          includeDescriptions,
+        )
+
+      // The direct parse keeps first use working. Subsequent reads use the
+      // shared 48-hour cache once this deduplicated refresh completes.
+      if (!cachedWindow && await requestIptvEpgRefresh(resolved)) {
+        void refreshIptvEpgCountryTask.trigger({ country: resolved }).catch(() => {})
+      }
 
       // Identical for every user, so the edge can serve one parse to everyone.
       return NextResponse.json(window, {

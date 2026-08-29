@@ -30,7 +30,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "trigger.config.ts"
   ],
   "comment": "packages/shared is deliberately inside the web typecheck — if shared stops compiling under the web app's settings, that is a break worth catching here. mobile/ is excluded: it carries React Native types that conflict with the DOM lib above.",
   "exclude": ["node_modules", "mobile"]
