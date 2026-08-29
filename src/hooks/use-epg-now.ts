@@ -1,13 +1,13 @@
 "use client"
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import {
   getCachedEpgWindow,
   setCachedEpgWindow,
 } from "@/lib/portal-channels-cache"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
-import { apiFetch } from "@/lib/api-fetch"
+import { apiBaseUrl, apiFetch } from "@/lib/api-fetch"
 
 export type NowPlaying = {
   title: string
@@ -35,17 +35,30 @@ const TICK_MS = 30_000
 const EPG_REFRESH_RETRY_MS = 2_000
 const EPG_REFRESH_RETRY_ATTEMPTS = 30
 
+// Programme search is intentionally scoped to the regions PortalHop's initial
+// audience actually uses. Fetching every guide a large IPTV catalogue happens
+// to mention would turn one keystroke into dozens of cache warm-ups.
+const DEFAULT_PROGRAMME_SEARCH_COUNTRIES = new Set([
+  "au",
+  "br",
+  "ca",
+  "de",
+  "es",
+  "fr",
+  "gb",
+  "in",
+  "it",
+  "mx",
+  "nz",
+  "pt",
+  "us",
+  "za",
+])
+
 export type EpgNowChannel = {
   xmltvId: string
   /** Set when the channel's source uses the user's own EPG rather than a country file. */
   epgSourceId?: number | null
-}
-
-function searchTokens(value: string) {
-  return value
-    .toLocaleLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((token) => token.length >= 2)
 }
 
 function useEpgWindows(
@@ -183,107 +196,78 @@ export function useEpgNow(entries: EpgNowChannel[]) {
   }, [windows, entries, now])
 }
 
-/**
- * Searches the cached six-hour window through an inverted token index.
- *
- * Building the index is O(events × terms) only when the guide window changes.
- * Each token is additionally indexed by its first three characters, so typing
- * does not scan every term in the guide on every keypress.
- */
+/** Searches guide data in a worker so a large programme index never blocks typing. */
 export function useEpgProgrammeSearch(
   entries: EpgNowChannel[],
   query: string,
   enabled: boolean,
 ) {
   const normalizedQuery = query.trim().toLowerCase()
-  const [now, setNow] = useState(() => Date.now())
-  const { windows, isLoading } = useEpgWindows(entries, {
-    active: enabled && normalizedQuery.length >= 2,
-    includeDescriptions: true,
-    reportLoading: true,
-  })
-  // A detailed guide response can be large. Let an in-progress keystroke win
-  // over rebuilding its local index when it arrives.
-  const deferredWindows = useDeferredValue(windows)
+  const [matches, setMatches] = useState<Map<string, ProgrammeMatch>>(
+    () => new Map(),
+  )
+  const [isLoading, setIsLoading] = useState(false)
+  const workerRef = useRef<Worker | null>(null)
+  const requestIdRef = useRef(0)
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), TICK_MS)
-    return () => clearInterval(timer)
-  }, [])
-
-  const index = useMemo(() => {
-    const prefixes = new Map<string, Set<string>>()
-    const entriesByKey = new Map<string, EpgNowChannel>()
-
+  const countries = useMemo(() => {
+    const result = new Set<string>()
     for (const entry of entries) {
-      const feedKey = feedKeyFor(entry)
-      const channelId = normalizeXmltvId(entry.xmltvId)
-      if (!feedKey || !channelId) continue
-      const key = `${feedKey}|${channelId}`
-      entriesByKey.set(key, entry)
-
-      for (const slot of deferredWindows[`details:${feedKey}`]?.[channelId] ??
-        []) {
-        for (const token of new Set(
-          searchTokens(`${slot[2]} ${slot[3] ?? ""}`),
-        )) {
-          const prefix = token.slice(0, Math.min(3, token.length))
-          const ids = prefixes.get(prefix) ?? new Set<string>()
-          ids.add(key)
-          prefixes.set(prefix, ids)
-        }
+      const suffix = countryOf(normalizeXmltvId(entry.xmltvId))
+      // XMLTV ids conventionally use .uk, while the source/cache use GB as
+      // the country code.
+      const country = suffix === "uk" ? "gb" : suffix
+      if (country && DEFAULT_PROGRAMME_SEARCH_COUNTRIES.has(country)) {
+        result.add(country)
       }
     }
+    return [...result].sort()
+  }, [entries])
+  const countriesKey = countries.join("|")
 
-    return { prefixes, entriesByKey }
-  }, [deferredWindows, entries])
-
-  const matches = useMemo(() => {
-    const byId = new Map<string, ProgrammeMatch>()
-    const tokens = searchTokens(normalizedQuery)
-    if (!enabled || tokens.length === 0) return byId
-
-    // Prefix lookup preserves the natural "blue j" typing path without a full
-    // fuzzy engine. Pick the smallest list first, then intersect it with the
-    // others; a keypress never needs to scan every term in the guide.
-    const lists = tokens
-      .map((token) => {
-        const prefix = token.slice(0, Math.min(3, token.length))
-        return index.prefixes.get(prefix) ?? new Set<string>()
-      })
-      .sort((a, b) => a.size - b.size)
-    if (!lists.length || lists[0].size === 0) return byId
-
-    const candidates = [...lists[0]].filter((id) =>
-      lists.slice(1).every((list) => list.has(id)),
+  useEffect(() => {
+    const worker = new Worker(
+      new URL("../workers/epg-programme-search.worker.ts", import.meta.url),
     )
-    for (const candidate of candidates) {
-      const entry = index.entriesByKey.get(candidate)
-      if (!entry) continue
-      const feedKey = feedKeyFor(entry)
-      const channelId = normalizeXmltvId(entry.xmltvId)
-      if (!feedKey || !channelId) continue
-      const slot = deferredWindows[`details:${feedKey}`]?.[channelId]?.find(
-        ([, stopAt, title, description]) =>
-          stopAt > now &&
-          tokens.every((token) =>
-            searchTokens(`${title} ${description ?? ""}`).some((word) =>
-              word.startsWith(token),
-            ),
-          ),
+    workerRef.current = worker
+    worker.onmessage = (
+      event: MessageEvent<{
+        id: number
+        matches: Array<ProgrammeMatch & { id: string }>
+      }>,
+    ) => {
+      if (event.data.id !== requestIdRef.current) return
+      setMatches(
+        new Map(event.data.matches.map(({ id, ...match }) => [id, match])),
       )
-      if (!slot) continue
-      byId.set(channelId, {
-        title: slot[2],
-        description: slot[3],
-        startAt: slot[0],
-        stopAt: slot[1],
-      })
+      setIsLoading(false)
     }
-    return byId
-  }, [deferredWindows, enabled, index, normalizedQuery, now])
+    worker.onerror = () => setIsLoading(false)
+    return () => worker.terminate()
+  }, [])
 
-  // Keep the pending UI visible until React has accepted the new guide window
-  // and rebuilt its local index, not merely until the network request ends.
-  return { matches, isLoading: isLoading || deferredWindows !== windows }
+  useEffect(() => {
+    const worker = workerRef.current
+    const id = requestIdRef.current + 1
+    requestIdRef.current = id
+    if (
+      !worker ||
+      !enabled ||
+      normalizedQuery.length < 2 ||
+      !countries.length
+    ) {
+      setMatches(new Map())
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
+    worker.postMessage({
+      id,
+      baseUrl: apiBaseUrl,
+      countries,
+      query: normalizedQuery,
+    })
+  }, [countries, countriesKey, enabled, normalizedQuery])
+
+  return { matches, isLoading }
 }
