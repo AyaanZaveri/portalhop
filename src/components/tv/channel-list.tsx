@@ -1295,7 +1295,7 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate font-medium">
+                        <span className="truncate font-semibold">
                           {channel.name ||
                             `Channel ${channel.number || index + 1}`}
                         </span>
@@ -1466,7 +1466,7 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate font-medium">
+                        <span className="truncate font-[550]">
                           {displayName ||
                             `Channel ${channel.number || virtualRow.index + 1}`}
                         </span>
@@ -1475,12 +1475,10 @@ export function ChannelList({
                             pushing the row to four. */}
                         {nowPlaying ? (
                           <>
-                            {/* The mobile row's treatment, figure for figure:
-                                13 points, medium, and dimmed against a name at
-                                full strength. Both lines carry the same weight,
-                                so it is size and colour that order them — and
-                                the colour is what stops two lines of one weight
-                                reading as a single block. */}
+                            {/* The programme is contextual metadata. Its medium
+                                weight stays below the semibold channel name,
+                                while the slightly muted colour preserves that
+                                hierarchy at a glance. */}
                             <span className="text-foreground/80 truncate text-[13px] font-medium">
                               {nowPlaying.title}
                             </span>

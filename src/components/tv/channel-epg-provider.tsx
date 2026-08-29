@@ -37,7 +37,7 @@ export function ChannelEpgProvider({
   channel: PortalChannelWithSource
   children: ReactNode
 }) {
-  const { endpoint, previewSourceRequest, channelEpg } = useTv()
+  const { endpoint, previewSourceRequest, channelEpg, epgProviderOrder } = useTv()
   const [programmes, setProgrammes] = useState<EpgProgramme[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -64,7 +64,9 @@ export function ChannelEpgProvider({
   const epgStream = (epgChoice?.stream ?? channel) as PortalChannelWithSource
   // A string rather than the object, because the object is rebuilt every render
   // and the whole point is for this effect to stay still while it does.
-  const epgKey = epgChoiceKey(epgChoice)
+  const epgKey = epgChoice?.pinned
+    ? epgChoiceKey(epgChoice)
+    : `auto:${epgProviderOrder.join("|")}:${epgStream.xmltvId ?? ""}:${epgStream.portalSource?.id ?? 0}`
 
   useEffect(() => {
     const controller = new AbortController()
@@ -72,8 +74,11 @@ export function ChannelEpgProvider({
     const sourceEndpoint = epgStream.portalSource?.endpoint ?? endpoint
     const requestBody = {
       ...sourceRequest,
-      epgMode: epgStream.portalSource?.epgMode ?? "portal",
+      // Automatic selection is resolved server-side against every ranked XMLTV
+      // provider, not just the portal that happened to supply this stream.
+      epgMode: epgChoice?.pinned ? (epgStream.portalSource?.epgMode ?? "portal") : "auto",
       epgSourceId: epgStream.portalSource?.epgSourceId ?? null,
+      epgProviderOrder,
       endpoint: sourceEndpoint,
       channelId: epgStream.id,
       channelName: epgStream.name,

@@ -95,6 +95,7 @@ type TvContextValue = {
     savedChannelId: number | null,
   ) => void
   epgKindOrder: EpgKind[]
+  epgProviderOrder: string[]
   /** What a channel is, for anything that stores or addresses one. */
   identityKeyOf: (channel: PortalChannelWithSource) => string | null
   /**
@@ -214,6 +215,8 @@ export function TvProvider({
     useProxy,
     useImageProxy,
     epgKindOrder,
+    sourcePriorityIds,
+    epgProviderOrder,
   } = settings
   const { favorites, isFavorite, toggleFavorite, migrateFavoriteKeys } =
     useFavorites()
@@ -614,11 +617,6 @@ export function TvProvider({
     [],
   )
 
-  const channelIndex = useMemo(
-    () => buildChannelIndex(browserChannels, userId, sourceOrder),
-    [browserChannels, userId, sourceOrder],
-  )
-
   /**
    * Every stream in the catalogue, grouped by the channel it is a copy of.
    *
@@ -651,6 +649,32 @@ export function TvProvider({
     return { trusted, identityTrusted, streams }
   }, [browserChannels])
 
+  // A source priority is only the default. The sparse per-channel map above is
+  // authoritative the instant someone reorders one channel, so changing this
+  // list never tramples a deliberate local choice.
+  const effectiveSourceOrder = useMemo<ChannelSourceOrder>(() => {
+    const next: Record<string, readonly number[]> = { ...sourceOrder }
+    const priority = (sourceId: number | undefined) => {
+      const index = sourceId == null ? -1 : sourcePriorityIds.indexOf(sourceId)
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index
+    }
+    for (const streams of catalogueGroups.streams.values()) {
+      const identityKey = identityKeyFor(streams[0], catalogueGroups.identityTrusted)
+      if (!identityKey || next[identityKey]) continue
+      const ordered = [...streams]
+        .sort((a, b) => priority(a.portalSource?.id) - priority(b.portalSource?.id))
+        .map((stream) => stream.savedChannelId)
+        .filter((id): id is number => typeof id === "number")
+      if (ordered.length) next[identityKey] = ordered
+    }
+    return next
+  }, [catalogueGroups, sourceOrder, sourcePriorityIds])
+
+  const channelIndex = useMemo(
+    () => buildChannelIndex(browserChannels, userId, effectiveSourceOrder),
+    [browserChannels, effectiveSourceOrder, userId],
+  )
+
   /**
    * The streams behind a channel, the chosen one first.
    *
@@ -664,11 +688,11 @@ export function TvProvider({
       const streams = (key && catalogueGroups.streams.get(key)) || [channel]
       return orderByChosenSource(
         streams,
-        sourceOrder,
+        effectiveSourceOrder,
         catalogueGroups.identityTrusted,
       )
     },
-    [catalogueGroups, sourceOrder],
+    [catalogueGroups, effectiveSourceOrder],
   )
 
   /**
@@ -1133,11 +1157,12 @@ export function TvProvider({
       channelEpg,
       setChannelEpgChoice,
       epgKindOrder,
+      epgProviderOrder,
       streamInfo,
       recordStreamInfo,
       identityKeyOf,
       trustedIds: catalogueGroups.identityTrusted,
-      sourceOrder,
+      sourceOrder: effectiveSourceOrder,
       setChannelSourceOrder,
       epgChannels,
       customEpgChannels,
@@ -1189,11 +1214,12 @@ export function TvProvider({
       channelEpg,
       setChannelEpgChoice,
       epgKindOrder,
+      epgProviderOrder,
       streamInfo,
       recordStreamInfo,
       identityKeyOf,
       catalogueGroups,
-      sourceOrder,
+      effectiveSourceOrder,
       setChannelSourceOrder,
       epgChannels,
       customEpgChannels,

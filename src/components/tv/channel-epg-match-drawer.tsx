@@ -46,6 +46,8 @@ type EpgMatch = {
   name: string
   logoUrl?: string
   countryCode?: string
+  providerId?: string
+  providerName?: string
 }
 
 export function ChannelEpgMatchDrawer({
@@ -237,6 +239,11 @@ export function ChannelEpgMatchDrawer({
                         <span className="text-muted-foreground truncate font-mono text-xs">
                           {match.xmltvId}
                         </span>
+                        {match.providerName ? (
+                          <span className="text-muted-foreground truncate text-xs">
+                            Uses {match.providerName}
+                          </span>
+                        ) : null}
                       </span>
                       {savingId === match.xmltvId ? (
                         <Spinner className="text-muted-foreground shrink-0" />

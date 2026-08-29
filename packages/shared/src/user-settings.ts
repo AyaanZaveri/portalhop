@@ -25,6 +25,10 @@ export type UserSettingsData = {
    * sparsely; see channel_identity_prefs.
    */
   epgKindOrder: EpgKind[]
+  /** Preferred playback portal ids, best first. Channels with a local order keep it. */
+  sourcePriorityIds: number[]
+  /** Preferred XMLTV providers, best first. `iptv-org` and `custom:<id>`. */
+  epgProviderOrder: string[]
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettingsData = {
@@ -33,6 +37,8 @@ export const DEFAULT_USER_SETTINGS: UserSettingsData = {
   useProxy: true,
   useImageProxy: true,
   epgKindOrder: [...DEFAULT_EPG_KIND_ORDER],
+  sourcePriorityIds: [],
+  epgProviderOrder: ["iptv-org"],
 }
 
 /** Coerces an unknown value (e.g. a JSON patch body) into a partial settings. */
@@ -70,6 +76,20 @@ export function sanitizeSettingsPatch(
 
   if (Array.isArray(input.epgKindOrder)) {
     patch.epgKindOrder = sanitizeEpgKindOrder(input.epgKindOrder)
+  }
+
+  if (Array.isArray(input.sourcePriorityIds)) {
+    patch.sourcePriorityIds = [...new Set(input.sourcePriorityIds
+      .map(Number)
+      .filter(Number.isInteger)
+      .filter((id) => id > 0))]
+  }
+
+  if (Array.isArray(input.epgProviderOrder)) {
+    patch.epgProviderOrder = [...new Set(input.epgProviderOrder
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter((value) => value === "iptv-org" || /^custom:\d+$/.test(value)))]
   }
 
   return patch

@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   CopyIcon,
+  ArrowUpDownIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -13,6 +14,7 @@ import {
   Trash2Icon,
   TvIcon,
   WaypointsIcon,
+  GripVerticalIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -72,6 +74,7 @@ import { SettingsHeader } from "@/components/settings-header"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
 import { useAiSettings } from "@/hooks/use-ai-settings"
 import { apiFetch, absoluteApiUrl } from "@/lib/api-fetch"
+import { Sortable, SortableItem, SortableItemHandle } from "@/components/reui/sortable"
 
 type SavedPortalRecord = SavedSourceRecord
 
@@ -140,6 +143,7 @@ function EnrichMatchRow({
 
 export default function SourcesSettingsPage() {
   const [addSourceOpen, setAddSourceOpen] = React.useState(false)
+  const [reorderingSources, setReorderingSources] = React.useState(false)
   const [savedPortals, setSavedPortals] = React.useState<SavedPortalRecord[]>(
     [],
   )
@@ -970,12 +974,36 @@ export default function SourcesSettingsPage() {
                     </TooltipContent>
                   </Tooltip>
                 ) : null}
+                {savedPortals.length > 1 ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={reorderingSources ? "Finish reordering sources" : "Reorder playback priority"}
+                          aria-pressed={reorderingSources}
+                          onClick={() => setReorderingSources((value) => !value)}
+                        >
+                          <ArrowUpDownIcon className="size-4" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent align="center">Reorder playback priority</TooltipContent>
+                  </Tooltip>
+                ) : null}
               </div>
             ) : null}
           </div>
           {savedPortals.length ? (
-            <div className="flex flex-col">
-              {savedPortals.map((portal) => {
+            <Sortable
+              value={[...savedPortals].sort((a, b) => (settings.sourcePriorityIds.indexOf(a.id) === -1 ? Number.MAX_SAFE_INTEGER : settings.sourcePriorityIds.indexOf(a.id)) - (settings.sourcePriorityIds.indexOf(b.id) === -1 ? Number.MAX_SAFE_INTEGER : settings.sourcePriorityIds.indexOf(b.id)))}
+              getItemValue={(portal) => String(portal.id)}
+              onValueChange={(items) => updateSettings({ sourcePriorityIds: items.map((item) => item.id) })}
+              className="flex flex-col"
+            >
+              {[...savedPortals].sort((a, b) => (settings.sourcePriorityIds.indexOf(a.id) === -1 ? Number.MAX_SAFE_INTEGER : settings.sourcePriorityIds.indexOf(a.id)) - (settings.sourcePriorityIds.indexOf(b.id) === -1 ? Number.MAX_SAFE_INTEGER : settings.sourcePriorityIds.indexOf(b.id))).map((portal) => {
                 const isActive = activePortalIds.includes(portal.id)
 
                 // During a bulk refresh, only the source currently on the
@@ -989,8 +1017,8 @@ export default function SourcesSettingsPage() {
                 const isActionsDisabled = isRefetchingActive || isBusy
 
                 return (
-                  <div
-                    key={portal.id}
+                  <SortableItem key={portal.id} value={String(portal.id)} disabled={!reorderingSources} className="opacity-100">
+                  <SortableItemHandle
                     role="button"
                     tabIndex={0}
                     className="group/source hover:bg-accent/50 focus-visible:bg-accent/50 -mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 outline-none"
@@ -1021,6 +1049,7 @@ export default function SourcesSettingsPage() {
                         {portal.channelCount.toLocaleString()} channels
                       </span>
                     </div>
+                    {reorderingSources ? <GripVerticalIcon className="text-muted-foreground size-4 shrink-0" /> : null}
                     <Switch
                       checked={isActive}
                       onCheckedChange={(checked) =>
@@ -1107,10 +1136,11 @@ export default function SourcesSettingsPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  </div>
+                  </SortableItemHandle>
+                  </SortableItem>
                 )
               })}
-            </div>
+            </Sortable>
           ) : (
             <div className="flex items-center gap-2 px-1 py-3 text-sm">
               <Loader2Icon className="text-muted-foreground size-4 shrink-0 animate-spin" />

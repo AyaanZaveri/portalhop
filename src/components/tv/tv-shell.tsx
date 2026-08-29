@@ -458,7 +458,6 @@ export function TvShell({ children }: { children: ReactNode }) {
                 : undefined
             }
             guideSourceKey={guideSourceKey}
-            guidePinned={Boolean(guideChoice?.pinned)}
             // Only where there is a channel to hang the choice on. An identity
             // key is an id: key, so a channel with no trusted guide id has
             // nowhere to store a pin -- and, having one stream, no choice to

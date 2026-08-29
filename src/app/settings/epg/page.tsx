@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarIcon, ChevronDownIcon, ChevronUpIcon, GlobeIcon, Loader2Icon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon, TvIcon } from "lucide-react"
+import { CalendarIcon, GlobeIcon, GripVerticalIcon, Loader2Icon, MoreHorizontalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon, TvIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -17,8 +17,8 @@ import { Switch } from "@/components/ui/switch"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import type { EpgManifest } from "@/lib/epg-store"
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
-import type { EpgKind } from "@portalhop/shared/epg-preference"
 import { apiFetch } from "@/lib/api-fetch"
+import { Sortable, SortableItem, SortableItemHandle } from "@/components/reui/sortable"
 
 const WSRV_LOGO_LIGHT = "/proxy/wsrv-light.svg"
 const WSRV_LOGO_DARK = "/proxy/wsrv-dark.svg"
@@ -47,9 +47,14 @@ export default function EpgAndLogosSettingsPage() {
     finally { setIsLoadingSources(false) }
   }, [])
   React.useEffect(() => {
-    loadManifest().catch(() => { })
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadSources().catch(() => { })
+    // Schedule after the initial paint: both loaders update local state once
+    // their network work settles, and doing the scheduling itself in the
+    // effect avoids a synchronous state cascade on mount.
+    const timer = window.setTimeout(() => {
+      void loadManifest().catch(() => {})
+      void loadSources().catch(() => {})
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [loadManifest, loadSources])
 
   async function refreshBuiltIn() {
@@ -109,9 +114,10 @@ export default function EpgAndLogosSettingsPage() {
         aria-label="Use image proxy"
       />
     </div>
-    <GuidePreference
-      order={settings.epgKindOrder}
-      onChange={(epgKindOrder) => updateSettings({ epgKindOrder })}
+    <GuideProviderPreference
+      sources={sources}
+      order={settings.epgProviderOrder}
+      onChange={(epgProviderOrder) => updateSettings({ epgProviderOrder })}
     />
     <section className="flex flex-col gap-3 border-t pt-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">iptv-epg.org is available per portal from its EPG selector.</p></div><Button size="sm" onClick={refreshBuiltIn} disabled={refreshing === "builtin"}>{refreshing === "builtin" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Refresh EPG</Button></div>
       <div className="grid grid-cols-3 gap-3"><Stat label="Last updated" value={manifest?.lastFetchedAt ? new Date(manifest.lastFetchedAt).toLocaleDateString(undefined, { dateStyle: "medium" }) : "Never"} /><Stat label="Countries" value={String(manifest?.countries.length ?? 0)} /><Stat label="Total channels" value={total.toLocaleString()} /></div>
@@ -177,21 +183,6 @@ function EpgSourceSheet({ open, onOpenChange, source, onSaved }: { open: boolean
     </DrawerContent>
   </Drawer>
 }
-const GUIDE_KINDS: Record<EpgKind, { title: string; detail: string }> = {
-  "iptv-org": {
-    title: "Built-in EPG",
-    detail: "iptv-epg.org. One curated dataset, the same everywhere.",
-  },
-  custom: {
-    title: "Custom EPG sources",
-    detail: "The XMLTV sources you added above.",
-  },
-  portal: {
-    title: "The source's own EPG",
-    detail: "Whatever each portal serves for its own channels.",
-  },
-}
-
 /**
  * Which kind of guide wins when a channel's sources offer more than one.
  *
@@ -206,38 +197,33 @@ const GUIDE_KINDS: Record<EpgKind, { title: string; detail: string }> = {
  * except for the ones somebody pinned by hand in the sources drawer. Those are
  * the only guide choices stored anywhere.
  */
-function GuidePreference({
-  order,
-  onChange,
-}: {
-  order: EpgKind[]
-  onChange: (order: EpgKind[]) => void
+function GuideProviderPreference({ sources, order, onChange }: {
+  sources: UserEpgSource[]
+  order: string[]
+  onChange: (order: string[]) => void
 }) {
-  // Buttons rather than the drag the rest of the app uses for ordering. Three
-  // fixed rows is not a list you drag through, it is a ranking you nudge -- and
-  // this is the one ordered list that renders on first paint rather than behind
-  // a mode toggle, where dnd-kit's generated aria ids differ between the server
-  // pass and the client one and trip a hydration mismatch.
-  const move = (from: number, to: number) => {
-    if (to < 0 || to >= order.length) return
-    const next = [...order]
-    const [moved] = next.splice(from, 1)
-    next.splice(to, 0, moved)
-    onChange(next)
-  }
+  const providers = [
+    { id: "iptv-org", name: "Built-in EPG", detail: "iptv-epg.org" },
+    ...sources.map((source) => ({ id: `custom:${source.id}`, name: source.name, detail: "Custom XMLTV" })),
+  ]
+  const ids = new Set(providers.map((provider) => provider.id))
+  const resolved = [
+    ...order.filter((id) => ids.has(id)),
+    ...providers.map((provider) => provider.id).filter((id) => !order.includes(id)),
+  ]
+  const items = resolved.map((id) => providers.find((provider) => provider.id === id)!)
 
   return <section className="flex flex-col gap-3">
-    <div><h2 className="text-base font-medium">Guide preference</h2><p className="text-sm text-muted-foreground">When a channel comes from several sources, the highest of these that has a schedule for it supplies the guide — whichever source you are actually watching.</p></div>
-    <div className="flex flex-col gap-2">
-      {order.map((kind, index) => <div key={kind} className="flex items-center gap-3 rounded-lg border p-3">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/15 font-mono text-xs font-medium text-primary tabular-nums brightness-85 dark:brightness-100">{index + 1}</span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"><span className="truncate text-sm font-medium">{GUIDE_KINDS[kind].title}</span><span className="truncate text-xs text-muted-foreground">{GUIDE_KINDS[kind].detail}</span></span>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Button type="button" variant="ghost" size="icon-sm" disabled={index === 0} aria-label={`Move ${GUIDE_KINDS[kind].title} up`} onClick={() => move(index, index - 1)}><ChevronUpIcon className="size-4" /></Button>
-          <Button type="button" variant="ghost" size="icon-sm" disabled={index === order.length - 1} aria-label={`Move ${GUIDE_KINDS[kind].title} down`} onClick={() => move(index, index + 1)}><ChevronDownIcon className="size-4" /></Button>
-        </div>
-      </div>)}
-    </div>
+    <div><h2 className="text-base font-medium">Guide providers</h2><p className="text-sm text-muted-foreground">Automatic matching uses the highest provider that contains the channel’s XMLTV ID. Portal guides are used only when no ranked XMLTV provider can match it.</p></div>
+    <Sortable value={items} getItemValue={(item) => item.id} onValueChange={(next) => onChange(next.map((item) => item.id))} className="flex flex-col gap-2">
+      {items.map((provider, index) => <SortableItem key={provider.id} value={provider.id} className="rounded-lg border bg-background">
+        <SortableItemHandle className="flex cursor-grab items-center gap-3 p-3 active:cursor-grabbing">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/15 font-mono text-xs font-medium text-primary tabular-nums">{index + 1}</span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"><span className="truncate text-sm font-medium">{provider.name}</span><span className="truncate text-xs text-muted-foreground">{provider.detail}</span></span>
+          <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
+        </SortableItemHandle>
+      </SortableItem>)}
+    </Sortable>
   </section>
 }
 

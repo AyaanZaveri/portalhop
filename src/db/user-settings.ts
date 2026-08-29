@@ -34,6 +34,12 @@ export async function getUserSettings(
     // a row written before it existed carries the default, and a hand-edited
     // one can carry anything.
     epgKindOrder: sanitizeEpgKindOrder(row.epgKindOrder),
+    sourcePriorityIds: Array.isArray(row.sourcePriorityIds)
+      ? row.sourcePriorityIds.filter((id): id is number => Number.isInteger(id) && id > 0)
+      : [],
+    epgProviderOrder: Array.isArray(row.epgProviderOrder)
+      ? row.epgProviderOrder.filter((id): id is string => typeof id === "string")
+      : ["iptv-org"],
   }
 }
 

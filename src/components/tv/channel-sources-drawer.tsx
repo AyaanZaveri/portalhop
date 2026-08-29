@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   ArrowUpDownIcon,
   CalendarClockIcon,
@@ -9,8 +9,8 @@ import {
   ListChecksIcon,
   LoaderCircleIcon,
   PencilIcon,
-  RotateCcwIcon,
   ScanSearchIcon,
+  StarIcon,
 } from "lucide-react"
 
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Sortable,
   SortableItem,
@@ -35,6 +36,16 @@ import { cn } from "@/lib/utils"
 import { useTv } from "@/components/tv/tv-provider"
 import { streamLabels, type StreamInfo } from "@portalhop/shared/stream-info"
 import { canSupplyEpg } from "@portalhop/shared/epg-preference"
+import { apiFetch } from "@/lib/api-fetch"
+
+function IptvEpgMark() {
+  return <>
+    {/* eslint-disable-next-line @next/next/no-img-element -- Local brand mark, rendered at icon size. */}
+    <img src="/epg/iptv-epg-light.png" alt="" className="size-4 rounded-xs object-contain dark:hidden" />
+    {/* eslint-disable-next-line @next/next/no-img-element -- Local brand mark, rendered at icon size. */}
+    <img src="/epg/iptv-epg-dark.png" alt="" className="hidden size-4 rounded-xs object-contain dark:block" />
+  </>
+}
 
 export type SourceChannel = PortalChannel & {
   // epgMode and epgSourceId are here because the drawer is where a channel's
@@ -61,7 +72,6 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   onOrderChange,
   onEditGuideMatch,
   guideSourceKey,
-  guidePinned = false,
   onUseGuide,
   onResetGuide,
   onProbeAll,
@@ -96,7 +106,6 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
    * is why the distinction has to be legible here.
    */
   guideSourceKey?: string
-  guidePinned?: boolean
   /** Pins the channel's guide to one stream. */
   onUseGuide?: (source: T) => void
   /** Drops the channel back to the ranking. */
@@ -125,9 +134,47 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   const { streamInfo } = useTv()
   const [mode, setMode] = useState<"browse" | "edit" | "reorder">("browse")
   const [probeProgress, setProbeProgress] = useState<number | null>(null)
+  const [customGuideNames, setCustomGuideNames] = useState<Record<number, string>>({})
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    void apiFetch("/api/epg-sources")
+      .then((response) => response.ok ? response.json() : null)
+      .then((body: { sources?: Array<{ id: number; name: string }> } | null) => {
+        if (active && body?.sources) {
+          setCustomGuideNames(Object.fromEntries(body.sources.map((source) => [source.id, source.name])))
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [open])
   const guideSource = guideSourceKey
     ? sources.find((source) => getChannelKey(source) === guideSourceKey)
     : undefined
+  // Guide selection is intentionally provider-shaped, not stream-shaped. A
+  // custom XMLTV provider can be attached to several portals; presenting all
+  // of those copies made the choice look like playback selection again.
+  const guideProviders = sources.reduce<T[]>((items, source) => {
+    if (!source.xmltvId || !canSupplyEpg(source)) return items
+    const mode = source.portalSource?.epgMode
+    if (mode === "portal") return items
+    const key = mode === "custom"
+      ? `custom:${source.portalSource?.epgSourceId ?? 0}`
+      : "iptv-org"
+    const alreadyAdded = items.some((item) => {
+      const itemMode = item.portalSource?.epgMode
+      return itemMode === "custom"
+        ? key === `custom:${item.portalSource?.epgSourceId ?? 0}`
+        : itemMode === "iptv-org" && key === "iptv-org"
+    })
+    if (!alreadyAdded) items.push(source)
+    return items
+  }, [])
+  const guideLabel = (source: T) => source.portalSource?.epgMode === "iptv-org"
+    ? "IPTV-EPG"
+    : source.portalSource?.epgMode === "custom"
+      ? customGuideNames[source.portalSource?.epgSourceId ?? 0] ?? "Custom XMLTV"
+      : source.portalSource?.name ?? "Portal guide"
   const didDragRef = useRef(false)
 
   const toggle = (next: "edit" | "reorder") =>
@@ -244,36 +291,6 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
             </div>
           </div>
         </DrawerHeader>
-        {/* Stated once, above the list, rather than left to be inferred from a
-            badge on one row. Someone opening this drawer because the schedule
-            looks wrong needs to know which source it came from before they know
-            which row to look at — and whether it was their choice or ours. */}
-        {guideSource ? (
-          <div className="text-muted-foreground flex items-center gap-2 px-4 pt-3 text-xs">
-            <CalendarClockIcon className="size-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">
-              Guide from{" "}
-              <span className="text-foreground font-medium">
-                {guideSource.portalSource?.name ?? "Manual"}
-              </span>
-              <span className="ml-1.5">
-                {guidePinned ? "· chosen" : "· default"}
-              </span>
-            </span>
-            {guidePinned && onResetGuide ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground -my-1 h-7 shrink-0 px-2"
-                onClick={onResetGuide}
-              >
-                <RotateCcwIcon className="size-3.5" />
-                Reset
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
         <ScrollArea
           className="min-h-0 flex-1"
           viewportTabIndex={-1}
@@ -327,9 +344,19 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
             </Sortable>
           ) : (
             <div className="flex flex-col gap-1.5">
+              {mode === "edit" && onUseGuide ? (
+                <div className="mb-2 flex flex-col gap-1.5">
+                  <p className="text-muted-foreground px-2 text-xs font-medium">Guide</p>
+                  <Select value={guideSource ? getChannelKey(guideSource) : "__priority__"} onValueChange={(value) => { if (value === "__priority__") { onResetGuide?.(); return } const source = guideProviders.find((item) => getChannelKey(item) === value); if (source) onUseGuide(source) }}>
+                    <SelectTrigger className="w-full"><SelectValue>{guideSource ? () => <span className="flex items-center gap-2">{guideSource.portalSource?.epgMode === "iptv-org" ? <><IptvEpgMark />IPTV-EPG</> : <><CalendarClockIcon className="size-4" />{guideLabel(guideSource)}</>}</span> : <span className="flex items-center gap-2"><StarIcon className="size-4 fill-current" />Use guide priority</span>}</SelectValue></SelectTrigger>
+                    <SelectContent side="bottom" align="start" alignItemWithTrigger={false}>
+                      <SelectGroup><SelectLabel>Guide providers</SelectLabel><SelectItem value="__priority__"><StarIcon className="fill-current" />Use guide priority</SelectItem>{guideProviders.map((source) => <SelectItem key={`provider:${getChannelKey(source)}`} value={getChannelKey(source)}>{source.portalSource?.epgMode === "iptv-org" ? <><IptvEpgMark />IPTV-EPG</> : <><CalendarClockIcon />{guideLabel(source)}</>}</SelectItem>)}</SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               {sources.map((source) => {
                 const isActive = getChannelKey(source) === activeSourceKey
-                const isGuide = getChannelKey(source) === guideSourceKey
                 return (
                   <div
                     key={getChannelKey(source)}
@@ -376,24 +403,6 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                         could actually answer get the calendar, and the one
                         already answering gets it filled rather than hidden, so
                         the list says which is which without a legend. */}
-                    {mode === "edit" && onUseGuide && canSupplyEpg(source) ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          "shrink-0",
-                          isGuide
-                            ? "text-primary"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                        aria-pressed={isGuide}
-                        aria-label={`Use the guide from ${source.portalSource?.name ?? "this source"}`}
-                        onClick={() => onUseGuide(source)}
-                      >
-                        <CalendarClockIcon className="size-4" />
-                      </Button>
-                    ) : null}
                     {mode === "edit" && onEditGuideMatch ? (
                       <Button
                         type="button"

@@ -143,6 +143,14 @@ export const userSettings = pgTable("user_settings", {
     .notNull()
     .$type<string[]>()
     .default(["iptv-org", "custom", "portal"]),
+  sourcePriorityIds: jsonb("source_priority_ids")
+    .notNull()
+    .$type<number[]>()
+    .default([]),
+  epgProviderOrder: jsonb("epg_provider_order")
+    .notNull()
+    .$type<string[]>()
+    .default(["iptv-org"]),
   // A random, revocable secret that authorizes the public favorites-playlist
   // export URL without a session cookie (M3U players can't send one). Null
   // until the user first requests a playlist link; regenerating it rotates

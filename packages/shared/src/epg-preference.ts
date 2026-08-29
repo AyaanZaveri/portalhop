@@ -117,14 +117,18 @@ export function resolveChannelEpg(
     pinnedSavedChannelId?: number | null
   } = {},
 ): EpgChoice | null {
-  const usable = streams.filter(canSupplyEpg)
-  if (!usable.length) return null
-
   const pinnedId = options.pinnedSavedChannelId
   if (typeof pinnedId === "number") {
-    const pinned = usable.find((stream) => stream.savedChannelId === pinnedId)
-    if (pinned) return { stream: pinned, pinned: true }
+    // A manual choice is intentional. Falling through here would quietly show
+    // a different guide after a provider goes stale, which is exactly the
+    // surprise pinning is meant to avoid. Reset is the explicit way back to
+    // automatic ranking.
+    const pinned = streams.find((stream) => stream.savedChannelId === pinnedId)
+    return pinned && canSupplyEpg(pinned) ? { stream: pinned, pinned: true } : null
   }
+
+  const usable = streams.filter(canSupplyEpg)
+  if (!usable.length) return null
 
   const order = options.kindOrder?.length
     ? sanitizeEpgKindOrder(options.kindOrder)

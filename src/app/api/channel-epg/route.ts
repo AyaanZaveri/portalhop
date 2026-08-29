@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { fetchAndParseEpgProgrammes } from "@/lib/epg-parser"
 import { findEpgSourceForChannel } from "@/lib/epg-store"
-import { selectUserEpgSource } from "@/db/user-epg-sources"
+import { selectUserEpgSource, selectUserEpgSources } from "@/db/user-epg-sources"
 import { findCustomEpgChannel } from "@/lib/user-epg-store"
 import { getDb } from "@/db/client"
 import { requireUser } from "@/lib/session"
@@ -16,8 +16,9 @@ import type { EpgProgramme, PortalRequest } from "@portalhop/shared/stalker-type
 
 type EpgRequest = PortalRequest & {
   sourceType?: SourceType
-  epgMode?: "none" | "portal" | "iptv-org" | "custom"
+  epgMode?: "none" | "portal" | "iptv-org" | "custom" | "auto"
   epgSourceId?: number | null
+  epgProviderOrder?: string[]
   endpoint?: string
   channelId?: string
   channelName?: string
@@ -69,6 +70,46 @@ export async function POST(request: Request) {
     ? new Date(body.from)
     : new Date(Date.now() - 30 * 60 * 1000)
   const to = new Date(from.getTime() + LOOKAHEAD_MS)
+
+  if (body.epgMode === "auto") {
+    const user = await requireUser()
+    if (user instanceof NextResponse) return user
+    const orderedProviders = Array.isArray(body.epgProviderOrder)
+      ? body.epgProviderOrder.filter((id): id is string => id === "iptv-org" || /^custom:\d+$/.test(id))
+      : ["iptv-org"]
+    // Newly added feeds join at the bottom until the user drags them. Keeping
+    // this completion server-side means they work immediately on every device;
+    // no settings visit is required to make a new provider eligible.
+    const providers = [
+      ...new Set([
+        ...orderedProviders,
+        ...(await selectUserEpgSources(getDb(), user.id)).map((source) => `custom:${source.id}`),
+      ]),
+    ]
+
+    // Ask providers in the user's order. A provider is eligible only when it
+    // actually contains this exact XMLTV id; it is not enough that a portal
+    // happens to be configured to use it.
+    for (const provider of providers) {
+      if (provider === "iptv-org") {
+        const match = await findEpgSourceForChannel([{ id: xmltvId }])
+        if (!match) continue
+        const programmes = await fetchAndParseEpgProgrammes(match.source.url, [match.channelId], { from, to, limit: PAGE_SIZE })
+        return NextResponse.json({ programmes: programmes.map((programme): EpgProgramme => ({ ...programme, source: "epg" })), hasMore: programmes.length >= PAGE_SIZE })
+      }
+
+      const sourceId = Number(provider.slice("custom:".length))
+      const source = await selectUserEpgSource(getDb(), sourceId)
+      if (!source || source.userId !== user.id) continue
+      const matchedChannelId = await findCustomEpgChannel(sourceId, [{ id: xmltvId }])
+      if (!matchedChannelId) continue
+      const programmes = await fetchAndParseEpgProgrammes(source.url, [matchedChannelId], { from, to, limit: PAGE_SIZE })
+      return NextResponse.json({ programmes: programmes.map((programme): EpgProgramme => ({ ...programme, source: "epg" })), hasMore: programmes.length >= PAGE_SIZE })
+    }
+
+    // Ranked XMLTV feeds exhausted: continue into the native portal fallback.
+    body = { ...body, epgMode: "portal" }
+  }
 
   if (epgMode === "iptv-org") {
     const match = await findEpgSourceForChannel([
