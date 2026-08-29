@@ -222,7 +222,9 @@ export function TvProvider({
     useFavorites()
 
   const [query, setQuery] = useState("")
-  const [programmeSearchEnabled, setProgrammeSearchEnabled] = useState(false)
+  // Programme matches are part of normal channel search. Work starts only
+  // after two query characters, so enabling it by default adds no idle fetch.
+  const [programmeSearchEnabled, setProgrammeSearchEnabled] = useState(true)
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
     useState<SourceRequest>(defaultSourceRequest)

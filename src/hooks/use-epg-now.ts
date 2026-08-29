@@ -39,6 +39,13 @@ export type EpgNowChannel = {
   epgSourceId?: number | null
 }
 
+function searchTokens(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((token) => token.length >= 2)
+}
+
 function useEpgWindows(
   entries: EpgNowChannel[],
   { active, includeDescriptions }: { active: boolean; includeDescriptions: boolean },
@@ -136,7 +143,14 @@ export function useEpgNow(entries: EpgNowChannel[]) {
   }, [windows, entries, now])
 }
 
-/** Searches only the programme airing now after the user opts in. */
+/**
+ * Searches the cached six-hour window through an inverted token index.
+ *
+ * Building the index is O(events × terms) when a guide window changes. A
+ * lookup intersects the postings lists for the typed terms instead of scanning
+ * every channel's title and description on every keypress — a much better fit
+ * for low-powered devices and for common multi-word sports searches.
+ */
 export function useEpgProgrammeSearch(
   entries: EpgNowChannel[],
   query: string,
@@ -154,31 +168,60 @@ export function useEpgProgrammeSearch(
     return () => clearInterval(timer)
   }, [])
 
-  return useMemo(() => {
-    const byId = new Map<string, ProgrammeMatch>()
-    if (!enabled || normalizedQuery.length < 2) return byId
+  const index = useMemo(() => {
+    const postings = new Map<string, Set<string>>()
+    const entriesByKey = new Map<string, EpgNowChannel>()
 
     for (const entry of entries) {
-      const normalized = normalizeXmltvId(entry.xmltvId)
-      const key = feedKeyFor(entry)
-      if (!key) continue
+      const feedKey = feedKeyFor(entry)
+      const channelId = normalizeXmltvId(entry.xmltvId)
+      if (!feedKey || !channelId) continue
+      const key = `${feedKey}|${channelId}`
+      entriesByKey.set(key, entry)
 
-      const slot = windows[`details:${key}`]?.[normalized]?.find(
-        ([startAt, stopAt, title, description]) =>
-          startAt <= now &&
-          stopAt > now &&
-          `${title} ${description ?? ""}`.toLowerCase().includes(normalizedQuery),
-      )
-      if (slot) {
-        byId.set(normalized, {
-          title: slot[2],
-          description: slot[3],
-          startAt: slot[0],
-          stopAt: slot[1],
-        })
+      for (const slot of windows[`details:${feedKey}`]?.[channelId] ?? []) {
+        for (const token of new Set(searchTokens(`${slot[2]} ${slot[3] ?? ""}`))) {
+          const ids = postings.get(token) ?? new Set<string>()
+          ids.add(key)
+          postings.set(token, ids)
+        }
       }
     }
 
+    return { postings, entriesByKey }
+  }, [entries, windows])
+
+  return useMemo(() => {
+    const byId = new Map<string, ProgrammeMatch>()
+    const tokens = searchTokens(normalizedQuery)
+    if (!enabled || tokens.length === 0) return byId
+
+    // Prefix expansion preserves the natural "blue j" typing path without a
+    // full fuzzy engine. Pick the smallest postings list first, then
+    // intersect; this keeps the amount of work bounded by the rarest term.
+    const lists = tokens.map((token) => {
+      const matches = new Set<string>()
+      for (const [indexed, ids] of index.postings) {
+        if (indexed.startsWith(token)) ids.forEach((id) => matches.add(id))
+      }
+      return matches
+    }).sort((a, b) => a.size - b.size)
+    if (!lists.length || lists[0].size === 0) return byId
+
+    const candidates = [...lists[0]].filter((id) => lists.slice(1).every((list) => list.has(id)))
+    for (const candidate of candidates) {
+      const entry = index.entriesByKey.get(candidate)
+      if (!entry) continue
+      const feedKey = feedKeyFor(entry)
+      const channelId = normalizeXmltvId(entry.xmltvId)
+      if (!feedKey || !channelId) continue
+      const slot = windows[`details:${feedKey}`]?.[channelId]?.find(
+        ([, stopAt, title, description]) => stopAt > now &&
+          tokens.every((token) => searchTokens(`${title} ${description ?? ""}`).some((word) => word.startsWith(token))),
+      )
+      if (!slot) continue
+      byId.set(channelId, { title: slot[2], description: slot[3], startAt: slot[0], stopAt: slot[1] })
+    }
     return byId
-  }, [enabled, entries, normalizedQuery, now, windows])
+  }, [enabled, index, normalizedQuery, now, windows])
 }

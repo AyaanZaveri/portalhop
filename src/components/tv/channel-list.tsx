@@ -165,8 +165,6 @@ export function ChannelList({
     filteredChannels: channels,
     query,
     setQuery,
-    programmeSearchEnabled,
-    setProgrammeSearchEnabled,
     browseFilter,
     chooseFilter,
     selectedPortalIds,
@@ -676,32 +674,15 @@ export function ChannelList({
         </div>
         <InputGroup>
           <InputGroupInput
-            placeholder={`Search ${groupedChannels.length.toLocaleString()} channels`}
+            placeholder={`Search ${groupedChannels.length.toLocaleString()} channels or live programmes`}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton
-              aria-label={
-                programmeSearchEnabled
-                  ? "Turn off programme search"
-                  : "Search programme titles and descriptions"
-              }
-              aria-pressed={programmeSearchEnabled}
-              className={cn(
-                "!mr-0.5 aria-pressed:bg-muted aria-pressed:text-foreground",
-                programmeSearchEnabled && "text-primary",
-              )}
-              onClick={() => setProgrammeSearchEnabled(!programmeSearchEnabled)}
-              size="icon-xs"
-              title="Search programme titles and descriptions"
-            >
-              <CalendarSearchIcon />
-              <span className="sr-only">Search programmes</span>
-            </InputGroupButton>
+          <InputGroupAddon align="inline-end" className="pointer-events-none text-muted-foreground">
+            <CalendarSearchIcon aria-hidden />
           </InputGroupAddon>
           {portals.length > 1 && isMobileLayout ? (
             <InputGroupAddon align="inline-end">
