@@ -1,6 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api-fetch"
@@ -15,6 +22,7 @@ import {
   FolderPlusIcon,
   LayoutGridIcon,
   ListFilterIcon,
+  Loader2Icon,
   MoreVerticalIcon,
   PencilIcon,
   ArrowUpDownIcon,
@@ -153,7 +161,6 @@ function sortByKeyOrder(
 // legible against, and the icon would otherwise be the one row out of the list
 // rendered in a different colour.
 const portalIconClassName = "!text-primary brightness-75 dark:brightness-90"
-
 export function ChannelList({
   headerControls,
 }: {
@@ -164,6 +171,7 @@ export function ChannelList({
     filteredChannels: channels,
     query,
     setQuery,
+    isProgrammeSearchLoading,
     browseFilter,
     chooseFilter,
     selectedPortalIds,
@@ -215,6 +223,8 @@ export function ChannelList({
   // Local rather than in the TV context: nothing outside this list opens the
   // portal filter, unlike the category menu the header can also trigger.
   const [portalFilterOpen, setPortalFilterOpen] = useState(false)
+  const [searchInput, setSearchInput] = useState(query)
+  const [isSearchPending, startSearchTransition] = useTransition()
   const [isReordering, setIsReordering] = useState(false)
   // Holds the order during and just after a drag. The saved order only comes
   // back once favourites or the group reloads, so without this the list would
@@ -674,11 +684,26 @@ export function ChannelList({
         <InputGroup>
           <InputGroupInput
             placeholder="Search channels and events"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={searchInput}
+            onChange={(event) => {
+              const value = event.target.value
+              setSearchInput(value)
+              // Filtering a large catalogue can rerender most TV consumers.
+              // Let the controlled input update first, without an artificial
+              // debounce before a small-list result can appear.
+              startSearchTransition(() => setQuery(value))
+            }}
           />
           <InputGroupAddon align="inline-start">
-            <SearchIcon />
+            {isSearchPending || isProgrammeSearchLoading ? (
+              <Loader2Icon
+                className="animate-spin"
+                role="status"
+                aria-label="Searching channels"
+              />
+            ) : (
+              <SearchIcon />
+            )}
           </InputGroupAddon>
           {portals.length > 1 && isMobileLayout ? (
             <InputGroupAddon align="inline-end">
@@ -1586,6 +1611,11 @@ export function ChannelList({
           browseFilter.type === "favoriteGroup" ? (
           <div aria-label="Loading group channels">
             <ChannelRowSkeletons count={14} />
+          </div>
+        ) : isSearchPending || isProgrammeSearchLoading ? (
+          <div className="text-muted-foreground flex h-40 items-center justify-center gap-2 text-sm">
+            <Loader2Icon className="size-4 animate-spin" />
+            <span>Searching channels…</span>
           </div>
         ) : (
           <Empty className="h-40">

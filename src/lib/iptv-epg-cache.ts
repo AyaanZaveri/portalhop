@@ -22,10 +22,15 @@ type CachedManifest = {
 
 type CacheCatalog = Record<string, { bytes: number; lastAccessedAt: number }>
 
+let cachedRedisClient: Redis | null | undefined
+
 function redisClient() {
+  if (cachedRedisClient !== undefined) return cachedRedisClient
+
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  return url && token ? new Redis({ url, token }) : null
+  cachedRedisClient = url && token ? new Redis({ url, token }) : null
+  return cachedRedisClient
 }
 
 function normalizeCountry(country: string) {
@@ -180,15 +185,24 @@ export async function markIptvEpgCountryActive(country: string) {
   const redis = redisClient()
   const code = normalizeCountry(country)
   if (!redis || !getIptvEpgSource(code)) return
-  await redis.zadd(activeCountriesKey(), { score: Date.now(), member: code })
-  await redis.set(activeCountryKey(code), "1", { ex: ACTIVE_COUNTRY_TTL_SECONDS })
-  const manifest = await getManifest(code)
-  if (!manifest) return
-  const catalog = (await redis.get<CacheCatalog>(catalogKey())) ?? {}
-  if (catalog[code]) {
+
+  // This runs on every guide read. The country marker, manifest and catalogue
+  // are independent, so serial REST requests here put avoidable latency on
+  // the search response.
+  const [manifest, storedCatalog] = await Promise.all([
+    getManifest(code),
+    redis.get<CacheCatalog>(catalogKey()),
+  ])
+  const catalog = storedCatalog ?? {}
+  const pipeline = redis.pipeline()
+  pipeline.zadd(activeCountriesKey(), { score: Date.now(), member: code })
+  pipeline.set(activeCountryKey(code), "1", { ex: ACTIVE_COUNTRY_TTL_SECONDS })
+
+  if (manifest && catalog[code]) {
     catalog[code]!.lastAccessedAt = Date.now()
-    await redis.set(catalogKey(), catalog, { ex: CACHE_TTL_SECONDS })
+    pipeline.set(catalogKey(), catalog, { ex: CACHE_TTL_SECONDS })
   }
+  await pipeline.exec()
 }
 
 export async function requestIptvEpgRefresh(country: string) {

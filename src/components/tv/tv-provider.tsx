@@ -13,7 +13,10 @@ import {
 } from "react"
 import { toast } from "sonner"
 
-import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
+import type {
+  PortalChannel,
+  PortalResponse,
+} from "@portalhop/shared/stalker-types"
 import type { SourceRequest } from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
@@ -22,10 +25,7 @@ import {
   type EpgChoice,
   type EpgKind,
 } from "@portalhop/shared/epg-preference"
-import {
-  withNewReading,
-  type StreamInfo,
-} from "@portalhop/shared/stream-info"
+import { withNewReading, type StreamInfo } from "@portalhop/shared/stream-info"
 import {
   groupKeyFor,
   identityKeyFor,
@@ -73,7 +73,8 @@ const browseFilterStoragePrefix = "portalhop-browse-filter:"
 function readSavedBrowseFilter(userId: string | null): BrowseFilter | null {
   if (typeof window === "undefined") return null
   return parseBrowseFilter(
-    localStorage.getItem(`${browseFilterStoragePrefix}${userId ?? "guest"}`) ?? undefined,
+    localStorage.getItem(`${browseFilterStoragePrefix}${userId ?? "guest"}`) ??
+      undefined,
   )
 }
 
@@ -86,7 +87,9 @@ type TvContextValue = {
   /** The channel's own artwork, the same wherever the channel is drawn. */
   channelLogoUrl: (channel: PortalChannelWithSource) => string
   /** Every stream carrying this channel, the chosen one first. */
-  channelStreams: (channel: PortalChannelWithSource) => PortalChannelWithSource[]
+  channelStreams: (
+    channel: PortalChannelWithSource,
+  ) => PortalChannelWithSource[]
   /** Which of a channel's streams supplies its guide, and whether that was pinned. */
   channelEpg: (channel: PortalChannelWithSource) => EpgChoice | null
   /** Pins a channel's guide to one stream, or clears the pin with null. */
@@ -115,7 +118,10 @@ type TvContextValue = {
   ) => void
   /** Which stream each channel plays, most preferred first. */
   sourceOrder: ChannelSourceOrder
-  setChannelSourceOrder: (identityKey: string, savedChannelIds: number[]) => void
+  setChannelSourceOrder: (
+    identityKey: string,
+    savedChannelIds: number[],
+  ) => void
   epgChannels: Record<
     string,
     { name: string; logoUrl?: string; countryCode?: string }
@@ -156,6 +162,7 @@ type TvContextValue = {
   setQuery: (value: string) => void
   programmeSearchEnabled: boolean
   setProgrammeSearchEnabled: (enabled: boolean) => void
+  isProgrammeSearchLoading: boolean
   browseFilter: BrowseFilter
   chooseFilter: (filter: BrowseFilter) => void
   selectedPortalIds: Set<number>
@@ -190,7 +197,10 @@ const emptyEpgChannels: Record<
   string,
   { name: string; logoUrl?: string; countryCode?: string }
 > = {}
-const emptyCustomEpgChannels: Record<number, Record<string, { logoUrl?: string }>> = {}
+const emptyCustomEpgChannels: Record<
+  number,
+  Record<string, { logoUrl?: string }>
+> = {}
 
 export function useTv() {
   const context = useContext(TvContext)
@@ -316,10 +326,10 @@ export function TvProvider({
         hidden
           ? [...current, category]
           : current.filter(
-            (entry) =>
-              entry.sourceId !== category.sourceId ||
-              entry.category !== category.category,
-          ),
+              (entry) =>
+                entry.sourceId !== category.sourceId ||
+                entry.category !== category.category,
+            ),
       )
 
       apiFetch("/api/hidden-categories", {
@@ -462,7 +472,6 @@ export function TvProvider({
       current = false
     }
   }, [userId])
-
 
   /**
    * Applied here and saved in the background.
@@ -661,10 +670,15 @@ export function TvProvider({
       return index === -1 ? Number.MAX_SAFE_INTEGER : index
     }
     for (const streams of catalogueGroups.streams.values()) {
-      const identityKey = identityKeyFor(streams[0], catalogueGroups.identityTrusted)
+      const identityKey = identityKeyFor(
+        streams[0],
+        catalogueGroups.identityTrusted,
+      )
       if (!identityKey || next[identityKey]) continue
       const ordered = [...streams]
-        .sort((a, b) => priority(a.portalSource?.id) - priority(b.portalSource?.id))
+        .sort(
+          (a, b) => priority(a.portalSource?.id) - priority(b.portalSource?.id),
+        )
         .map((stream) => stream.savedChannelId)
         .filter((id): id is number => typeof id === "number")
       if (ordered.length) next[identityKey] = ordered
@@ -749,11 +763,12 @@ export function TvProvider({
       })
       .filter((entry) => entry !== null)
   }, [browserChannels, programmeSearchActive])
-  const programmeMatchesById = useEpgProgrammeSearch(
-    epgSearchEntries,
-    deferredQuery,
-    programmeSearchActive,
-  )
+  const { matches: programmeMatchesById, isLoading: isProgrammeSearchLoading } =
+    useEpgProgrammeSearch(
+      epgSearchEntries,
+      deferredQuery,
+      programmeSearchActive,
+    )
 
   const filteredChannels = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase()
@@ -771,8 +786,8 @@ export function TvProvider({
     }
 
     const programmeMatches = epgSearchEntries
-      .filter(
-        (entry) => programmeMatchesById.has(normalizeXmltvId(entry.xmltvId)),
+      .filter((entry) =>
+        programmeMatchesById.has(normalizeXmltvId(entry.xmltvId)),
       )
       .map((entry) => entry.channel)
 
@@ -1033,7 +1048,10 @@ export function TvProvider({
 
     for (const members of catalogueGroups.streams.values()) {
       for (const channel of members) {
-        const identity = identityKeyFor(channel, catalogueGroups.identityTrusted)
+        const identity = identityKeyFor(
+          channel,
+          catalogueGroups.identityTrusted,
+        )
         if (identity) rows.set(identity, row)
         rows.set(getChannelKey(channel), row)
         rows.set(getLegacyChannelKey(channel), row)
@@ -1189,6 +1207,7 @@ export function TvProvider({
       setQuery,
       programmeSearchEnabled,
       setProgrammeSearchEnabled,
+      isProgrammeSearchLoading,
       browseFilter,
       chooseFilter,
       selectedPortalIds,
@@ -1244,6 +1263,7 @@ export function TvProvider({
       iptvOrgLoading,
       query,
       programmeSearchEnabled,
+      isProgrammeSearchLoading,
       browseFilter,
       chooseFilter,
       selectedPortalIds,

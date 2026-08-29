@@ -26,19 +26,27 @@ const WINDOW_HOURS = 6
 const COUNTRY_ALIASES: Record<string, string> = { uk: "gb" }
 
 const CACHE_MS = 60 * 60 * 1000
-const cache = new Map<string, { expires: number; window: EpgWindow }>()
+const customSourceCache = new Map<
+  string,
+  { expires: number; window: EpgWindow }
+>()
 
-// s-maxage only helps where something in front honours it. Self-hosted with no
-// CDN, this is what stops every request re-parsing the file.
-async function loadWindow(key: string, url: string, includeDescriptions: boolean) {
-  const hit = cache.get(key)
+// Custom EPG URLs belong to one user and are not eligible for the shared
+// country cache. Built-in country guides intentionally do not use this path:
+// Trigger.dev prepares those in Redis before the API serves them.
+async function loadCustomWindow(
+  key: string,
+  url: string,
+  includeDescriptions: boolean,
+) {
+  const hit = customSourceCache.get(key)
   if (hit && hit.expires > Date.now()) return hit.window
 
   const window = await fetchEpgWindow(url, {
     hours: WINDOW_HOURS,
     includeDescriptions,
   })
-  cache.set(key, { expires: Date.now() + CACHE_MS, window })
+  customSourceCache.set(key, { expires: Date.now() + CACHE_MS, window })
   return window
 }
 
@@ -62,24 +70,31 @@ export async function GET(request: Request) {
       }
 
       await markIptvEpgCountryActive(resolved)
-      const cachedWindow = await getCachedIptvEpgWindow(resolved, { includeDescriptions })
-      const window = cachedWindow
-        ?? await loadWindow(
-          `country:${resolved}${includeDescriptions ? ":details" : ""}`,
-          source.url,
-          includeDescriptions,
+      const cachedWindow = await getCachedIptvEpgWindow(resolved, {
+        includeDescriptions,
+      })
+      if (!cachedWindow) {
+        // XMLTV parsing is Trigger.dev's job. A user search must never make a
+        // Vercel Function download or parse a country guide on a cache miss.
+        if (await requestIptvEpgRefresh(resolved)) {
+          void refreshIptvEpgCountryTask
+            .trigger({ country: resolved })
+            .catch(() => {})
+        }
+        return NextResponse.json(
+          { status: "refreshing" },
+          {
+            status: 202,
+            headers: { "Cache-Control": "no-store", "Retry-After": "2" },
+          },
         )
-
-      // The direct parse keeps first use working. Subsequent reads use the
-      // shared 48-hour cache once this deduplicated refresh completes.
-      if (!cachedWindow && await requestIptvEpgRefresh(resolved)) {
-        void refreshIptvEpgCountryTask.trigger({ country: resolved }).catch(() => {})
       }
 
       // Identical for every user, so the edge can serve one parse to everyone.
-      return NextResponse.json(window, {
+      return NextResponse.json(cachedWindow, {
         headers: {
-          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=21600",
+          "Cache-Control":
+            "public, s-maxage=3600, stale-while-revalidate=21600",
         },
       })
     }
@@ -97,10 +112,13 @@ export async function GET(request: Request) {
       const source = await selectUserEpgSource(getDb(), sourceId)
 
       if (!source || source.userId !== user.id) {
-        return NextResponse.json({ error: "Source not found." }, { status: 404 })
+        return NextResponse.json(
+          { error: "Source not found." },
+          { status: 404 },
+        )
       }
 
-      const window = await loadWindow(
+      const window = await loadCustomWindow(
         `source:${sourceId}${includeDescriptions ? ":details" : ""}`,
         source.url,
         includeDescriptions,
@@ -117,6 +135,9 @@ export async function GET(request: Request) {
       { status: 400 },
     )
   } catch {
-    return NextResponse.json({ error: "Could not load guide." }, { status: 502 })
+    return NextResponse.json(
+      { error: "Could not load guide." },
+      { status: 502 },
+    )
   }
 }

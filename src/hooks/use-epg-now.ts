@@ -32,6 +32,8 @@ function feedKeyFor(entry: EpgNowChannel) {
 }
 
 const TICK_MS = 30_000
+const EPG_REFRESH_RETRY_MS = 2_000
+const EPG_REFRESH_RETRY_ATTEMPTS = 30
 
 export type EpgNowChannel = {
   xmltvId: string
@@ -48,9 +50,14 @@ function searchTokens(value: string) {
 
 function useEpgWindows(
   entries: EpgNowChannel[],
-  { active, includeDescriptions }: { active: boolean; includeDescriptions: boolean },
+  {
+    active,
+    includeDescriptions,
+    reportLoading = false,
+  }: { active: boolean; includeDescriptions: boolean; reportLoading?: boolean },
 ) {
   const [windows, setWindows] = useState<Windows>({})
+  const [isLoading, setIsLoading] = useState(false)
 
   const feedKey = useMemo(() => {
     if (!active) return ""
@@ -67,51 +74,80 @@ function useEpgWindows(
 
     let cancelled = false
 
-    for (const key of feedKey.split("|")) {
-      const [kind, value] = key.split(":")
-      const query = kind === "source" ? `sourceId=${value}` : `country=${value}`
-      const cacheKey = `${includeDescriptions ? "details:" : ""}${key}`
+    void (async () => {
+      if (reportLoading) setIsLoading(true)
 
-      void (async () => {
-        const cached = await getCachedEpgWindow(cacheKey)
+      await Promise.all(
+        feedKey.split("|").map(async (key) => {
+          const [kind, value] = key.split(":")
+          const query =
+            kind === "source" ? `sourceId=${value}` : `country=${value}`
+          const cacheKey = `${includeDescriptions ? "details:" : ""}${key}`
 
-        if (cached) {
-          if (!cancelled) {
-            setWindows((current) => ({ ...current, [cacheKey]: cached.channels }))
+          try {
+            const cached = await getCachedEpgWindow(cacheKey)
+
+            if (cached) {
+              if (!cancelled) {
+                setWindows((current) => ({
+                  ...current,
+                  [cacheKey]: cached.channels,
+                }))
+              }
+              return
+            }
+
+            let response: Response | null = null
+            for (
+              let attempt = 0;
+              attempt < EPG_REFRESH_RETRY_ATTEMPTS;
+              attempt += 1
+            ) {
+              response = await apiFetch(
+                `/api/epg/now?${query}${includeDescriptions ? "&details=1" : ""}`,
+              )
+              if (response.status !== 202) break
+              await new Promise((resolve) =>
+                setTimeout(resolve, EPG_REFRESH_RETRY_MS),
+              )
+              if (cancelled) return
+            }
+            if (!response?.ok || response.status === 202) return
+
+            const data = (await response.json()) as {
+              to: number
+              channels: Record<string, Slot[]>
+            }
+
+            if (cancelled) return
+            setWindows((current) => ({ ...current, [cacheKey]: data.channels }))
+            void setCachedEpgWindow({
+              key: cacheKey,
+              to: data.to,
+              channels: data.channels,
+            })
+          } catch {
+            // A missing guide just means no strip under the row.
           }
-          return
-        }
+        }),
+      )
 
-        try {
-          const response = await apiFetch(
-            `/api/epg/now?${query}${includeDescriptions ? "&details=1" : ""}`,
-          )
-          if (!response.ok) return
-
-          const data = (await response.json()) as {
-            to: number
-            channels: Record<string, Slot[]>
-          }
-
-          if (cancelled) return
-          setWindows((current) => ({ ...current, [cacheKey]: data.channels }))
-          void setCachedEpgWindow({ key: cacheKey, to: data.to, channels: data.channels })
-        } catch {
-          // A missing guide just means no strip under the row.
-        }
-      })()
-    }
+      if (!cancelled && reportLoading) setIsLoading(false)
+    })()
 
     return () => {
       cancelled = true
     }
-  }, [feedKey, includeDescriptions])
+  }, [feedKey, includeDescriptions, reportLoading])
 
-  return windows
+  return {
+    windows,
+    isLoading: reportLoading && active && Boolean(feedKey) && isLoading,
+  }
 }
 
 export function useEpgNow(entries: EpgNowChannel[]) {
-  const windows = useEpgWindows(entries, {
+  const { windows } = useEpgWindows(entries, {
     active: true,
     includeDescriptions: false,
   })
@@ -135,7 +171,11 @@ export function useEpgNow(entries: EpgNowChannel[]) {
       )
 
       if (slot) {
-        byId.set(normalized, { title: slot[2], startAt: slot[0], stopAt: slot[1] })
+        byId.set(normalized, {
+          title: slot[2],
+          startAt: slot[0],
+          stopAt: slot[1],
+        })
       }
     }
 
@@ -157,9 +197,10 @@ export function useEpgProgrammeSearch(
 ) {
   const normalizedQuery = query.trim().toLowerCase()
   const [now, setNow] = useState(() => Date.now())
-  const windows = useEpgWindows(entries, {
+  const { windows, isLoading } = useEpgWindows(entries, {
     active: enabled && normalizedQuery.length >= 2,
     includeDescriptions: true,
+    reportLoading: true,
   })
   // A detailed guide response can be large. Let an in-progress keystroke win
   // over rebuilding its local index when it arrives.
@@ -181,8 +222,11 @@ export function useEpgProgrammeSearch(
       const key = `${feedKey}|${channelId}`
       entriesByKey.set(key, entry)
 
-      for (const slot of deferredWindows[`details:${feedKey}`]?.[channelId] ?? []) {
-        for (const token of new Set(searchTokens(`${slot[2]} ${slot[3] ?? ""}`))) {
+      for (const slot of deferredWindows[`details:${feedKey}`]?.[channelId] ??
+        []) {
+        for (const token of new Set(
+          searchTokens(`${slot[2]} ${slot[3] ?? ""}`),
+        )) {
           const prefix = token.slice(0, Math.min(3, token.length))
           const ids = prefixes.get(prefix) ?? new Set<string>()
           ids.add(key)
@@ -194,7 +238,7 @@ export function useEpgProgrammeSearch(
     return { prefixes, entriesByKey }
   }, [deferredWindows, entries])
 
-  return useMemo(() => {
+  const matches = useMemo(() => {
     const byId = new Map<string, ProgrammeMatch>()
     const tokens = searchTokens(normalizedQuery)
     if (!enabled || tokens.length === 0) return byId
@@ -202,13 +246,17 @@ export function useEpgProgrammeSearch(
     // Prefix lookup preserves the natural "blue j" typing path without a full
     // fuzzy engine. Pick the smallest list first, then intersect it with the
     // others; a keypress never needs to scan every term in the guide.
-    const lists = tokens.map((token) => {
-      const prefix = token.slice(0, Math.min(3, token.length))
-      return index.prefixes.get(prefix) ?? new Set<string>()
-    }).sort((a, b) => a.size - b.size)
+    const lists = tokens
+      .map((token) => {
+        const prefix = token.slice(0, Math.min(3, token.length))
+        return index.prefixes.get(prefix) ?? new Set<string>()
+      })
+      .sort((a, b) => a.size - b.size)
     if (!lists.length || lists[0].size === 0) return byId
 
-    const candidates = [...lists[0]].filter((id) => lists.slice(1).every((list) => list.has(id)))
+    const candidates = [...lists[0]].filter((id) =>
+      lists.slice(1).every((list) => list.has(id)),
+    )
     for (const candidate of candidates) {
       const entry = index.entriesByKey.get(candidate)
       if (!entry) continue
@@ -216,12 +264,26 @@ export function useEpgProgrammeSearch(
       const channelId = normalizeXmltvId(entry.xmltvId)
       if (!feedKey || !channelId) continue
       const slot = deferredWindows[`details:${feedKey}`]?.[channelId]?.find(
-        ([, stopAt, title, description]) => stopAt > now &&
-          tokens.every((token) => searchTokens(`${title} ${description ?? ""}`).some((word) => word.startsWith(token))),
+        ([, stopAt, title, description]) =>
+          stopAt > now &&
+          tokens.every((token) =>
+            searchTokens(`${title} ${description ?? ""}`).some((word) =>
+              word.startsWith(token),
+            ),
+          ),
       )
       if (!slot) continue
-      byId.set(channelId, { title: slot[2], description: slot[3], startAt: slot[0], stopAt: slot[1] })
+      byId.set(channelId, {
+        title: slot[2],
+        description: slot[3],
+        startAt: slot[0],
+        stopAt: slot[1],
+      })
     }
     return byId
   }, [deferredWindows, enabled, index, normalizedQuery, now])
+
+  // Keep the pending UI visible until React has accepted the new guide window
+  // and rebuilt its local index, not merely until the network request ends.
+  return { matches, isLoading: isLoading || deferredWindows !== windows }
 }
