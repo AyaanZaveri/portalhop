@@ -4,6 +4,7 @@ import type { StreamInfo } from "@portalhop/shared/stream-info"
 
 const PROBE_TIMEOUT_MS = 25_000
 const PROBE_BUFFER_SECONDS = 10
+const FRAME_RATE_GRACE_MS = 6_000
 
 type ProbeReading = Omit<StreamInfo, "seenAt">
 
@@ -40,6 +41,8 @@ export function probeHlsStream(
     let settled = false
     let bufferedSeconds = 0
     let frameRateTimer: number | undefined
+    let frameRateGraceTimer: number | undefined
+    let bufferedEnoughForBitrate = false
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
     let reading: ProbeReading = {
@@ -56,6 +59,7 @@ export function probeHlsStream(
       settled = true
       window.clearTimeout(timeout)
       if (frameRateTimer) window.clearInterval(frameRateTimer)
+      if (frameRateGraceTimer) window.clearTimeout(frameRateGraceTimer)
       hls.destroy()
       video.remove()
       if (error) reject(error)
@@ -118,6 +122,10 @@ export function probeHlsStream(
         frameRate: Number(frameRate.toFixed(2)),
         frameRateMeasured: true,
       })
+      // Bitrate has already had enough media by this point. Do not make the
+      // user wait for the full probe timeout once the missing FPS reading is
+      // now known.
+      if (bufferedEnoughForBitrate) finish()
     }
 
     hls.on(Hls.Events.MANIFEST_PARSED, readManifest)
@@ -131,7 +139,18 @@ export function probeHlsStream(
         bufferedSeconds += data.frag.duration
         const bitrate = Math.round((data.stats.loaded * 8) / data.frag.duration)
         publish({ bandwidth: bitrate, bandwidthMeasured: true })
-        if (bufferedSeconds >= PROBE_BUFFER_SECONDS) finish()
+        if (bufferedSeconds >= PROBE_BUFFER_SECONDS && !bufferedEnoughForBitrate) {
+          bufferedEnoughForBitrate = true
+          // Fragments can buffer much faster than wall-clock playback. The
+          // old immediate finish therefore persisted resolution and bitrate
+          // before getVideoPlaybackQuality had observed enough decoded frames
+          // to calculate FPS. Give it a bounded window instead.
+          if (reading.frameRate != null) {
+            finish()
+          } else {
+            frameRateGraceTimer = window.setTimeout(() => finish(), FRAME_RATE_GRACE_MS)
+          }
+        }
       },
     )
     hls.on(
