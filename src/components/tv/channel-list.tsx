@@ -18,7 +18,6 @@ import {
   MoreVerticalIcon,
   PencilIcon,
   ArrowUpDownIcon,
-  CalendarSearchIcon,
   GripVerticalIcon,
   SearchIcon,
   ShapesIcon,
@@ -674,15 +673,12 @@ export function ChannelList({
         </div>
         <InputGroup>
           <InputGroupInput
-            placeholder={`Search ${groupedChannels.length.toLocaleString()} channels or live programmes`}
+            placeholder="Search channels and events"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
           <InputGroupAddon align="inline-start">
             <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupAddon align="inline-end" className="pointer-events-none text-muted-foreground">
-            <CalendarSearchIcon aria-hidden />
           </InputGroupAddon>
           {portals.length > 1 && isMobileLayout ? (
             <InputGroupAddon align="inline-end">

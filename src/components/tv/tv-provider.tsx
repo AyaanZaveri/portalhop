@@ -729,8 +729,10 @@ export function TvProvider({
   // preferred guide. Keep this empty unless programme search is explicitly
   // enabled: detailed guide windows include descriptions and are unnecessary
   // for normal channel search.
+  const programmeSearchActive =
+    programmeSearchEnabled && deferredQuery.trim().length >= 2
   const epgSearchEntries = useMemo(() => {
-    if (!programmeSearchEnabled || deferredQuery.trim().length < 2) return []
+    if (!programmeSearchActive) return []
 
     return browserChannels
       .map((channel) => {
@@ -746,11 +748,11 @@ export function TvProvider({
         }
       })
       .filter((entry) => entry !== null)
-  }, [browserChannels, deferredQuery, programmeSearchEnabled])
+  }, [browserChannels, programmeSearchActive])
   const programmeMatchesById = useEpgProgrammeSearch(
     epgSearchEntries,
     deferredQuery,
-    programmeSearchEnabled,
+    programmeSearchActive,
   )
 
   const filteredChannels = useMemo(() => {

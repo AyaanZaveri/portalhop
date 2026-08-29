@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useState } from "react"
 
 import {
   getCachedEpgWindow,
@@ -146,10 +146,9 @@ export function useEpgNow(entries: EpgNowChannel[]) {
 /**
  * Searches the cached six-hour window through an inverted token index.
  *
- * Building the index is O(events × terms) when a guide window changes. A
- * lookup intersects the postings lists for the typed terms instead of scanning
- * every channel's title and description on every keypress — a much better fit
- * for low-powered devices and for common multi-word sports searches.
+ * Building the index is O(events × terms) only when the guide window changes.
+ * Each token is additionally indexed by its first three characters, so typing
+ * does not scan every term in the guide on every keypress.
  */
 export function useEpgProgrammeSearch(
   entries: EpgNowChannel[],
@@ -162,6 +161,9 @@ export function useEpgProgrammeSearch(
     active: enabled && normalizedQuery.length >= 2,
     includeDescriptions: true,
   })
+  // A detailed guide response can be large. Let an in-progress keystroke win
+  // over rebuilding its local index when it arrives.
+  const deferredWindows = useDeferredValue(windows)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), TICK_MS)
@@ -169,7 +171,7 @@ export function useEpgProgrammeSearch(
   }, [])
 
   const index = useMemo(() => {
-    const postings = new Map<string, Set<string>>()
+    const prefixes = new Map<string, Set<string>>()
     const entriesByKey = new Map<string, EpgNowChannel>()
 
     for (const entry of entries) {
@@ -179,32 +181,30 @@ export function useEpgProgrammeSearch(
       const key = `${feedKey}|${channelId}`
       entriesByKey.set(key, entry)
 
-      for (const slot of windows[`details:${feedKey}`]?.[channelId] ?? []) {
+      for (const slot of deferredWindows[`details:${feedKey}`]?.[channelId] ?? []) {
         for (const token of new Set(searchTokens(`${slot[2]} ${slot[3] ?? ""}`))) {
-          const ids = postings.get(token) ?? new Set<string>()
+          const prefix = token.slice(0, Math.min(3, token.length))
+          const ids = prefixes.get(prefix) ?? new Set<string>()
           ids.add(key)
-          postings.set(token, ids)
+          prefixes.set(prefix, ids)
         }
       }
     }
 
-    return { postings, entriesByKey }
-  }, [entries, windows])
+    return { prefixes, entriesByKey }
+  }, [deferredWindows, entries])
 
   return useMemo(() => {
     const byId = new Map<string, ProgrammeMatch>()
     const tokens = searchTokens(normalizedQuery)
     if (!enabled || tokens.length === 0) return byId
 
-    // Prefix expansion preserves the natural "blue j" typing path without a
-    // full fuzzy engine. Pick the smallest postings list first, then
-    // intersect; this keeps the amount of work bounded by the rarest term.
+    // Prefix lookup preserves the natural "blue j" typing path without a full
+    // fuzzy engine. Pick the smallest list first, then intersect it with the
+    // others; a keypress never needs to scan every term in the guide.
     const lists = tokens.map((token) => {
-      const matches = new Set<string>()
-      for (const [indexed, ids] of index.postings) {
-        if (indexed.startsWith(token)) ids.forEach((id) => matches.add(id))
-      }
-      return matches
+      const prefix = token.slice(0, Math.min(3, token.length))
+      return index.prefixes.get(prefix) ?? new Set<string>()
     }).sort((a, b) => a.size - b.size)
     if (!lists.length || lists[0].size === 0) return byId
 
@@ -215,7 +215,7 @@ export function useEpgProgrammeSearch(
       const feedKey = feedKeyFor(entry)
       const channelId = normalizeXmltvId(entry.xmltvId)
       if (!feedKey || !channelId) continue
-      const slot = windows[`details:${feedKey}`]?.[channelId]?.find(
+      const slot = deferredWindows[`details:${feedKey}`]?.[channelId]?.find(
         ([, stopAt, title, description]) => stopAt > now &&
           tokens.every((token) => searchTokens(`${title} ${description ?? ""}`).some((word) => word.startsWith(token))),
       )
@@ -223,5 +223,5 @@ export function useEpgProgrammeSearch(
       byId.set(channelId, { title: slot[2], description: slot[3], startAt: slot[0], stopAt: slot[1] })
     }
     return byId
-  }, [enabled, index, normalizedQuery, now, windows])
+  }, [deferredWindows, enabled, index, normalizedQuery, now])
 }
