@@ -2,6 +2,7 @@ import { Redis } from "@upstash/redis"
 import { gzipSync, gunzipSync } from "node:zlib"
 
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
+import type { EpgProgramme } from "@portalhop/shared/stalker-types"
 
 import { fetchEpgWindow, type EpgWindow } from "@/lib/epg-parser"
 
@@ -15,6 +16,13 @@ const CACHE_TTL_SECONDS = 72 * 60 * 60
 const MAX_SOURCE_BYTES = 32 * 1024 * 1024
 const MAX_TOTAL_BYTES = 160 * 1024 * 1024
 const PREFIX = "portalhop:iptv-epg:v1"
+const CHANNEL_PAGE_PREFIX = "portalhop:channel-epg:v1"
+const CHANNEL_PAGE_TTL_SECONDS = 15 * 60
+
+export type CachedChannelEpgPage = {
+  programmes: EpgProgramme[]
+  hasMore: boolean
+}
 
 type CachedManifest = {
   version: string
@@ -213,6 +221,43 @@ export async function requestIptvEpgRefresh(country: string) {
   return Boolean(
     await redis.set(refreshRequestedKey(code), "1", { nx: true, ex: 5 * 60 }),
   )
+}
+
+/**
+ * Short-lived, per-channel guide pages. The key is an opaque hash made by the
+ * route handler, so neither portal credentials nor custom XMLTV URLs reach
+ * Redis. Unlike country windows, these retain the metadata the player draws
+ * (programme descriptions, categories, and artwork).
+ */
+export async function getCachedChannelEpgPage(key: string) {
+  const redis = redisClient()
+  if (!redis) return null
+
+  try {
+    return (
+      (await redis.get<CachedChannelEpgPage>(
+        `${CHANNEL_PAGE_PREFIX}:${key}`,
+      )) ?? null
+    )
+  } catch {
+    return null
+  }
+}
+
+export async function setCachedChannelEpgPage(
+  key: string,
+  page: CachedChannelEpgPage,
+) {
+  const redis = redisClient()
+  if (!redis) return
+
+  try {
+    await redis.set(`${CHANNEL_PAGE_PREFIX}:${key}`, page, {
+      ex: CHANNEL_PAGE_TTL_SECONDS,
+    })
+  } catch {
+    // Redis is an optimization; the authoritative guide must still work.
+  }
 }
 
 export async function getCachedIptvEpgWindow(

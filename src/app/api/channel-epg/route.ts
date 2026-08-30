@@ -1,18 +1,30 @@
 import { NextResponse } from "next/server"
+import { createHash } from "node:crypto"
 
 import { fetchAndParseEpgProgrammes } from "@/lib/epg-parser"
 import { findEpgSourceForChannel } from "@/lib/epg-store"
-import { selectUserEpgSource, selectUserEpgSources } from "@/db/user-epg-sources"
+import {
+  selectUserEpgSource,
+  selectUserEpgSources,
+} from "@/db/user-epg-sources"
 import { findCustomEpgChannel } from "@/lib/user-epg-store"
 import { getDb } from "@/db/client"
 import { requireUser } from "@/lib/session"
+import {
+  getCachedChannelEpgPage,
+  setCachedChannelEpgPage,
+  type CachedChannelEpgPage,
+} from "@/lib/iptv-epg-cache"
 import {
   fetchPortalEpg,
   getEndpointCandidates,
   normalizePortalRequest,
 } from "@/lib/stalker-client"
 import type { SourceType } from "@portalhop/shared/source-types"
-import type { EpgProgramme, PortalRequest } from "@portalhop/shared/stalker-types"
+import type {
+  EpgProgramme,
+  PortalRequest,
+} from "@portalhop/shared/stalker-types"
 
 type EpgRequest = PortalRequest & {
   sourceType?: SourceType
@@ -35,6 +47,55 @@ const LOOKAHEAD_MS = 30 * 24 * 60 * 60 * 1000
 // paging further just means asking for a longer period and filtering out
 // what was already shown.
 const PORTAL_MAX_PERIOD_DAYS = 60
+const CHANNEL_PAGE_BUCKET_MS = 5 * 60 * 1000
+
+function channelPageKey(provider: string, channelId: string, from: Date) {
+  // The initial request uses "now - 30 minutes", which changes every reload.
+  // Bucket it so repeat opens share a Redis page; client-side id de-duplication
+  // makes the same safe for a page cursor that lands in the same bucket.
+  const bucket = Math.floor(from.getTime() / CHANNEL_PAGE_BUCKET_MS)
+  return createHash("sha256")
+    .update(`${provider}\u0000${channelId}\u0000${bucket}`)
+    .digest("hex")
+}
+
+async function cachedChannelPage(
+  provider: string,
+  channelId: string,
+  from: Date,
+  load: () => Promise<CachedChannelEpgPage>,
+) {
+  const key = channelPageKey(provider, channelId, from)
+  const cached = await getCachedChannelEpgPage(key)
+  if (cached) return cached
+
+  const page = await load()
+  void setCachedChannelEpgPage(key, page)
+  return page
+}
+
+async function xmltvChannelPage(
+  provider: string,
+  url: string,
+  channelId: string,
+  from: Date,
+  to: Date,
+) {
+  return cachedChannelPage(provider, channelId, from, async () => {
+    const programmes = await fetchAndParseEpgProgrammes(url, [channelId], {
+      from,
+      to,
+      limit: PAGE_SIZE,
+    })
+    return {
+      programmes: programmes.map((programme): EpgProgramme => ({
+        ...programme,
+        source: "epg",
+      })),
+      hasMore: programmes.length >= PAGE_SIZE,
+    }
+  })
+}
 
 export const runtime = "nodejs"
 
@@ -75,7 +136,9 @@ export async function POST(request: Request) {
     const user = await requireUser()
     if (user instanceof NextResponse) return user
     const orderedProviders = Array.isArray(body.epgProviderOrder)
-      ? body.epgProviderOrder.filter((id): id is string => id === "iptv-org" || /^custom:\d+$/.test(id))
+      ? body.epgProviderOrder.filter(
+          (id): id is string => id === "iptv-org" || /^custom:\d+$/.test(id),
+        )
       : ["iptv-org"]
     // Newly added feeds join at the bottom until the user drags them. Keeping
     // this completion server-side means they work immediately on every device;
@@ -83,7 +146,9 @@ export async function POST(request: Request) {
     const providers = [
       ...new Set([
         ...orderedProviders,
-        ...(await selectUserEpgSources(getDb(), user.id)).map((source) => `custom:${source.id}`),
+        ...(await selectUserEpgSources(getDb(), user.id)).map(
+          (source) => `custom:${source.id}`,
+        ),
       ]),
     ]
 
@@ -94,17 +159,33 @@ export async function POST(request: Request) {
       if (provider === "iptv-org") {
         const match = await findEpgSourceForChannel([{ id: xmltvId }])
         if (!match) continue
-        const programmes = await fetchAndParseEpgProgrammes(match.source.url, [match.channelId], { from, to, limit: PAGE_SIZE })
-        return NextResponse.json({ programmes: programmes.map((programme): EpgProgramme => ({ ...programme, source: "epg" })), hasMore: programmes.length >= PAGE_SIZE })
+        return NextResponse.json(
+          await xmltvChannelPage(
+            `iptv-org:${match.source.code}`,
+            match.source.url,
+            match.channelId,
+            from,
+            to,
+          ),
+        )
       }
 
       const sourceId = Number(provider.slice("custom:".length))
       const source = await selectUserEpgSource(getDb(), sourceId)
       if (!source || source.userId !== user.id) continue
-      const matchedChannelId = await findCustomEpgChannel(sourceId, [{ id: xmltvId }])
+      const matchedChannelId = await findCustomEpgChannel(sourceId, [
+        { id: xmltvId },
+      ])
       if (!matchedChannelId) continue
-      const programmes = await fetchAndParseEpgProgrammes(source.url, [matchedChannelId], { from, to, limit: PAGE_SIZE })
-      return NextResponse.json({ programmes: programmes.map((programme): EpgProgramme => ({ ...programme, source: "epg" })), hasMore: programmes.length >= PAGE_SIZE })
+      return NextResponse.json(
+        await xmltvChannelPage(
+          `custom:${sourceId}`,
+          source.url,
+          matchedChannelId,
+          from,
+          to,
+        ),
+      )
     }
 
     // Ranked XMLTV feeds exhausted: continue into the native portal fallback.
@@ -122,19 +203,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ programmes: [], hasMore: false })
     }
 
-    const programmes = await fetchAndParseEpgProgrammes(
-      match.source.url,
-      [match.channelId],
-      { from, to, limit: PAGE_SIZE },
+    return NextResponse.json(
+      await xmltvChannelPage(
+        `iptv-org:${match.source.code}`,
+        match.source.url,
+        match.channelId,
+        from,
+        to,
+      ),
     )
-
-    return NextResponse.json({
-      programmes: programmes.map((programme): EpgProgramme => ({
-        ...programme,
-        source: "epg",
-      })),
-      hasMore: programmes.length >= PAGE_SIZE,
-    })
   }
 
   if (epgMode === "custom") {
@@ -153,22 +230,15 @@ export async function POST(request: Request) {
     ])
     if (!matchedChannelId)
       return NextResponse.json({ programmes: [], hasMore: false })
-    const programmes = await fetchAndParseEpgProgrammes(
-      source.url,
-      [matchedChannelId],
-      {
+    return NextResponse.json(
+      await xmltvChannelPage(
+        `custom:${sourceId}`,
+        source.url,
+        matchedChannelId,
         from,
         to,
-        limit: PAGE_SIZE,
-      },
+      ),
     )
-    return NextResponse.json({
-      programmes: programmes.map((programme): EpgProgramme => ({
-        ...programme,
-        source: "epg",
-      })),
-      hasMore: programmes.length >= PAGE_SIZE,
-    })
   }
 
   if (body.sourceType === "xtream" || body.sourceType === "m3u") {
@@ -207,28 +277,38 @@ export async function POST(request: Request) {
 
   for (const endpoint of endpoints) {
     try {
-      const allProgrammes = await fetchPortalEpg(
-        endpoint,
-        options,
+      const page = await cachedChannelPage(
+        `portal:${portalUrl}`,
         channelId,
-        daysAhead,
-      )
-      const fromTime = from.getTime()
-      const programmes = allProgrammes
-        .filter(
-          (programme) => new Date(programme.startAt).getTime() >= fromTime,
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
-        )
-        .slice(0, PAGE_SIZE)
+        from,
+        async () => {
+          const allProgrammes = await fetchPortalEpg(
+            endpoint,
+            options,
+            channelId,
+            daysAhead,
+          )
+          const fromTime = from.getTime()
+          const programmes = allProgrammes
+            .filter(
+              (programme) => new Date(programme.startAt).getTime() >= fromTime,
+            )
+            .sort(
+              (a, b) =>
+                new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+            )
+            .slice(0, PAGE_SIZE)
 
-      return NextResponse.json({
-        programmes,
-        hasMore:
-          programmes.length >= PAGE_SIZE || daysAhead < PORTAL_MAX_PERIOD_DAYS,
-      })
+          return {
+            programmes,
+            hasMore:
+              programmes.length >= PAGE_SIZE ||
+              daysAhead < PORTAL_MAX_PERIOD_DAYS,
+          }
+        },
+      )
+
+      return NextResponse.json(page)
     } catch (error) {
       errors.push(
         `${endpoint}: ${error instanceof Error ? error.message : String(error)}`,
