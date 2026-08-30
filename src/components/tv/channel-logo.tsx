@@ -103,7 +103,10 @@ export function ChannelLogo({
           <img
             src={style.uri ?? url}
             alt=""
-            loading="lazy"
+            // The channel list already virtualizes its mounted rows. Native
+            // lazy loading adds a second visibility heuristic, and Samsung
+            // Internet can leave images inside that scrolling viewport pending
+            // indefinitely. Request the small logo as soon as its row mounts.
             referrerPolicy="no-referrer"
             className="absolute max-w-none object-contain"
             style={
