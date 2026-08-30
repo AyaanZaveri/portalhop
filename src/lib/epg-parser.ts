@@ -93,6 +93,7 @@ async function* iterateTagBlocks(
   stopMarkers: string[] = [],
 ): AsyncGenerator<string> {
   const openTag = new RegExp(`<${tagName}(?=[\\s>/])`)
+  const openMarker = `<${tagName}`
   const closeTag = `</${tagName}>`
   const decoder = new TextDecoder("utf-8")
   let buffer = ""
@@ -115,6 +116,21 @@ async function* iterateTagBlocks(
 
     if (stopMarkers.some((marker) => buffer.includes(marker))) {
       return
+    }
+
+    // If this chunk contains no opening tag, everything except a possible
+    // split tag suffix is already known to be irrelevant. Without trimming,
+    // a large XMLTV channel preamble accumulates in memory until the first
+    // programme element (the US guide can exceed the worker heap here).
+    const nextOpen = openTag.exec(buffer)
+    if (!nextOpen) {
+      const partialMarkerLength = Math.max(
+        openMarker.length - 1,
+        ...stopMarkers.map((marker) => marker.length - 1),
+      )
+      buffer = buffer.slice(-partialMarkerLength)
+    } else if (nextOpen.index > 0) {
+      buffer = buffer.slice(nextOpen.index)
     }
   }
 
