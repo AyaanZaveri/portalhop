@@ -1,7 +1,10 @@
 "use client"
 
+import { useState } from "react"
+import { TvIcon } from "lucide-react"
+
 import { cn } from "@/lib/utils"
-import { TILE_BASE, useLogoStyle, type LogoStyle } from "@/lib/logo-analysis"
+import { TILE_BASE, useLogoStyleState, type LogoStyle } from "@/lib/logo-analysis"
 
 /**
  * The same tile the mobile app draws, number for number.
@@ -69,8 +72,24 @@ export function ChannelLogo({
   url: string | undefined
   className?: string
 }) {
-  const style = useLogoStyle(url)
+  const { style, ready } = useLogoStyleState(url)
   const placement = layout(style)
+  const source = style.uri ?? url
+  const [loadedSource, setLoadedSource] = useState<string | undefined>(undefined)
+  const [failedSource, setFailedSource] = useState<string | undefined>(undefined)
+
+  // A recycled list row can receive a different logo while it remains mounted.
+  // Forgetting the previous load during render prevents that old logo from
+  // holding the skeleton off for one frame.
+  if (source !== loadedSource && loadedSource !== undefined) {
+    setLoadedSource(undefined)
+  }
+  if (source !== failedSource && failedSource !== undefined) {
+    setFailedSource(undefined)
+  }
+
+  const imageFailed = failedSource === source
+  const imageReady = !source || loadedSource === source || imageFailed
 
   return (
     <div
@@ -91,7 +110,7 @@ export function ChannelLogo({
         backgroundColor: style.color ?? TILE_BASE,
       }}
     >
-      {url ? (
+      {source && ready && !imageFailed ? (
         // The box is its own element so the overhang is clipped to it rather
         // than to the tile, which would let a scaled-up logo run under the
         // border.
@@ -101,21 +120,43 @@ export function ChannelLogo({
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- Portal and EPG logos come from arbitrary hosts. */}
           <img
-            src={style.uri ?? url}
+            src={source}
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
+            onLoad={() => setLoadedSource(source)}
+            // The browser fires this for a dead URL, an unreadable response,
+            // and corrupt image bytes. Unmount it so its broken-image glyph
+            // cannot appear behind the fallback icon.
+            onError={() => setFailedSource(source)}
             className="absolute max-w-none object-contain"
-            style={
-              placement ?? {
+            style={{
+              ...(placement ?? {
                 width: BOX_WIDTH,
                 height: BOX_HEIGHT,
                 left: 0,
                 top: 0,
-              }
-            }
+              }),
+              opacity: imageReady ? 1 : 0,
+            }}
           />
         </div>
+      ) : null}
+
+      {/* A channel with no logo, or a provider logo that failed to decode,
+          should look intentional rather than like a broken browser image. */}
+      {!source || imageFailed ? (
+        <TvIcon aria-hidden className="text-muted-foreground size-5" strokeWidth={1.5} />
+      ) : null}
+
+      {/* The raw logo is never a loading fallback: it may be replaced by a
+          whitened/redrawn copy. Hold this quiet placeholder until the chosen
+          image has decoded so the tile changes once, not twice. */}
+      {source && !imageReady ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 animate-pulse bg-white/[0.07]"
+        />
       ) : null}
     </div>
   )
