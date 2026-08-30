@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import type { LogoStyle } from "./algorithm"
+import { analyse, TARGET, type LogoStyle } from "./algorithm"
 import type { Request, Response } from "./worker"
 
 export type { LogoStyle }
@@ -114,25 +114,108 @@ function warmUp() {
 
 let worker: Worker | null = null
 let nextId = 1
-const pending = new Map<number, (response: Response) => void>()
+const WORKER_TIMEOUT_MS = 5_000
+const pending = new Map<
+  number,
+  { url: string; resolve: (response: Response) => void; timeout: ReturnType<typeof setTimeout> }
+>()
+
+/**
+ * A compatibility path for browsers where the module worker starts but never
+ * returns from its image decode. The DOM canvas has wider mobile support, and
+ * runs the exact same analysis rather than producing a degraded verdict.
+ */
+async function analyseOnMainThread(url: string): Promise<Response> {
+  try {
+    const response = await fetch(url, { mode: "cors", credentials: "omit" })
+    if (!response.ok) return { id: 0, ok: false }
+
+    const objectUrl = URL.createObjectURL(await response.blob())
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const element = new Image()
+        element.onload = () => resolve(element)
+        element.onerror = reject
+        element.src = objectUrl
+      })
+      const longest = Math.max(image.naturalWidth, image.naturalHeight)
+      const scale = longest > TARGET ? TARGET / longest : 1
+      const width = Math.max(1, Math.round(image.naturalWidth * scale))
+      const height = Math.max(1, Math.round(image.naturalHeight * scale))
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext("2d", { willReadFrequently: true })
+      if (!context) return { id: 0, ok: false }
+      context.drawImage(image, 0, 0, width, height)
+
+      const verdict = analyse(context.getImageData(0, 0, width, height), url)
+      if (!verdict.redrawn) return { id: 0, ok: true, style: verdict.style }
+
+      context.putImageData(verdict.redrawn, 0, 0)
+      const redrawn = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/png"),
+      )
+      return redrawn
+        ? { id: 0, ok: true, style: verdict.style, redrawn }
+        : { id: 0, ok: false }
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  } catch {
+    return { id: 0, ok: false }
+  }
+}
+
+function runOnMainThread(url: string, resolve: (response: Response) => void) {
+  void analyseOnMainThread(url).then(resolve)
+}
+
+function movePendingToMainThread() {
+  worker?.terminate()
+  worker = null
+  const requests = [...pending.values()]
+  pending.clear()
+  for (const request of requests) {
+    clearTimeout(request.timeout)
+    runOnMainThread(request.url, request.resolve)
+  }
+}
 
 function ensureWorker() {
   if (worker || typeof Worker === "undefined") return worker
-  worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
-  worker.onmessage = (event: MessageEvent<Response>) => {
-    pending.get(event.data.id)?.(event.data)
-    pending.delete(event.data.id)
+  try {
+    worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
+  } catch {
+    return null
   }
+  worker.onmessage = (event: MessageEvent<Response>) => {
+    const request = pending.get(event.data.id)
+    pending.delete(event.data.id)
+    if (!request) return
+    clearTimeout(request.timeout)
+    if (!event.data.ok) {
+      runOnMainThread(request.url, request.resolve)
+      return
+    }
+    request.resolve(event.data)
+  }
+  worker.onerror = movePendingToMainThread
   return worker
 }
 
 function ask(url: string) {
   return new Promise<Response>((resolve) => {
     const instance = ensureWorker()
-    if (!instance) return resolve({ id: 0, ok: false })
+    if (!instance) return runOnMainThread(url, resolve)
     const id = nextId++
-    pending.set(id, resolve)
-    instance.postMessage({ id, url } satisfies Request)
+    const timeout = setTimeout(movePendingToMainThread, WORKER_TIMEOUT_MS)
+    pending.set(id, { url, resolve, timeout })
+    try {
+      instance.postMessage({ id, url } satisfies Request)
+    } catch {
+      movePendingToMainThread()
+    }
   })
 }
 
