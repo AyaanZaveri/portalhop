@@ -176,28 +176,11 @@ export function logoStyle(url: string) {
   return task
 }
 
-export type LogoStyleState = {
-  style: LogoStyle
-  /**
-   * False until this document has either restored or measured the logo.
-   *
-   * An empty style is a valid verdict, so callers that must not show the raw
-   * logo before a redraw has been decided need this separately from `style`.
-   */
-  ready: boolean
-}
-
-/**
- * The logo treatment and whether it is safe to reveal the source image.
- *
- * Kept alongside `useLogoStyle` so an unmeasured image is never confused with
- * a logo the pass deliberately left alone.
- */
-export function useLogoStyleState(url: string | undefined): LogoStyleState {
+/** The same hook the mobile app has, so both read the same on the call site. */
+export function useLogoStyle(url: string | undefined): LogoStyle {
   const [style, setStyle] = useState<LogoStyle>(
     () => (url ? memory.get(url) : undefined) ?? PLAIN,
   )
-  const [ready, setReady] = useState(() => !url || memory.has(url))
   const [seen, setSeen] = useState(url)
 
   // Adjusted during render rather than from an effect: a row handed a new
@@ -206,27 +189,18 @@ export function useLogoStyleState(url: string | undefined): LogoStyleState {
   if (url !== seen) {
     setSeen(url)
     setStyle((url ? memory.get(url) : undefined) ?? PLAIN)
-    setReady(!url || memory.has(url))
   }
 
   useEffect(() => {
-    if (!url) return
+    if (!url || memory.has(url)) return
     let cancelled = false
     void logoStyle(url).then((found) => {
-      if (!cancelled) {
-        setStyle(found)
-        setReady(true)
-      }
+      if (!cancelled) setStyle(found)
     })
     return () => {
       cancelled = true
     }
   }, [url])
 
-  return { style, ready }
-}
-
-/** The same hook the mobile app has, so both read the same on the call site. */
-export function useLogoStyle(url: string | undefined): LogoStyle {
-  return useLogoStyleState(url).style
+  return style
 }
