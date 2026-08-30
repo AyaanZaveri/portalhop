@@ -45,6 +45,7 @@ import {
   getChannelKey,
   getChannelLogoUrl,
   getExternalPlayerUrl,
+  isStreamProxyConfigured,
   resolveChannelLink,
   snapToCommonFrameRate,
   type CaptionCue,
@@ -118,7 +119,6 @@ export function LivePlayer({
   const {
     endpoint,
     previewSourceRequest,
-    useProxy,
     useImageProxy,
     epgChannels,
     customEpgChannels,
@@ -309,11 +309,18 @@ export function LivePlayer({
     resolveChannelLink(channel, {
       endpoint,
       portalRequest: previewSourceRequest,
-      useProxy,
+      // The proxy normalizes the HLS delivery path and is consistently faster
+      // for this deployment. If it is not configured, resolveChannelLink
+      // safely falls back to the original direct URL.
+      useProxy: isStreamProxyConfigured(),
       signal: controller.signal,
     })
       .then((url) => {
-        if (!controller.signal.aborted) setStreamUrl(url)
+        if (controller.signal.aborted) return
+        setResolveError("")
+        setFallbackSeconds(null)
+        setFallbackCancelled(false)
+        setStreamUrl(url)
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -327,7 +334,7 @@ export function LivePlayer({
     return () => {
       controller.abort()
     }
-  }, [channel, endpoint, failStream, previewSourceRequest, useProxy])
+  }, [channel, endpoint, failStream, previewSourceRequest])
 
   /**
    * The deadline, and the two ways it is cancelled.
@@ -384,10 +391,19 @@ export function LivePlayer({
     }, START_DEADLINE_MS)
 
     video.addEventListener("playing", started)
+    const failed = () => {
+      // With MSE playback, hls.js provides the useful distinction between a
+      // recoverable decoder fault and an exhausted request. Let its handler
+      // make that call. Native HLS has no engine, so it fails here.
+      if (getCoreReference(video)?.engine) return
+      failStream("This source could not be played.")
+    }
+    video.addEventListener("error", failed)
 
     return () => {
       window.clearTimeout(timer)
       video.removeEventListener("playing", started)
+      video.removeEventListener("error", failed)
     }
   }, [failStream, playerElement, streamUrl])
 
@@ -878,9 +894,10 @@ export function LivePlayer({
         )
         updateActiveCaption()
       }
+      let recoveredMediaError = false
       const handleHlsError = (
         _event: typeof Hls.Events.ERROR,
-        data: { fatal: boolean; details?: string },
+        data: { fatal: boolean; details?: string; type?: string },
       ) => {
         /*
          * A few live MPEG-TS feeds signal AAC Main (mp4a.40.1) rather than a
@@ -891,11 +908,32 @@ export function LivePlayer({
          * immediately so the caller can try another source, and the existing
          * Open in player menu remains available for VLC/mpv.
          */
-        if (data.fatal && data.details === "bufferAddCodecError") {
+        if (
+          data.details === "bufferAddCodecError" ||
+          data.details === "bufferIncompatibleCodecsError"
+        ) {
           failStream(
             "This stream's audio codec is not supported by this browser. Try another source or open it in VLC.",
           )
+          return
         }
+
+        // Non-fatal errors already use hls.js's own retry policies. Once an
+        // error is fatal, give a decoder hiccup one recovery attempt; repeated
+        // media errors and exhausted network retries move to the next source
+        // instead of leaving the viewer on an endless spinner.
+        if (!data.fatal) return
+        if (data.type === "mediaError" && !recoveredMediaError) {
+          recoveredMediaError = true
+          hls.recoverMediaError()
+          return
+        }
+
+        failStream(
+          data.type === "mediaError"
+            ? "This stream could not be decoded by this browser."
+            : "This source stopped responding.",
+        )
       }
       const handleLevelSwitching = (
         _event: typeof Hls.Events.LEVEL_SWITCHING,
@@ -982,7 +1020,7 @@ export function LivePlayer({
       )
       removeHlsListeners?.()
     }
-  }, [failStream, playerElement, streamUrl, channel.savedChannelId])
+  }, [channel.savedChannelId, failStream, playerElement, streamUrl])
 
   if (resolveError) {
     return (
@@ -1055,7 +1093,6 @@ export function LivePlayer({
             src={streamUrl}
             type="hls"
             streamType="live"
-            preferPlayback="mse"
             _hlsConfig={{
               enableCEA708Captions: true,
               renderTextTracksNatively: false,
