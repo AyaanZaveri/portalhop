@@ -116,33 +116,12 @@ let worker: Worker | null = null
 let nextId = 1
 const pending = new Map<number, (response: Response) => void>()
 
-/**
- * The treatment is progressive enhancement. A browser that cannot start its
- * module worker must still render the provider's original logo; otherwise a
- * loading state that waits for the worker can stay up forever on that browser.
- */
-function failPending() {
-  for (const [id, resolve] of pending) {
-    resolve({ id, ok: false })
-  }
-  pending.clear()
-}
-
 function ensureWorker() {
   if (worker || typeof Worker === "undefined") return worker
-  try {
-    worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
-  } catch {
-    return null
-  }
+  worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
   worker.onmessage = (event: MessageEvent<Response>) => {
     pending.get(event.data.id)?.(event.data)
     pending.delete(event.data.id)
-  }
-  worker.onerror = () => {
-    worker?.terminate()
-    worker = null
-    failPending()
   }
   return worker
 }
@@ -233,19 +212,12 @@ export function useLogoStyleState(url: string | undefined): LogoStyleState {
   useEffect(() => {
     if (!url) return
     let cancelled = false
-    void logoStyle(url)
-      .then((found) => {
-        if (!cancelled) setStyle(found)
-      })
-      // Starting a module worker can fail on older mobile browsers. That is
-      // not a verdict about the image, so show its original form rather than
-      // leaving the tile's loading placeholder in place indefinitely.
-      .catch(() => {
-        if (!cancelled) setStyle(PLAIN)
-      })
-      .finally(() => {
-        if (!cancelled) setReady(true)
-      })
+    void logoStyle(url).then((found) => {
+      if (!cancelled) {
+        setStyle(found)
+        setReady(true)
+      }
+    })
     return () => {
       cancelled = true
     }
