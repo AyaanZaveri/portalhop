@@ -116,33 +116,12 @@ let worker: Worker | null = null
 let nextId = 1
 const pending = new Map<number, (response: Response) => void>()
 
-/**
- * The treatment is progressive enhancement. A browser that cannot start its
- * module worker must still render the provider's original logo; otherwise a
- * loading state that waits for the worker can stay up forever on that browser.
- */
-function failPending() {
-  for (const [id, resolve] of pending) {
-    resolve({ id, ok: false })
-  }
-  pending.clear()
-}
-
 function ensureWorker() {
   if (worker || typeof Worker === "undefined") return worker
-  try {
-    worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
-  } catch {
-    return null
-  }
+  worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
   worker.onmessage = (event: MessageEvent<Response>) => {
     pending.get(event.data.id)?.(event.data)
     pending.delete(event.data.id)
-  }
-  worker.onerror = () => {
-    worker?.terminate()
-    worker = null
-    failPending()
   }
   return worker
 }
@@ -197,28 +176,11 @@ export function logoStyle(url: string) {
   return task
 }
 
-export type LogoStyleState = {
-  style: LogoStyle
-  /**
-   * False until this document has either restored or measured the logo.
-   *
-   * An empty style is a valid verdict, so callers that must not show the raw
-   * logo before a redraw has been decided need this separately from `style`.
-   */
-  ready: boolean
-}
-
-/**
- * The logo treatment and whether it is safe to reveal the source image.
- *
- * Kept alongside `useLogoStyle` so an unmeasured image is never confused with
- * a logo the pass deliberately left alone.
- */
-export function useLogoStyleState(url: string | undefined): LogoStyleState {
+/** The same hook the mobile app has, so both read the same on the call site. */
+export function useLogoStyle(url: string | undefined): LogoStyle {
   const [style, setStyle] = useState<LogoStyle>(
     () => (url ? memory.get(url) : undefined) ?? PLAIN,
   )
-  const [ready, setReady] = useState(() => !url || memory.has(url))
   const [seen, setSeen] = useState(url)
 
   // Adjusted during render rather than from an effect: a row handed a new
@@ -227,34 +189,18 @@ export function useLogoStyleState(url: string | undefined): LogoStyleState {
   if (url !== seen) {
     setSeen(url)
     setStyle((url ? memory.get(url) : undefined) ?? PLAIN)
-    setReady(!url || memory.has(url))
   }
 
   useEffect(() => {
-    if (!url) return
+    if (!url || memory.has(url)) return
     let cancelled = false
-    void logoStyle(url)
-      .then((found) => {
-        if (!cancelled) setStyle(found)
-      })
-      // Starting a module worker can fail on older mobile browsers. That is
-      // not a verdict about the image, so show its original form rather than
-      // leaving the tile's loading placeholder in place indefinitely.
-      .catch(() => {
-        if (!cancelled) setStyle(PLAIN)
-      })
-      .finally(() => {
-        if (!cancelled) setReady(true)
-      })
+    void logoStyle(url).then((found) => {
+      if (!cancelled) setStyle(found)
+    })
     return () => {
       cancelled = true
     }
   }, [url])
 
-  return { style, ready }
-}
-
-/** The same hook the mobile app has, so both read the same on the call site. */
-export function useLogoStyle(url: string | undefined): LogoStyle {
-  return useLogoStyleState(url).style
+  return style
 }
