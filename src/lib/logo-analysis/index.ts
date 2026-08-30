@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import { analyse, TARGET, type LogoStyle } from "./algorithm"
+import type { LogoStyle } from "./algorithm"
 import type { Request, Response } from "./worker"
 
 export type { LogoStyle }
@@ -114,90 +114,14 @@ function warmUp() {
 
 let worker: Worker | null = null
 let nextId = 1
-const pending = new Map<number, { url: string; resolve: (response: Response) => void }>()
-
-/**
- * The worker is an optimisation, not a requirement for treating a logo.
- *
- * Some mobile browsers can render an image but cannot decode it through the
- * module worker's OffscreenCanvas path. Use their ordinary DOM canvas as a
- * compatibility path, so they still run the identical `analyse()` pass.
- */
-async function analyseOnMainThread(url: string): Promise<Response> {
-  try {
-    const response = await fetch(url, { mode: "cors", credentials: "omit" })
-    if (!response.ok) return { id: 0, ok: false }
-
-    const objectUrl = URL.createObjectURL(await response.blob())
-    try {
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const element = new Image()
-        element.onload = () => resolve(element)
-        element.onerror = reject
-        element.src = objectUrl
-      })
-      const longest = Math.max(image.naturalWidth, image.naturalHeight)
-      const scale = longest > TARGET ? TARGET / longest : 1
-      const width = Math.max(1, Math.round(image.naturalWidth * scale))
-      const height = Math.max(1, Math.round(image.naturalHeight * scale))
-
-      const canvas = document.createElement("canvas")
-      canvas.width = width
-      canvas.height = height
-      const context = canvas.getContext("2d", { willReadFrequently: true })
-      if (!context) return { id: 0, ok: false }
-      context.drawImage(image, 0, 0, width, height)
-
-      const verdict = analyse(context.getImageData(0, 0, width, height), url)
-      if (!verdict.redrawn) return { id: 0, ok: true, style: verdict.style }
-
-      context.putImageData(verdict.redrawn, 0, 0)
-      const redrawn = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/png"),
-      )
-      return redrawn
-        ? { id: 0, ok: true, style: verdict.style, redrawn }
-        : { id: 0, ok: false }
-    } finally {
-      URL.revokeObjectURL(objectUrl)
-    }
-  } catch {
-    return { id: 0, ok: false }
-  }
-}
-
-function finishOnMainThread(url: string, resolve: (response: Response) => void) {
-  void analyseOnMainThread(url).then(resolve)
-}
+const pending = new Map<number, (response: Response) => void>()
 
 function ensureWorker() {
   if (worker || typeof Worker === "undefined") return worker
-  try {
-    worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
-  } catch {
-    return null
-  }
+  worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
   worker.onmessage = (event: MessageEvent<Response>) => {
-    const request = pending.get(event.data.id)
+    pending.get(event.data.id)?.(event.data)
     pending.delete(event.data.id)
-    if (!request) return
-    // A worker decode failure can be a missing OffscreenCanvas or
-    // createImageBitmap implementation. Retry through the DOM canvas before
-    // deciding that the image itself cannot be treated.
-    if (!event.data.ok) {
-      finishOnMainThread(request.url, request.resolve)
-      return
-    }
-    request.resolve(event.data)
-  }
-  worker.onerror = () => {
-    worker?.terminate()
-    worker = null
-    const requests = [...pending.values()]
-    pending.clear()
-    for (const request of requests) {
-      finishOnMainThread(request.url, request.resolve)
-    }
   }
   return worker
 }
@@ -205,15 +129,10 @@ function ensureWorker() {
 function ask(url: string) {
   return new Promise<Response>((resolve) => {
     const instance = ensureWorker()
-    if (!instance) return finishOnMainThread(url, resolve)
+    if (!instance) return resolve({ id: 0, ok: false })
     const id = nextId++
-    pending.set(id, { url, resolve })
-    try {
-      instance.postMessage({ id, url } satisfies Request)
-    } catch {
-      pending.delete(id)
-      finishOnMainThread(url, resolve)
-    }
+    pending.set(id, resolve)
+    instance.postMessage({ id, url } satisfies Request)
   })
 }
 
