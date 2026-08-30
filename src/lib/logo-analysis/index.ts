@@ -19,7 +19,7 @@ const STORE = "logo_style"
  * change the key and every logo already looked at would keep its old answer
  * forever. Emptying the store is the migration.
  */
-const SCHEMA = 3
+const SCHEMA = 4
 
 type Row = {
   url: string
