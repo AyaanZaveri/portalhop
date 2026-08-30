@@ -397,9 +397,7 @@ export function TvShell({ children }: { children: ReactNode }) {
         />
 
         <div
-          className={`absolute right-4 z-20 flex items-center gap-2 ${
-            segment ? "top-[22px]" : "top-3.5"
-          } min-[940px]:top-6 min-[940px]:right-6`}
+          className="absolute top-3.5 right-4 z-20 flex items-center gap-2 min-[940px]:top-6 min-[940px]:right-6"
         >
           {currentChannel ? (
             <div className="flex items-center gap-2">

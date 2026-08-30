@@ -1,13 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { motion, useReducedMotion } from "motion/react"
 import { ChevronLeftIcon } from "lucide-react"
 
-import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
 import { getChannelKey } from "@/lib/tv-channels"
@@ -41,21 +40,6 @@ export function ChannelDetail() {
     channelStreams,
   } = useTv()
   const prefersReducedMotion = useReducedMotion()
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 939px)")
-    const updateLayout = () => {
-      setIsMobile(mediaQuery.matches)
-      if (!mediaQuery.matches) setDetailsOpen(false)
-    }
-
-    updateLayout()
-    mediaQuery.addEventListener("change", updateLayout)
-    return () => mediaQuery.removeEventListener("change", updateLayout)
-  }, [])
-
   const defaultChannel = channelIndex.get(channelId)
   // A source picked in the drawer wins for this URL only. Confirm it still
   // belongs to the requested channel so an edited URL cannot jump across
@@ -161,38 +145,13 @@ export function ChannelDetail() {
           >
             <ChevronLeftIcon className="size-5" />
           </Link>
-          <motion.button
-            type="button"
+          <ChannelIdentity
             key={channelId}
-            className="focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-3 rounded-lg pr-52 text-left focus-visible:ring-3 focus-visible:outline-none min-[940px]:cursor-default min-[940px]:pr-0"
-            onClick={() => {
-              if (isMobile) setDetailsOpen(true)
-            }}
-            aria-label={
-              isMobile
-                ? `Show details for ${channel.name || "Live stream"}`
-                : undefined
-            }
-            tabIndex={isMobile ? 0 : -1}
-            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-          >
-            <ChannelLogo url={logoUrl} />
-            {/* Leading on the spans themselves, not on this column. A
-                text-lg utility sets its own line-height, and an element that
-                declares one never inherits one — so leading-tight up here was
-                doing nothing, and each line kept a default box with three to
-                five points of empty air packed above and below its glyphs.
-                That air was the gap. With it gone, gap-0.5 is the whole
-                distance between the two lines. */}
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="truncate text-lg leading-tight font-semibold">
-                {channel.name || "Live stream"}
-              </span>
-              <NowPlayingTitle />
-            </div>
-          </motion.button>
+            channelName={channel.name}
+            logoUrl={logoUrl}
+            prefersReducedMotion={prefersReducedMotion}
+            className="hidden min-[940px]:flex"
+          />
         </div>
         <ScrollArea
           className="touch-hide-scrollbar relative z-10 min-h-0 flex-1 px-4 pb-4"
@@ -212,25 +171,53 @@ export function ChannelDetail() {
                 window.dispatchEvent(new Event("portalhop:open-sources"))
               }}
             />
-            <ProgrammeGuide />
+            {/* On phones, the picture establishes the destination before its
+                metadata. Keeping this in the document flow gives the name a
+                stable, readable place without competing with the source
+                controls in the compact top bar. */}
+            <ChannelIdentity
+              key={channelId}
+              channelName={channel.name}
+              logoUrl={logoUrl}
+              prefersReducedMotion={prefersReducedMotion}
+              className="min-[940px]:hidden"
+            />
+            <ProgrammeGuide className="mt-2 min-[940px]:mt-4" />
           </div>
         </ScrollArea>
-        {isMobile ? (
-          <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
-            <DrawerContent className="bg-background/95 dark:bg-background/85 rounded-xl backdrop-blur-md [--drawer-inset:0.5rem] after:hidden dark:border">
-              <div className="flex items-center gap-3 p-4 pb-5">
-                <ChannelLogo url={logoUrl} />
-                <div className="min-w-0 flex-1 pt-0.5 text-left">
-                  <DrawerTitle className="text-left leading-tight">
-                    {channel.name || "Live stream"}
-                  </DrawerTitle>
-                </div>
-              </div>
-            </DrawerContent>
-          </Drawer>
-        ) : null}
       </div>
     </ChannelEpgProvider>
+  )
+}
+
+function ChannelIdentity({
+  channelName,
+  className,
+  logoUrl,
+  prefersReducedMotion,
+}: {
+  channelName: string
+  className?: string
+  logoUrl: string
+  prefersReducedMotion: boolean | null
+}) {
+  return (
+    <motion.div
+      className={`flex min-w-0 flex-1 items-center gap-3 ${className ?? ""}`}
+      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+    >
+      <ChannelLogo url={logoUrl} />
+      {/* Leading belongs to the text, not its column: text-lg declares its
+          own line-height, so a parent leading utility cannot tighten it. */}
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate text-lg leading-tight font-semibold">
+          {channelName || "Live stream"}
+        </span>
+        <NowPlayingTitle />
+      </div>
+    </motion.div>
   )
 }
 

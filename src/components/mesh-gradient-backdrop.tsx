@@ -55,7 +55,7 @@ export function PrimaryMeshGradientBackdrop({
     <div
       className={cn(
         "pointer-events-none absolute inset-0 z-0 overflow-hidden",
-        isVivid ? "opacity-25 dark:opacity-30" : "opacity-15 dark:opacity-20",
+        isVivid ? "opacity-15 dark:opacity-30" : "opacity-15 dark:opacity-20",
       )}
     >
       <MeshGradient

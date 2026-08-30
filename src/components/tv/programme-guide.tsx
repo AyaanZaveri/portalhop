@@ -18,7 +18,7 @@ import {
 import { useTv } from "@/components/tv/tv-provider"
 import { useChannelEpg } from "@/components/tv/channel-epg-provider"
 
-export function ProgrammeGuide() {
+export function ProgrammeGuide({ className }: { className?: string }) {
   const { useImageProxy } = useTv()
   const {
     programmes,
@@ -40,6 +40,7 @@ export function ProgrammeGuide() {
       hasMore={hasMore}
       isLoadingMore={isLoadingMore}
       onLoadMore={loadMore}
+      className={className}
     />
   )
 }
@@ -53,6 +54,7 @@ function EpgSchedule({
   hasMore,
   isLoadingMore,
   onLoadMore,
+  className,
 }: {
   programmes: EpgProgramme[]
   now: number
@@ -62,6 +64,7 @@ function EpgSchedule({
   hasMore: boolean
   isLoadingMore: boolean
   onLoadMore: () => void
+  className?: string
 }) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
@@ -89,7 +92,7 @@ function EpgSchedule({
   )
 
   return (
-    <section className="mt-4 flex flex-col gap-4">
+    <section className={cn("mt-4 flex flex-col gap-4", className)}>
       <div className="flex items-center gap-2 px-1 md:gap-2.5">
         <TvIcon className="text-muted-foreground -mt-0.5 size-4 shrink-0 md:size-5" />
         <span className="text-base font-semibold md:text-xl">
