@@ -71,6 +71,7 @@ import {
 export function TvShell({ children }: { children: ReactNode }) {
   const {
     isLoadingPortals,
+    iptvOrgLoading,
     browserChannels,
     userId,
     settingsLoaded,
@@ -306,11 +307,13 @@ export function TvShell({ children }: { children: ReactNode }) {
     </>
   )
 
-  // The public IPTV-org catalogue is additive. Waiting for a background fetch
-  // here hid an already-cached personal catalogue (including Favorites) behind
-  // the loading shell, even though it was ready to draw.
-  const isLoading = isLoadingPortals
   const hasChannels = browserChannels.length > 0
+  // The public IPTV-org catalogue is additive, so an already-cached personal
+  // catalogue must paint immediately. But when there are no channels at all,
+  // its first fetch is the only thing that can turn an anonymous first visit
+  // into a browseable screen; showing an empty state in that gap is misleading.
+  const isLoading =
+    isLoadingPortals || (!hasChannels && iptvOrgEnabled && iptvOrgLoading)
 
   let content: ReactNode
   if (isLoading) {
