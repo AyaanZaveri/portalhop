@@ -4,6 +4,13 @@ export interface EpgSource {
   url: string;
 }
 
+// PortalHop's hosted service only keeps the guides its initial audience uses
+// warm. Self-hosters can still provide their own EPG source.
+export const HOSTED_EPG_COUNTRY_CODES = [
+  "AU", "BR", "CA", "DE", "ES", "FR", "GB",
+  "IN", "IT", "MX", "NZ", "PT", "US", "ZA",
+] as const;
+
 export const EPG_SOURCES: EpgSource[] = [
   { code: "AL", name: "Albania", url: "https://iptv-epg.org/files/epg-al.xml.gz" },
   { code: "AR", name: "Argentina", url: "https://iptv-epg.org/files/epg-ar.xml.gz" },

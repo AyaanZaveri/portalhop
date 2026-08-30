@@ -6,6 +6,7 @@ import {
   getCachedEpgWindow,
   setCachedEpgWindow,
 } from "@/lib/portal-channels-cache"
+import { HOSTED_EPG_COUNTRY_CODES } from "@portalhop/shared/epg-sources"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { apiBaseUrl, apiFetch } from "@/lib/api-fetch"
 
@@ -39,20 +40,7 @@ const EPG_REFRESH_RETRY_ATTEMPTS = 30
 // audience actually uses. Fetching every guide a large IPTV catalogue happens
 // to mention would turn one keystroke into dozens of cache warm-ups.
 const DEFAULT_PROGRAMME_SEARCH_COUNTRIES = new Set([
-  "au",
-  "br",
-  "ca",
-  "de",
-  "es",
-  "fr",
-  "gb",
-  "in",
-  "it",
-  "mx",
-  "nz",
-  "pt",
-  "us",
-  "za",
+  ...HOSTED_EPG_COUNTRY_CODES.map((country) => country.toLowerCase()),
 ])
 
 export type EpgNowChannel = {

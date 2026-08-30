@@ -6,13 +6,12 @@ import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
 import { fetchEpgWindow, type EpgWindow } from "@/lib/epg-parser"
 
 const CHUNK_MS = 6 * 60 * 60 * 1000
-// The API serves six hours and active guides refresh hourly. Twelve hours keeps
+// The API serves six hours and hosted guides refresh hourly. Twelve hours keeps
 // a full extra response window available without retaining four times as many
 // programme descriptions in memory (the US feed exceeds a small worker heap
 // at 48 hours).
 const HOT_WINDOW_MS = 12 * 60 * 60 * 1000
 const CACHE_TTL_SECONDS = 72 * 60 * 60
-const ACTIVE_COUNTRY_TTL_SECONDS = 30 * 24 * 60 * 60
 const MAX_SOURCE_BYTES = 32 * 1024 * 1024
 const MAX_TOTAL_BYTES = 160 * 1024 * 1024
 const PREFIX = "portalhop:iptv-epg:v1"
@@ -48,14 +47,6 @@ function manifestKey(country: string) {
 
 function chunkKey(country: string, version: string, start: number) {
   return `${PREFIX}:country:${country}:version:${version}:chunk:${start}`
-}
-
-function activeCountriesKey() {
-  return `${PREFIX}:active-countries`
-}
-
-function activeCountryKey(country: string) {
-  return `${PREFIX}:country:${country}:active`
 }
 
 function catalogKey() {
@@ -215,30 +206,6 @@ export function getIptvEpgSource(country: string) {
   return EPG_SOURCES.find((source) => source.code === code) ?? null
 }
 
-export async function markIptvEpgCountryActive(country: string) {
-  const redis = redisClient()
-  const code = normalizeCountry(country)
-  if (!redis || !getIptvEpgSource(code)) return
-
-  // This runs on every guide read. The country marker, manifest and catalogue
-  // are independent, so serial REST requests here put avoidable latency on
-  // the search response.
-  const [manifest, storedCatalog] = await Promise.all([
-    getManifest(code),
-    redis.get<CacheCatalog>(catalogKey()),
-  ])
-  const catalog = storedCatalog ?? {}
-  const pipeline = redis.pipeline()
-  pipeline.zadd(activeCountriesKey(), { score: Date.now(), member: code })
-  pipeline.set(activeCountryKey(code), "1", { ex: ACTIVE_COUNTRY_TTL_SECONDS })
-
-  if (manifest && catalog[code]) {
-    catalog[code]!.lastAccessedAt = Date.now()
-    pipeline.set(catalogKey(), catalog, { ex: CACHE_TTL_SECONDS })
-  }
-  await pipeline.exec()
-}
-
 export async function requestIptvEpgRefresh(country: string) {
   const redis = redisClient()
   const code = normalizeCountry(country)
@@ -305,16 +272,4 @@ export async function refreshIptvEpgCountry(country: string) {
     includeDescriptions: true,
   })
   return publishCountry(code, window)
-}
-
-export async function getActiveIptvEpgCountries() {
-  const redis = redisClient()
-  if (!redis) return []
-  const members = await redis.zrange<string[]>(activeCountriesKey(), 0, -1)
-  const active = members.length
-    ? await redis.mget<string[]>(...members.map(activeCountryKey))
-    : []
-  return members.filter(
-    (country, index) => active[index] && Boolean(getIptvEpgSource(country)),
-  )
 }

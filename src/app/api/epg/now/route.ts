@@ -2,11 +2,13 @@ import { NextResponse } from "next/server"
 
 import { selectUserEpgSource } from "@/db/user-epg-sources"
 import { getDb } from "@/db/client"
-import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
+import {
+  EPG_SOURCES,
+  HOSTED_EPG_COUNTRY_CODES,
+} from "@portalhop/shared/epg-sources"
 import { fetchEpgWindow, type EpgWindow } from "@/lib/epg-parser"
 import {
   getCachedIptvEpgWindow,
-  markIptvEpgCountryActive,
   requestIptvEpgRefresh,
 } from "@/lib/iptv-epg-cache"
 import { requireUser } from "@/lib/session"
@@ -24,6 +26,9 @@ const WINDOW_HOURS = 6
 // Guide ids do not always use the source's own code: thousands of channels end
 // in .uk while the file is published as GB.
 const COUNTRY_ALIASES: Record<string, string> = { uk: "gb" }
+const hostedCountryCodes = new Set<string>(
+  HOSTED_EPG_COUNTRY_CODES.map((country) => country.toLowerCase()),
+)
 
 const CACHE_MS = 60 * 60 * 1000
 const customSourceCache = new Map<
@@ -68,8 +73,13 @@ export async function GET(request: Request) {
       if (!source) {
         return NextResponse.json({ error: "Unknown country." }, { status: 404 })
       }
+      if (!hostedCountryCodes.has(resolved)) {
+        return NextResponse.json(
+          { error: "This country guide is not hosted." },
+          { status: 404 },
+        )
+      }
 
-      await markIptvEpgCountryActive(resolved)
       const cachedWindow = await getCachedIptvEpgWindow(resolved, {
         includeDescriptions,
       })

@@ -1,9 +1,7 @@
 import { logger, queue, schedules, task } from "@trigger.dev/sdk"
+import { HOSTED_EPG_COUNTRY_CODES } from "@portalhop/shared/epg-sources"
 
-import {
-  getActiveIptvEpgCountries,
-  refreshIptvEpgCountry,
-} from "@/lib/iptv-epg-cache"
+import { refreshIptvEpgCountry } from "@/lib/iptv-epg-cache"
 
 // Publishing swaps one shared Redis catalogue and its country manifests.
 // Serializing scheduled and on-demand refreshes prevents simultaneous runs
@@ -13,6 +11,8 @@ const iptvEpgRefreshQueue = queue({
   concurrencyLimit: 1,
 })
 
+const hostedCountryCodes = new Set<string>(HOSTED_EPG_COUNTRY_CODES)
+
 async function refreshCountries(countries: string[]) {
   const results: Array<{
     country: string
@@ -21,7 +21,16 @@ async function refreshCountries(countries: string[]) {
   }> = []
   // IPTV-EPG country files use the same upstream hostname, so keep them
   // sequential. This deliberately honours the one-request-per-host policy.
-  for (const country of countries) {
+  const allowedCountries = [
+    ...new Set(
+      countries.map((country) => {
+        const code = country.toUpperCase()
+        return code === "UK" ? "GB" : code
+      }),
+    ),
+  ].filter((country) => hostedCountryCodes.has(country))
+
+  for (const country of allowedCountries) {
     try {
       results.push({ country, refreshed: await refreshIptvEpgCountry(country) })
     } catch (error) {
@@ -41,7 +50,7 @@ export const refreshActiveIptvEpgTask = schedules.task({
   cron: "7 * * * *",
   queue: iptvEpgRefreshQueue,
   maxDuration: 3_000,
-  run: async () => refreshCountries(await getActiveIptvEpgCountries()),
+  run: async () => refreshCountries([...HOSTED_EPG_COUNTRY_CODES]),
 })
 
 export const refreshIptvEpgCountryTask = task({
