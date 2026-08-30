@@ -774,9 +774,9 @@ export function TvProvider({
     const q = deferredQuery.trim().toLowerCase()
     if (!q) return browserChannels
 
-    // Normal search prioritizes channel names. When programme search is on,
-    // guide hits lead so the result the person searched for is immediately
-    // visible, with name matches following it.
+    // A channel-name match is the strongest intent. Programme hits then widen
+    // the result set, with live programmes before upcoming ones (as ranked by
+    // the EPG worker).
     const direct = searchableChannels
       .filter((entry) => entry.searchText.includes(q))
       .map((entry) => entry.channel)
@@ -785,18 +785,26 @@ export function TvProvider({
       return direct
     }
 
+    const directChannels = new Set(direct)
+    const programmeRanks = new Map(
+      [...programmeMatchesById.keys()].map((id, index) => [id, index]),
+    )
     const programmeMatches = epgSearchEntries
-      .filter((entry) =>
-        programmeMatchesById.has(normalizeXmltvId(entry.xmltvId)),
+      .filter(
+        (entry) =>
+          !directChannels.has(entry.channel) &&
+          programmeRanks.has(normalizeXmltvId(entry.xmltvId)),
+      )
+      .sort(
+        (left, right) =>
+          programmeRanks.get(normalizeXmltvId(left.xmltvId))! -
+          programmeRanks.get(normalizeXmltvId(right.xmltvId))!,
       )
       .map((entry) => entry.channel)
 
     if (!programmeMatches.length) return direct
 
-    const programmeChannels = new Set(programmeMatches)
-    return programmeMatches.concat(
-      direct.filter((channel) => !programmeChannels.has(channel)),
-    )
+    return direct.concat(programmeMatches)
   }, [
     browserChannels,
     deferredQuery,

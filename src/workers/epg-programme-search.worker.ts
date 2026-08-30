@@ -80,7 +80,15 @@ function findMatches(countries: string[], query: string) {
     }
   }
 
-  return [...matches.values()]
+  return [...matches.values()].sort((left, right) => {
+    const leftIsLive = left.startAt <= now && left.stopAt > now
+    const rightIsLive = right.startAt <= now && right.stopAt > now
+
+    // A live match is the most useful answer. Future matches remain useful,
+    // but are ordered by how soon the programme begins.
+    if (leftIsLive !== rightIsLive) return leftIsLive ? -1 : 1
+    return left.startAt - right.startAt
+  })
 }
 
 function postMatches(id: number, countries: string[], query: string) {
