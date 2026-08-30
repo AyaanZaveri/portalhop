@@ -839,7 +839,13 @@ function MediaPlayerVideo(props: MediaPlayerVideoProps) {
   const context = useMediaPlayerContext("MediaPlayerVideo");
   const dispatch = useMediaDispatch();
   const mediaRefCallback = useMediaRef();
-  const composedRef = useComposedRefs(ref, context.mediaRef, mediaRefCallback);
+  // media-chrome types this callback as a video-shaped state owner. This node
+  // is always a real video element, so make that DOM boundary explicit.
+  const composedRef = useComposedRefs<HTMLVideoElement>(
+    ref,
+    context.mediaRef as React.Ref<HTMLVideoElement>,
+    mediaRefCallback as React.RefCallback<HTMLVideoElement>,
+  );
 
   const onPlayToggle = React.useCallback(
     (event: React.MouseEvent<HTMLVideoElement>) => {
@@ -890,7 +896,13 @@ function MediaPlayerAudio(props: MediaPlayerAudioProps) {
 
   const context = useMediaPlayerContext("MediaPlayerAudio");
   const mediaRefCallback = useMediaRef();
-  const composedRef = useComposedRefs(ref, context.mediaRef, mediaRefCallback);
+  // The hook supports audio media at runtime, although its public state-owner
+  // type is video-shaped.
+  const composedRef = useComposedRefs<HTMLAudioElement>(
+    ref,
+    context.mediaRef as React.Ref<HTMLAudioElement>,
+    mediaRefCallback as React.RefCallback<HTMLAudioElement>,
+  );
 
   return useRender({
     defaultTagName: "audio",
