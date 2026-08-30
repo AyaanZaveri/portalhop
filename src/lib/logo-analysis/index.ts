@@ -114,7 +114,10 @@ function warmUp() {
 
 let worker: Worker | null = null
 let nextId = 1
-const WORKER_TIMEOUT_MS = 5_000
+// A row only needs a 66×44 tile. If a worker has not answered within half a
+// second, its decode is stalled rather than merely slow; keep the raw logo on
+// screen and move to the compatible path immediately.
+const WORKER_TIMEOUT_MS = 500
 const pending = new Map<
   number,
   { url: string; resolve: (response: Response) => void; timeout: ReturnType<typeof setTimeout> }
