@@ -205,9 +205,10 @@ export type SavedChannelRow = {
   id: number
   name: string
   xmltvId: string
+  genre: string
 }
 
-/** Load the (id, name, xmltvId) of every channel for a source, for enrichment. */
+/** Load the matching evidence of every channel for a source, for enrichment. */
 export async function selectSavedChannelRows(
   sourceId: number
 ): Promise<SavedChannelRow[]> {
@@ -218,6 +219,7 @@ export async function selectSavedChannelRows(
       id: savedChannels.id,
       name: savedChannels.name,
       xmltvId: savedChannels.xmltvId,
+      genre: savedChannels.genre,
     })
     .from(savedChannels)
     .where(eq(savedChannels.sourceId, sourceId))

@@ -15,8 +15,6 @@ import { SettingsHeader } from "@/components/settings-header"
 import { ShimmeringText } from "@/components/ui/shimmering-text"
 import { Switch } from "@/components/ui/switch"
 import { useUserSettings } from "@/hooks/use-user-settings"
-import type { EpgManifest } from "@/lib/epg-store"
-import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
 import { apiFetch } from "@/lib/api-fetch"
 import { Sortable, SortableItem, SortableItemHandle } from "@/components/reui/sortable"
 
@@ -24,11 +22,8 @@ const WSRV_LOGO_LIGHT = "/proxy/wsrv-light.svg"
 const WSRV_LOGO_DARK = "/proxy/wsrv-dark.svg"
 
 type UserEpgSource = { id: number; name: string; url: string; channelCount: number; refreshedAt: string | null }
-const REFRESH_CONCURRENCY = 3
-
 export default function EpgAndLogosSettingsPage() {
   const { settings, updateSettings } = useUserSettings()
-  const [manifest, setManifest] = React.useState<EpgManifest | null>(null)
   const [sources, setSources] = React.useState<UserEpgSource[]>([])
   const [isLoadingSources, setIsLoadingSources] = React.useState(true)
   const [sheetOpen, setSheetOpen] = React.useState(false)
@@ -37,10 +32,6 @@ export default function EpgAndLogosSettingsPage() {
   const [pendingDelete, setPendingDelete] = React.useState<UserEpgSource | null>(null)
   const [deleting, setDeleting] = React.useState(false)
 
-  const loadManifest = React.useCallback(async () => {
-    const epg = await apiFetch("/api/epg")
-    if (epg.ok) setManifest(await epg.json())
-  }, [])
   const loadSources = React.useCallback(async () => {
     try { const custom = await apiFetch("/api/epg-sources", { cache: "no-store" }); const data = await custom.json(); setSources(Array.isArray(data.sources) ? data.sources : []) }
     catch { setSources([]) }
@@ -51,18 +42,10 @@ export default function EpgAndLogosSettingsPage() {
     // their network work settles, and doing the scheduling itself in the
     // effect avoids a synchronous state cascade on mount.
     const timer = window.setTimeout(() => {
-      void loadManifest().catch(() => {})
       void loadSources().catch(() => {})
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [loadManifest, loadSources])
-
-  async function refreshBuiltIn() {
-    setRefreshing("builtin"); let failed = 0; const queue = [...EPG_SOURCES]
-    const worker = async () => { for (let source = queue.shift(); source; source = queue.shift()) { try { if (!(await apiFetch("/api/epg", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: source.code }) })).ok) failed++ } catch { failed++ } } }
-    await Promise.all(Array.from({ length: REFRESH_CONCURRENCY }, worker)); await loadManifest(); setRefreshing(null)
-    toast[failed ? "warning" : "success"](failed ? `Updated EPG; ${failed} country feeds failed.` : "Built-in EPG updated.")
-  }
+  }, [loadSources])
   async function refresh(source: UserEpgSource) {
     setRefreshing(source.id)
     try { const res = await apiFetch(`/api/epg-sources/${source.id}/refresh`, { method: "POST" }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setSources((items) => items.map((item) => item.id === source.id ? data.source : item)); toast.success(`${source.name} refreshed.`) } catch (error) { toast.error(error instanceof Error ? error.message : "Could not refresh EPG source.") } finally { setRefreshing(null) }
@@ -76,7 +59,6 @@ export default function EpgAndLogosSettingsPage() {
   function handleUseImageProxyChange(nextUseImageProxy: boolean) {
     updateSettings({ useImageProxy: nextUseImageProxy })
   }
-  const total = manifest?.countries.reduce((sum, country) => sum + country.count, 0) ?? 0
   return <div className="flex flex-col gap-8">
     <SettingsHeader icon={CalendarIcon} title="EPG & Logos" />
     <div className="flex w-full items-center justify-between gap-4 rounded-lg border bg-background/50 p-3">
@@ -119,9 +101,7 @@ export default function EpgAndLogosSettingsPage() {
       order={settings.epgProviderOrder}
       onChange={(epgProviderOrder) => updateSettings({ epgProviderOrder })}
     />
-    <section className="flex flex-col gap-3 border-t pt-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">iptv-epg.org is available per portal from its EPG selector.</p></div><Button size="sm" onClick={refreshBuiltIn} disabled={refreshing === "builtin"}>{refreshing === "builtin" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Refresh EPG</Button></div>
-      <div className="grid grid-cols-3 gap-3"><Stat label="Last updated" value={manifest?.lastFetchedAt ? new Date(manifest.lastFetchedAt).toLocaleDateString(undefined, { dateStyle: "medium" }) : "Never"} /><Stat label="Countries" value={String(manifest?.countries.length ?? 0)} /><Stat label="Total channels" value={total.toLocaleString()} /></div>
-    </section>
+    <section className="flex flex-col gap-1 border-t pt-6"><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">Programme windows refresh in the background. Channel matching uses IPTV-org’s lightweight directory instead of refreshing every XMLTV guide.</p></section>
     <section className="flex flex-col gap-3 border-t pt-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Custom EPG sources</h2><p className="text-sm text-muted-foreground">Reusable XMLTV sources for your portals.</p></div><Button size="sm" onClick={() => { setEditing(null); setSheetOpen(true) }}><PlusIcon />Add source</Button></div>
       {isLoadingSources ? <div className="flex items-center gap-2 px-1 py-3 text-sm"><Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" /><ShimmeringText text="Loading EPG sources." /></div> : sources.length ? <div className="flex flex-col">{sources.map((source) => {
         const isBusy = refreshing === source.id
@@ -226,5 +206,3 @@ function GuideProviderPreference({ sources, order, onChange }: {
     </Sortable>
   </section>
 }
-
-function Stat({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 truncate text-sm font-medium">{value}</p></div> }

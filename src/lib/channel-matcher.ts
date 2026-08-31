@@ -11,6 +11,8 @@
 export type EpgChannelEntry = {
   id: string
   name: string
+  /** Official aliases are searchable but the canonical name is displayed. */
+  alternativeNames?: string[]
   logoUrl?: string
   countryCode?: string
 }
@@ -106,6 +108,10 @@ function toTokens(value: string): string[] {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
+    // Remove standalone rendition labels before splitting embedded channel
+    // numbers. Without this, `4K` turns into the meaningful-looking number
+    // `4` and makes `TSN+ 15 4K` look related to TSN 4K.
+    .replace(/\b(?:4k|8k|uhd|fhd|qhd|h264|h265|hevc)\b/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     // Broadcasters commonly write numbered feeds both with and without a
     // space ("TSN1" / "TSN 1", "BBC2" / "BBC 2"). Treat those as the
@@ -199,18 +205,26 @@ export function buildEpgIndex(
     entries.push(entry)
     byId.set(channel.id, entry)
 
-    for (const key of nameKeys(channel.name)) {
-      const ids = byName.get(key)
-      if (ids) {
-        if (!ids.includes(channel.id)) {
-          ids.push(channel.id)
+    for (const name of [channel.name, ...(channel.alternativeNames ?? [])]) {
+      for (const key of nameKeys(name)) {
+        const ids = byName.get(key)
+        if (ids) {
+          if (!ids.includes(channel.id)) {
+            ids.push(channel.id)
+          }
+        } else {
+          byName.set(key, [channel.id])
         }
-      } else {
-        byName.set(key, [channel.id])
       }
     }
 
-    for (const token of new Set(tokens)) {
+    const retrievalTokens = new Set(tokens)
+    for (const alias of channel.alternativeNames ?? []) {
+      for (const token of stripQuality(toTokens(alias))) {
+        retrievalTokens.add(token)
+      }
+    }
+    for (const token of retrievalTokens) {
       if (RETRIEVAL_IGNORED_TOKENS.has(token)) {
         continue
       }
@@ -249,6 +263,10 @@ const AUTO_GAP = 0.2
 // Excluding it from fuzzy retrieval prevents a broad 28k-channel scan per row.
 const RETRIEVAL_IGNORED_TOKENS = new Set(["tv"])
 
+function numberedTokens(tokens: Iterable<string>) {
+  return new Set([...tokens].filter((token) => /^\d+$/.test(token)))
+}
+
 /**
  * Retrieve the best candidate EPG channels for a query name via the inverted
  * token index. Only entries sharing at least one token are scored.
@@ -281,10 +299,34 @@ export function retrieveCandidates(
   }
 
   const queryTokenSet = new Set(queryTokens)
+  const queryNumbers = numberedTokens(queryTokens)
+  const queryWords = queryTokens.filter((token) => !/^\d+$/.test(token))
   const queryName = queryTokens.join(" ")
   const scored: MatchCandidate[] = []
   for (const entryIndex of candidateIndexes) {
     const entry = index.entries[entryIndex]
+    // A number names a distinct feed: TSN+ 15 is not TSN 1, TSN 4K, or any
+    // other TSN channel. Do this before AI sees the candidates so a model never
+    // has to decide between a set in which every answer is wrong. Quality tags
+    // have already been removed above, so this does not mistake `4K` for feed 4.
+    const candidateNumbers = numberedTokens(entry.tokens)
+    if (
+      queryNumbers.size > 0 &&
+      [...queryNumbers].some((number) => !candidateNumbers.has(number))
+    ) {
+      continue
+    }
+    // Retrieval starts from a union of token buckets for recall. When one of
+    // those tokens is a feed number, that union also contains every unrelated
+    // `Channel 15` in the directory. A numbered feed must retain at least one
+    // broadcaster word as well as its number.
+    if (
+      queryNumbers.size > 0 &&
+      queryWords.length > 0 &&
+      !queryWords.some((word) => entry.tokenSet.has(word))
+    ) {
+      continue
+    }
     let score = diceScore(queryTokenSet, entry.tokenSet)
 
     // Reward one name fully containing the other (e.g. "cnn" ⊂ "cnn international").

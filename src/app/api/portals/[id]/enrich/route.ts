@@ -15,7 +15,6 @@ import {
   normalizeName,
   pickRegional,
   regionOf,
-  type EpgChannelEntry,
   type MatchCandidate,
 } from "@/lib/channel-matcher"
 import {
@@ -23,17 +22,19 @@ import {
   type EnrichAiSettings,
   type RerankItem,
 } from "@/lib/channel-enrich-ai"
-import { getEpgChannels } from "@/lib/epg-store"
+import { getIptvOrgChannelDirectory } from "@/lib/iptv-org-channel-directory"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import { resolveCategoryVisual } from "@portalhop/shared/category-flags"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-// Smaller batches are more accurate: the model attends to each item better,
-// and 20-item batches measured ~2.5s vs noticeably worse picks at 40+. Wall
-// time is recovered by running more of them in parallel instead.
-const AI_BATCH_SIZE = 20
-const AI_BATCH_CONCURRENCY = 10
+// Keep batches below the point where the model loses attention, then recover
+// wall-clock time through concurrency. The candidate guard keeps impossible
+// numbered variants out of this path, so 30 is still compact while requiring
+// materially fewer network round trips than the old 20-item batches.
+const AI_BATCH_SIZE = 30
+const AI_BATCH_CONCURRENCY = 16
 
 // These describe presentation or distribution, not the broadcaster. They do
 // not provide useful regional evidence for another channel with the same name.
@@ -165,6 +166,30 @@ function sourceContextFor(name: string, evidence: CountryEvidence) {
   return hints.length ? `verified broadcaster country evidence: ${hints.join(", ")}` : ""
 }
 
+/**
+ * A channel's own category wins over any portal-wide guess: `UK | SPORTS` is
+ * direct evidence for a UK candidate, while a portal may intentionally carry
+ * channels from many regions. Only accept a category flag when it distinguishes
+ * one of the candidates; generic categories such as `SPORTS` return nothing.
+ */
+function categoryCountryFor(
+  categories: Iterable<string>,
+  candidates: MatchCandidate[],
+) {
+  const candidateCountries = new Set(
+    candidates.map((candidate) => candidate.countryCode?.toLowerCase()).filter(Boolean),
+  )
+  const votes = new Map<string, number>()
+
+  for (const category of categories) {
+    const visual = resolveCategoryVisual(category)
+    if (visual?.kind !== "flag" || !candidateCountries.has(visual.code)) continue
+    votes.set(visual.code, (votes.get(visual.code) ?? 0) + 1)
+  }
+
+  return strongestCountry(votes)?.country ?? ""
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -195,11 +220,11 @@ export async function POST(
     return NextResponse.json({ error: "Source not found." }, { status: 404 })
   }
 
-  const epgChannels = (await getEpgChannels()) as Record<string, EpgChannelEntry>
+  const epgChannels = await getIptvOrgChannelDirectory()
   if (!epgChannels || Object.keys(epgChannels).length === 0) {
     return NextResponse.json(
-      { error: "No EPG data loaded. Refresh EPG in settings first." },
-      { status: 400 }
+      { error: "IPTV-org channel directory is unavailable. Try again shortly." },
+      { status: 502 }
     )
   }
 
@@ -251,6 +276,7 @@ export async function POST(
             sampleName: string
             rowIds: number[]
             existingXmltvIds: string[]
+            categories: Set<string>
           }
         >()
 
@@ -275,6 +301,7 @@ export async function POST(
           const group = groups.get(groupKey)
           if (group) {
             group.rowIds.push(row.id)
+            if (row.genre) group.categories.add(row.genre)
             if (
               existingXmltvId &&
               !group.existingXmltvIds.includes(existingXmltvId)
@@ -286,6 +313,7 @@ export async function POST(
               sampleName: row.name,
               rowIds: [row.id],
               existingXmltvIds: existingXmltvId ? [existingXmltvId] : [],
+              categories: new Set(row.genre ? [row.genre] : []),
             })
           }
         }
@@ -308,14 +336,15 @@ export async function POST(
           key: string
           sampleName: string
           candidates: MatchCandidate[]
+          categories: Set<string>
         }[] = []
         const ambiguous: {
           key: string
           sampleName: string
           candidates: MatchCandidate[]
           currentXmltvId?: string
+          categories: Set<string>
         }[] = []
-        const regionTally = new Map<string, number>()
         const countryEvidence: CountryEvidence = new Map()
 
         let processed = 0
@@ -328,13 +357,14 @@ export async function POST(
           const currentXmltvId = group.existingXmltvIds[0]
           if (match.kind === "exact") {
             assignments.set(key, match.xmltvId)
-            const region = regionOf(match.xmltvId)
-            if (region) {
-              regionTally.set(region, (regionTally.get(region) ?? 0) + 1)
-            }
             recordCountryEvidence(countryEvidence, group.sampleName, match.xmltvId)
           } else if (match.kind === "regional") {
-            regional.push({ key, sampleName: group.sampleName, candidates: match.candidates })
+            regional.push({
+              key,
+              sampleName: group.sampleName,
+              candidates: match.candidates,
+              categories: group.categories,
+            })
           } else if (match.kind === "ambiguous") {
             const candidates = [...match.candidates]
             if (
@@ -356,8 +386,9 @@ export async function POST(
               sampleName: group.sampleName,
               candidates,
               currentXmltvId,
+              categories: group.categories,
             })
-          } else if (currentXmltvId) {
+          } else if (currentXmltvId && !body.force) {
             // No viable new candidate: retain a currently valid IPTV-EPG.org id.
             assignments.set(key, currentXmltvId)
           }
@@ -369,27 +400,30 @@ export async function POST(
           }
         }
 
-        // The source's dominant region breaks ties for same-channel regional
-        // variants (logos are region-identical, so this is token-free).
-        let regionHint = ""
-        let bestTally = 0
-        for (const [region, count] of regionTally) {
-          if (count > bestTally) {
-            bestTally = count
-            regionHint = region
-          }
-        }
-
         for (const entry of regional) {
+          const categoryCountry = categoryCountryFor(
+            entry.categories,
+            entry.candidates,
+          )
           const contextualCountry = contextualCountryFor(
             entry.sampleName,
             entry.candidates,
             countryEvidence
           )
-          const xmltvId = pickRegional(
-            entry.candidates,
-            contextualCountry || regionHint
-          )
+          const country = categoryCountry || contextualCountry
+          if (!country) {
+            // A regional tie without channel-local or broadcaster evidence is
+            // exactly the judgement call the AI reranker is for. Do not choose
+            // alphabetically merely because the portal has more of one region.
+            ambiguous.push({
+              key: entry.key,
+              sampleName: entry.sampleName,
+              candidates: entry.candidates,
+              categories: entry.categories,
+            })
+            continue
+          }
+          const xmltvId = pickRegional(entry.candidates, country)
           if (xmltvId) {
             assignments.set(entry.key, xmltvId)
             recordCountryEvidence(countryEvidence, entry.sampleName, xmltvId)
@@ -423,6 +457,7 @@ export async function POST(
                 name: entry.sampleName,
                 candidates: entry.candidates,
                 currentXmltvId: entry.currentXmltvId,
+                categoryContext: [...entry.categories].join(" | "),
                 sourceContext: sourceContextFor(entry.sampleName, countryEvidence),
               }))
 
@@ -469,11 +504,14 @@ export async function POST(
           )
         }
 
-        // Keep valid current IDs for ambiguous channels when the AI is not
-        // configured, rejects a batch, or returns no replacement.
-        for (const entry of ambiguous) {
-          if (!assignments.has(entry.key) && entry.currentXmltvId) {
-            assignments.set(entry.key, entry.currentXmltvId)
+        // A normal pass preserves valid current IDs when an AI batch fails. A
+        // forced reconciliation means "prove this match again": if no valid
+        // candidate survives, clear the guessed id rather than preserving it.
+        if (!body.force) {
+          for (const entry of ambiguous) {
+            if (!assignments.has(entry.key) && entry.currentXmltvId) {
+              assignments.set(entry.key, entry.currentXmltvId)
+            }
           }
         }
 
@@ -481,11 +519,12 @@ export async function POST(
         const updates: { id: number; xmltvId: string }[] = []
         for (const [key, group] of groups) {
           const xmltvId =
-            assignments.get(key) ?? group.existingXmltvIds[0] ?? ""
+            assignments.get(key) ??
+            (!body.force ? group.existingXmltvIds[0] ?? "" : "")
           // Reconciliation overwrites only with a verified candidate id. An
           // unmatchable name or an unavailable AI model must never clear an
           // existing mapping merely because this is a forced full pass.
-          if (!xmltvId) {
+          if (!xmltvId && !body.force) {
             continue
           }
           for (const rowId of group.rowIds) {
