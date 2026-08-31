@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import type { EpgChannelEntry } from "@/lib/channel-matcher"
+import { buildEpgIndex, type EpgIndex } from "@/lib/channel-matcher"
 
 const CACHE_SECONDS = 10 * 60
 const DIRECTORY_PATH = path.join(
@@ -20,6 +21,7 @@ type DirectoryRow = [
 let cachedDirectory: Record<string, EpgChannelEntry> | null = null
 let cachedUntil = 0
 let loadingDirectory: Promise<Record<string, EpgChannelEntry>> | null = null
+let cachedIndex: EpgIndex | null = null
 
 /**
  * Channel identities extracted from IPTV-EPG's XMLTV database by
@@ -63,4 +65,11 @@ export async function getIptvEpgChannelDirectory(): Promise<
   } finally {
     loadingDirectory = null
   }
+}
+
+/** The matcher index is built once per warm process, never per sheet search. */
+export async function getIptvEpgChannelIndex(): Promise<EpgIndex> {
+  if (cachedIndex) return cachedIndex
+  cachedIndex = buildEpgIndex(Object.values(await getIptvEpgChannelDirectory()))
+  return cachedIndex
 }

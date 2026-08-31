@@ -39,6 +39,7 @@ export type EpgMatchChannel = {
   sourceId: number
   name: string
   xmltvId: string
+  category?: string
 }
 
 type EpgMatch = {
@@ -100,7 +101,7 @@ export function ChannelEpgMatchDrawer({
 
     const timer = setTimeout(() => {
       apiFetch(
-        `/api/epg/channels?limit=${MATCH_RESULT_LIMIT}&q=${encodeURIComponent(trimmedQuery)}`,
+        `/api/epg/channels?limit=${MATCH_RESULT_LIMIT}&q=${encodeURIComponent(trimmedQuery)}&category=${encodeURIComponent(channel.category ?? "")}`,
       )
         .then((response) => (response.ok ? response.json() : { results: [] }))
         .then((data: { results?: EpgMatch[] }) => {

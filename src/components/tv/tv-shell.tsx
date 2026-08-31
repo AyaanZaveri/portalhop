@@ -270,6 +270,7 @@ export function TvShell({ children }: { children: ReactNode }) {
         // the name whose spelling is the reason it needs correcting.
         name: source.sourceName || source.name || "Channel",
         xmltvId: source.xmltvId ?? "",
+        category: source.genre,
       }
     },
     [],

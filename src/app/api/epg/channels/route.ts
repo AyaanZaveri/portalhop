@@ -4,9 +4,15 @@ import { rankEpgMatches } from "@portalhop/shared/epg-search";
 import { getUserEpgChannelMaps } from "@/lib/user-epg-store";
 import { requireUser } from "@/lib/session";
 import { getDb } from "@/db/client";
-import { userEpgChannels, userEpgSources } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { getUserSettings } from "@/db/user-settings";
+import { epgChannels, userEpgChannels, userEpgSources } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
+import {
+  classifyMatch,
+  retrieveCandidates,
+  type MatchCandidate,
+} from "@/lib/channel-matcher";
+import { getIptvEpgChannelIndex } from "@/lib/iptv-epg-channel-directory";
+import { resolveCategoryVisual } from "@portalhop/shared/category-flags";
 
 export const runtime = "nodejs";
 // Without this Next treats the handler as static and replays one cached
@@ -17,7 +23,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const channels = await getEpgChannels();
     const params = new URL(request.url).searchParams;
 
     // Searching server-side keeps the 5.8MB directory on the server; a client
@@ -25,10 +30,10 @@ export async function GET(request: Request) {
     const query = params.get("q");
     if (query !== null) {
       const limit = Math.min(Number(params.get("limit")) || 8, 25);
+      const category = params.get("category") ?? "";
       const user = await requireUser();
       if (user instanceof NextResponse) return user;
       const db = getDb();
-      const settings = await getUserSettings(db, user.id);
       const customRows = await db
         .select({
           xmltvId: userEpgChannels.channelId,
@@ -42,39 +47,83 @@ export async function GET(request: Request) {
         .where(eq(userEpgSources.userId, user.id));
 
       type Match = { xmltvId: string; name: string; logoUrl?: string; countryCode?: string; providerId: string; providerName: string };
-      const providerRank = (providerId: string) => {
-        const position = settings.epgProviderOrder.indexOf(providerId);
-        return position === -1 ? settings.epgProviderOrder.length + 1 : position;
-      };
-      const candidates: Match[] = [
-        ...Object.entries(channels).map(([xmltvId, entry]) => ({
-          xmltvId, ...entry, providerId: "iptv-org", providerName: "Built-in EPG",
-        })),
-        ...customRows.map((row) => ({
+
+      // Match the built-in IPTV-EPG directory exactly as auto-match does, but
+      // stop before its AI reranking tier. The category can safely affect only
+      // suggestion ordering; assigning a result still requires a user click.
+      const index = await getIptvEpgChannelIndex();
+      const classified = classifyMatch(query, index);
+      const builtinCandidates: MatchCandidate[] =
+        classified.kind === "exact"
+          ? [{
+              id: classified.xmltvId,
+              name: index.byId.get(classified.xmltvId)?.name ?? classified.xmltvId,
+              score: 1,
+              countryCode: index.byId.get(classified.xmltvId)?.countryCode,
+            }]
+          : classified.kind === "regional" || classified.kind === "ambiguous"
+            ? classified.candidates
+            : retrieveCandidates(query, index, limit);
+
+      const categoryVisual = resolveCategoryVisual(category);
+      const categoryCountry = categoryVisual?.kind === "flag"
+        ? categoryVisual.code.toUpperCase()
+        : "";
+      const orderedCandidates = [...builtinCandidates].sort(
+        (a, b) =>
+          Number(b.countryCode === categoryCountry) - Number(a.countryCode === categoryCountry) ||
+          b.score - a.score ||
+          a.name.localeCompare(b.name),
+      );
+      const builtinIds = orderedCandidates.map((candidate) => candidate.id.toLowerCase());
+      const logoRows = builtinIds.length
+        ? await db
+            .select({
+              xmltvId: epgChannels.channelIdLower,
+              logoUrl: epgChannels.logoUrl,
+            })
+            .from(epgChannels)
+            .where(inArray(epgChannels.channelIdLower, builtinIds))
+        : [];
+      const logos = new Map(
+        logoRows.map((row) => [row.xmltvId, row.logoUrl ?? undefined]),
+      );
+      const builtin: Match[] = orderedCandidates.map((candidate) => ({
+        xmltvId: candidate.id,
+        name: candidate.name,
+        logoUrl: logos.get(candidate.id.toLowerCase()),
+        countryCode: candidate.countryCode,
+        providerId: "iptv-org",
+        providerName: "Built-in EPG",
+      }));
+
+      // Custom guides remain manually searchable, but never displace the
+      // built-in matcher suggestions that the automatic matcher would use.
+      const custom = rankEpgMatches(
+        customRows.map((row) => ({
           xmltvId: row.xmltvId,
           name: row.name,
           logoUrl: row.logoUrl ?? undefined,
           providerId: `custom:${row.sourceId}`,
           providerName: row.sourceName,
         })),
-      ];
-      // A guide id is the thing being assigned. If several providers carry it,
-      // expose it once and keep the best ranked provider as the explanation of
-      // what automatic guide selection will use after assignment.
-      const bestById = new Map<string, Match>();
-      const ranked = rankEpgMatches(candidates, query, Math.max(limit * 8, 40)) as Match[];
-      for (const match of ranked) {
-        const existing = bestById.get(match.xmltvId.toLowerCase());
-        if (!existing || providerRank(match.providerId) < providerRank(existing.providerId)) {
-          bestById.set(match.xmltvId.toLowerCase(), match);
-        }
-      }
-      const results = [...bestById.values()]
-        .sort((a, b) => providerRank(a.providerId) - providerRank(b.providerId) || a.name.localeCompare(b.name))
+        query,
+        limit,
+      ) as Match[];
+      const seen = new Set<string>();
+      const results = [...builtin, ...custom]
+        .filter((match) => {
+          const key = match.xmltvId.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
         .slice(0, limit);
       return NextResponse.json({ results }, {
         headers: {
-          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+          // Results can include a user's custom EPG source, so this authenticated
+          // search response must never be shared through the CDN.
+          "Cache-Control": "private, no-store",
         },
       });
     }
@@ -83,12 +132,16 @@ export async function GET(request: Request) {
     if (ids.length) {
       const user = await requireUser();
       if (user instanceof NextResponse) return user;
-      return NextResponse.json({ builtin: channels, custom: await getUserEpgChannelMaps(user.id, ids) });
+      return NextResponse.json({
+        builtin: await getEpgChannels(),
+        custom: await getUserEpgChannelMaps(user.id, ids),
+      });
     }
 
     // The channel directory is public and identical for every user, and only
     // changes when someone refreshes it from Settings -> EPG. Let the CDN serve
     // it so a ~28k-row read doesn't run against Postgres on every page load.
+    const channels = await getEpgChannels();
     return NextResponse.json(channels, {
       headers: {
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
