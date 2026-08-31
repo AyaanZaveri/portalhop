@@ -45,13 +45,19 @@ export function ChannelRowSkeletons({ count }: { count: number }) {
           key={index}
           className="flex h-[78px] items-center gap-3 rounded-xl pr-1 pl-2"
         >
-          <Skeleton className="size-11 shrink-0 rounded-lg" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <Skeleton className="h-4 w-4/5" />
-            <Skeleton className="h-3 w-2/5" />
-            <div className="flex items-center gap-1.5">
-              <Skeleton className="h-4 w-10 rounded" />
-              <Skeleton className="h-4 w-20 rounded" />
+          {/* Same 66×44 3:2 tile as ChannelLogo — a square skeleton makes
+              every real row visibly jump sideways when artwork resolves. */}
+          <Skeleton className="h-11 w-[66px] shrink-0 rounded-[10px]" />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {/* Channel name → programme title → times/progress is the live-row
+                hierarchy. Keeping it here prevents layout shift once EPG data
+                arrives. */}
+            <Skeleton className="h-3.5 w-2/5" />
+            <Skeleton className="h-3 w-4/5" />
+            <div className="flex min-w-0 items-center gap-2">
+              <Skeleton className="h-2.5 w-8 shrink-0" />
+              <Skeleton className="h-1 min-w-0 flex-1 rounded-full" />
+              <Skeleton className="h-2.5 w-8 shrink-0" />
             </div>
           </div>
         </div>
