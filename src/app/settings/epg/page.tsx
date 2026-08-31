@@ -101,7 +101,7 @@ export default function EpgAndLogosSettingsPage() {
       order={settings.epgProviderOrder}
       onChange={(epgProviderOrder) => updateSettings({ epgProviderOrder })}
     />
-    <section className="flex flex-col gap-1 border-t pt-6"><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">Programme windows refresh in the background. Channel matching uses IPTV-org’s lightweight directory instead of refreshing every XMLTV guide.</p></section>
+    <section className="flex flex-col gap-1 border-t pt-6"><h2 className="text-base font-medium">Built-in EPG</h2><p className="text-sm text-muted-foreground">Programme windows refresh in the background. Channel matching uses a compact local directory generated from IPTV-EPG’s XMLTV database instead of parsing guides on demand.</p></section>
     <section className="flex flex-col gap-3 border-t pt-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-medium">Custom EPG sources</h2><p className="text-sm text-muted-foreground">Reusable XMLTV sources for your portals.</p></div><Button size="sm" onClick={() => { setEditing(null); setSheetOpen(true) }}><PlusIcon />Add source</Button></div>
       {isLoadingSources ? <div className="flex items-center gap-2 px-1 py-3 text-sm"><Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" /><ShimmeringText text="Loading EPG sources." /></div> : sources.length ? <div className="flex flex-col">{sources.map((source) => {
         const isBusy = refreshing === source.id

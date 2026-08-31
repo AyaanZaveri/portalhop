@@ -11,7 +11,7 @@
     "start": "next start",
     "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.mjs",
     "seed:epg": "node scripts/seed-epg.mjs",
-    "refresh:iptv-org-directory": "node scripts/refresh-iptv-org-channel-directory.mjs",
+    "refresh:iptv-epg-directory": "bun scripts/refresh-iptv-epg-directory.mts",
     "encrypt:sources": "node scripts/encrypt-saved-sources.mjs",
     "encrypt:channel-cmds": "node scripts/encrypt-saved-channel-cmds.mjs",
     "lint": "eslint",

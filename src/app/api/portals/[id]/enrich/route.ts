@@ -22,7 +22,7 @@ import {
   type EnrichAiSettings,
   type RerankItem,
 } from "@/lib/channel-enrich-ai"
-import { getIptvOrgChannelDirectory } from "@/lib/iptv-org-channel-directory"
+import { getIptvEpgChannelDirectory } from "@/lib/iptv-epg-channel-directory"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import { resolveCategoryVisual } from "@portalhop/shared/category-flags"
 
@@ -220,10 +220,10 @@ export async function POST(
     return NextResponse.json({ error: "Source not found." }, { status: 404 })
   }
 
-  const epgChannels = await getIptvOrgChannelDirectory()
+  const epgChannels = await getIptvEpgChannelDirectory()
   if (!epgChannels || Object.keys(epgChannels).length === 0) {
     return NextResponse.json(
-      { error: "IPTV-org channel directory is unavailable. Try again shortly." },
+      { error: "IPTV-EPG channel directory is unavailable. Try again shortly." },
       { status: 502 }
     )
   }
