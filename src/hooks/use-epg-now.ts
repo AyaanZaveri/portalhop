@@ -16,7 +16,11 @@ export type NowPlaying = {
   stopAt: number
 }
 
-export type ProgrammeMatch = NowPlaying & { description?: string }
+export type ProgrammeMatch = NowPlaying & {
+  description?: string
+  /** Calculated in the EPG worker alongside its live-first ranking. */
+  isLive: boolean
+}
 
 type Slot = [number, number, string, string?]
 type Windows = Record<string, Record<string, Slot[]>>

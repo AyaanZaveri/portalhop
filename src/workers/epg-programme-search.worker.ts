@@ -5,9 +5,10 @@ type ProgrammeMatch = {
   description?: string
   startAt: number
   stopAt: number
+  isLive: boolean
 }
 
-type IndexedProgramme = ProgrammeMatch & { tokens: string[] }
+type IndexedProgramme = Omit<ProgrammeMatch, "isLive"> & { tokens: string[] }
 
 const RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000]
 const programmes = new Map<string, IndexedProgramme[]>()
@@ -64,7 +65,7 @@ function loadCountry(baseUrl: string, country: string) {
 
 function findMatches(countries: string[], query: string) {
   const terms = tokens(query)
-  const matches = new Map<string, ProgrammeMatch>()
+  const matches = new Map<string, IndexedProgramme>()
   const now = Date.now()
 
   for (const country of countries) {
@@ -80,7 +81,8 @@ function findMatches(countries: string[], query: string) {
     }
   }
 
-  return [...matches.values()].sort((left, right) => {
+  return [...matches.values()]
+    .sort((left, right) => {
     const leftIsLive = left.startAt <= now && left.stopAt > now
     const rightIsLive = right.startAt <= now && right.stopAt > now
 
@@ -88,7 +90,11 @@ function findMatches(countries: string[], query: string) {
     // but are ordered by how soon the programme begins.
     if (leftIsLive !== rightIsLive) return leftIsLive ? -1 : 1
     return left.startAt - right.startAt
-  })
+    })
+    .map((programme) => ({
+      ...programme,
+      isLive: programme.startAt <= now && programme.stopAt > now,
+    }))
 }
 
 function postMatches(id: number, countries: string[], query: string) {

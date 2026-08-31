@@ -774,9 +774,9 @@ export function TvProvider({
     const q = deferredQuery.trim().toLowerCase()
     if (!q) return browserChannels
 
-    // A channel-name match is the strongest intent. Programme hits then widen
-    // the result set, with live programmes before upcoming ones (as ranked by
-    // the EPG worker).
+    // Programme hits are the strongest intent for an event/team search. Keep
+    // the worker's live-first order, then show direct channel-name hits that
+    // did not already earn a programme result, followed by upcoming events.
     const direct = searchableChannels
       .filter((entry) => entry.searchText.includes(q))
       .map((entry) => entry.channel)
@@ -785,14 +785,12 @@ export function TvProvider({
       return direct
     }
 
-    const directChannels = new Set(direct)
     const programmeRanks = new Map(
       [...programmeMatchesById.keys()].map((id, index) => [id, index]),
     )
     const programmeMatches = epgSearchEntries
       .filter(
         (entry) =>
-          !directChannels.has(entry.channel) &&
           programmeRanks.has(normalizeXmltvId(entry.xmltvId)),
       )
       .sort(
@@ -804,7 +802,23 @@ export function TvProvider({
 
     if (!programmeMatches.length) return direct
 
-    return direct.concat(programmeMatches)
+    const liveProgrammeMatches: PortalChannelWithSource[] = []
+    const upcomingProgrammeMatches: PortalChannelWithSource[] = []
+    for (const channel of programmeMatches) {
+      const programme = programmeMatchesById.get(normalizeXmltvId(channel.xmltvId))
+      if (programme?.isLive) {
+        liveProgrammeMatches.push(channel)
+      } else {
+        upcomingProgrammeMatches.push(channel)
+      }
+    }
+
+    const programmeChannels = new Set(programmeMatches)
+    return [
+      ...liveProgrammeMatches,
+      ...direct.filter((channel) => !programmeChannels.has(channel)),
+      ...upcomingProgrammeMatches,
+    ]
   }, [
     browserChannels,
     deferredQuery,
