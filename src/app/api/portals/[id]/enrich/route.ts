@@ -34,7 +34,10 @@ export const maxDuration = 300
 // numbered variants out of this path, so 30 is still compact while requiring
 // materially fewer network round trips than the old 20-item batches.
 const AI_BATCH_SIZE = 30
-const AI_BATCH_CONCURRENCY = 16
+const configuredAiConcurrency = Number(process.env.AI_MATCH_CONCURRENCY)
+const AI_BATCH_CONCURRENCY = Number.isInteger(configuredAiConcurrency)
+  ? Math.min(Math.max(configuredAiConcurrency, 1), 48)
+  : 24
 
 // These describe presentation or distribution, not the broadcaster. They do
 // not provide useful regional evidence for another channel with the same name.
