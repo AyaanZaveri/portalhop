@@ -74,10 +74,7 @@ export function pickRegional(
 const QUALITY_TOKENS = new Set([
   "hd",
   "fhd",
-  "uhd",
   "sd",
-  "4k",
-  "8k",
   "hevc",
   "h265",
   "h264",
@@ -87,11 +84,14 @@ const QUALITY_TOKENS = new Set([
   "bk",
   "alt",
   "raw",
-  "fps50",
-  "fps60",
-  "50fps",
-  "60fps",
 ])
+
+// These are deliberately narrow, human-reviewed abbreviations for channel
+// names. Unlike official aliases they never produce an automatic match: they
+// only make the intended candidate available to the AI reranker.
+const AI_ONLY_ALIASES: Record<string, string[]> = {
+  "SkySportsPremierLeague.uk": ["SSP Premier League"],
+}
 
 /**
  * A leading region/country prefix like `CA - `, `USA| `, `UK: `. Kept short so
@@ -108,10 +108,9 @@ function toTokens(value: string): string[] {
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
-    // Remove standalone rendition labels before splitting embedded channel
-    // numbers. Without this, `4K` turns into the meaningful-looking number
-    // `4` and makes `TSN+ 15 4K` look related to TSN 4K.
-    .replace(/\b(?:4k|8k|uhd|fhd|qhd|h264|h265|hevc)\b/g, " ")
+    // Frame rate is transport metadata, not channel identity. Keep visual
+    // variants such as 4K/UHD intact: TSN 4K is a distinct channel from TSN.
+    .replace(/\b(?:\d{2,3}\s*(?:fps|hz)|(?:fps|hz)\s*\d{2,3})\b/gi, " ")
     .replace(/[^a-z0-9]+/g, " ")
     // Broadcasters commonly write numbered feeds both with and without a
     // space ("TSN1" / "TSN 1", "BBC2" / "BBC 2"). Treat those as the
@@ -125,7 +124,7 @@ function toTokens(value: string): string[] {
     .filter(Boolean)
 }
 
-/** Canonical normalized name (quality tags removed, no region prefix stripped). */
+/** Canonical normalized name (non-identity tags removed, no region prefix stripped). */
 export function normalizeName(raw: string): string {
   return stripQuality(toTokens(raw)).join(" ")
 }
@@ -156,6 +155,8 @@ export function nameKeys(raw: string): string[] {
 export type EpgIndex = {
   /** Normalized-name key → distinct EPG ids sharing it. */
   byName: Map<string, string[]>
+  /** Curated abbreviations that must always be decided by AI. */
+  aiOnlyAliases: Map<string, string[]>
   /** Token → set of entry indexes for fuzzy retrieval. */
   byToken: Map<string, Set<number>>
   entries: {
@@ -180,6 +181,7 @@ export function buildEpgIndex(
     : Object.entries(channels).map(([id, value]) => ({ ...value, id }))
 
   const byName = new Map<string, string[]>()
+  const aiOnlyAliases = new Map<string, string[]>()
   const byToken = new Map<string, Set<number>>()
   const entries: EpgIndex["entries"] = []
   const byId = new Map<string, EpgIndex["entries"][number]>()
@@ -218,6 +220,17 @@ export function buildEpgIndex(
       }
     }
 
+    for (const alias of AI_ONLY_ALIASES[channel.id] ?? []) {
+      for (const key of nameKeys(alias)) {
+        const ids = aiOnlyAliases.get(key)
+        if (ids) {
+          if (!ids.includes(channel.id)) ids.push(channel.id)
+        } else {
+          aiOnlyAliases.set(key, [channel.id])
+        }
+      }
+    }
+
     const retrievalTokens = new Set(tokens)
     for (const alias of channel.alternativeNames ?? []) {
       for (const token of stripQuality(toTokens(alias))) {
@@ -237,7 +250,7 @@ export function buildEpgIndex(
     }
   }
 
-  return { byName, byToken, entries, byId, knownIds }
+  return { byName, aiOnlyAliases, byToken, entries, byId, knownIds }
 }
 
 function diceScore(a: Set<string>, b: Set<string>): number {
@@ -376,6 +389,36 @@ const REGIONAL_BAND = 0.02
  */
 export function classifyMatch(raw: string, index: EpgIndex): ClassifiedMatch {
   const keys = nameKeys(raw)
+
+  // A curated abbreviation merely broadens the AI's short-list. It is
+  // intentionally not part of `byName`, because abbreviations can be reused
+  // by unrelated regional networks.
+  const aiOnlyIds = new Set<string>()
+  for (const key of keys) {
+    for (const id of index.aiOnlyAliases.get(key) ?? []) aiOnlyIds.add(id)
+  }
+  if (aiOnlyIds.size) {
+    const candidates = [
+      ...[...aiOnlyIds].map((id) => ({
+        id,
+        name: index.byId.get(id)?.name ?? id,
+        score: 1,
+        countryCode: index.byId.get(id)?.countryCode,
+      })),
+      ...retrieveCandidates(raw, index),
+    ]
+    const seen = new Set<string>()
+    return {
+      kind: "ambiguous",
+      candidates: candidates
+        .filter((candidate) => {
+          if (seen.has(candidate.id)) return false
+          seen.add(candidate.id)
+          return true
+        })
+        .slice(0, CANDIDATE_LIMIT),
+    }
+  }
 
   // Tier 1: exact normalized-name hit. Multiple hits here share the same
   // normalized name, so they are the same channel in different regions.
