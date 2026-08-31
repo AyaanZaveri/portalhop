@@ -369,7 +369,10 @@ export async function POST(
             const candidates = [...match.candidates]
             if (
               currentXmltvId &&
-              !candidates.some((candidate) => candidate.id === currentXmltvId)
+              !candidates.some(
+                (candidate) =>
+                  candidate.id.toLowerCase() === currentXmltvId.toLowerCase(),
+              )
             ) {
               candidates.unshift({
                 id: currentXmltvId,

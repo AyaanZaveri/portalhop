@@ -39,7 +39,7 @@ You are given a list of channels. Each has a numeric "key", the channel "name" a
 
 Rules:
 - Choose only from the provided candidate ids for that channel. Never invent an id.
-- If a current XMLTV id is supplied, keep it unless another listed candidate is clearly a better match.
+- A current XMLTV id is a previous automatic suggestion, not verified evidence. It may be wrong: choose it only when it is clearly the same channel, and replace it whenever another listed candidate fits the name and category better.
 - Match the actual broadcaster/feed, accounting for regional variants (e.g. "CNN" is not "CNN International" or "CNN en Español"), language, and country. Each candidate may state the country of the EPG source that supplied it; use that metadata to distinguish otherwise-identical names (for example, TSN is Canadian, not Maltese).
 - A source-context line, when present, summarizes country evidence from already verified channels with the same broadcaster tokens. Treat it as strong evidence, but choose only a listed candidate and do not force an unrelated channel to fit it.
 - A category line, when present, is the playlist's own regional/category label. Treat an explicit country there as stronger evidence than other channels in the portal.
