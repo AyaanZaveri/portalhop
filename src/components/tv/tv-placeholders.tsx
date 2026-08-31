@@ -48,12 +48,16 @@ export function ChannelRowSkeletons({ count }: { count: number }) {
           {/* Same 66×44 3:2 tile as ChannelLogo — a square skeleton makes
               every real row visibly jump sideways when artwork resolves. */}
           <Skeleton className="h-11 w-[66px] shrink-0 rounded-[10px]" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            {/* The channel and its event establish the row hierarchy. Leave
-                timing out: a progress rail before EPG resolves looks broken
-                rather than unfinished. */}
-            <Skeleton className="h-3.5 w-2/5" />
-            <Skeleton className="h-3 w-4/5" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            {/* Keep this side identical to the non-EPG row: category first,
+                then the source and XMLTV badges. EPG replaces it only after
+                its programme data has arrived. */}
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-3 w-2/5" />
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="h-4 w-10 rounded" />
+              <Skeleton className="h-4 w-20 rounded" />
+            </div>
           </div>
         </div>
       ))}
