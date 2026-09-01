@@ -1501,7 +1501,15 @@ export function ChannelList({
                                   style={{ width: `${nowProgress}%` }}
                                 />
                               </span>
-                              <span className="shrink-0">
+                              <span
+                                className={cn(
+                                  "shrink-0",
+                                  // The mobile scrollbar overlays the list,
+                                  // so reserve its track rather than letting
+                                  // the programme's end time sit beneath it.
+                                  isMobileLayout && "mr-4",
+                                )}
+                              >
                                 {formatClockTime(nowPlaying.stopAt)}
                               </span>
                             </span>
