@@ -10,7 +10,6 @@ import {
 } from "lucide-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { useTheme } from "next-themes"
-import videojs from "video.js"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -141,74 +140,45 @@ export function LivePlayer({
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
-  const [useHlsFallback, setUseHlsFallback] = useState(false)
-
-  // VHS keeps the HLS stream in MediaSource rather than using Chrome's native
-  // HLS path. Native playback works for some of these feeds, but Chrome does
-  // not expose their live seekable range there, which leaves our DVR controls
-  // at 0:00. Video.js is also the engine used by the working HLS tester.
+  // Attach hls.js directly to our normal video element. Mux and Video.js both
+  // add a layer around this API; their elements/wrappers complicate layout.
+  // This keeps PortalHop's controls on one <video> and handles AVC and HEVC
+  // transport streams through Chrome's MediaSource implementation.
   useEffect(() => {
     if (!playerElement || !streamUrl) return
 
-    if (useHlsFallback) {
-      const hls = new Hls({
-        enableCEA708Captions: true,
-        renderTextTracksNatively: false,
-        liveSyncMode: "buffered",
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 600,
-        maxLiveSyncPlaybackRate: 1,
-        backBufferLength: 90,
-      })
-
-      hls.loadSource(streamUrl)
-      hls.attachMedia(playerElement)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        void playerElement.play().catch(() => {})
-      })
-
-      return () => hls.destroy()
+    if (!Hls.isSupported()) {
+      // eslint-disable-next-line react-hooks/immutability
+      playerElement.src = streamUrl
+      void playerElement.play().catch(() => {})
+      return () => {
+        playerElement.removeAttribute("src")
+        playerElement.load()
+      }
     }
 
-    const player = videojs(playerElement, {
-      // Never silently change the viewer's audio state to make autoplay work.
-      // A stream opened from a channel tap usually plays here; if the browser
-      // blocks that asynchronous play request, the visible play control stays
-      // available instead of starting a muted stream.
-      autoplay: "play",
-      controls: false,
-      preload: "auto",
-      liveui: false,
-      html5: {
-        vhs: {
-          overrideNative: true,
-          allowSeeksWithinUnsafeLiveWindow: true,
-        },
-      },
+    const hls = new Hls({
+      enableCEA708Captions: true,
+      renderTextTracksNatively: false,
+      liveSyncMode: "buffered",
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 600,
+      maxLiveSyncPlaybackRate: 1,
+      backBufferLength: 90,
     })
 
-    player.src({ src: streamUrl, type: "application/x-mpegURL" })
-
-    // VHS can remux AAC from MPEG-TS, but not HEVC video. On one of those
-    // streams audio advances while zero video frames decode. Switch only then
-    // to hls.js, which can pass HEVC through to a browser MSE implementation
-    // that advertises support for it.
-    const hevcFallbackTimer = window.setTimeout(() => {
-      const frames = playerElement.getVideoPlaybackQuality?.().totalVideoFrames
-      if (
-        !playerElement.paused &&
-        playerElement.currentTime > 0 &&
-        frames === 0
-      ) {
-        setUseHlsFallback(true)
-      }
-    }, 8_000)
+    hls.loadSource(streamUrl)
+    hls.attachMedia(playerElement)
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      // Never force muted playback. If an asynchronous autoplay attempt is
+      // blocked, PortalHop's normal play control remains available.
+      void playerElement.play().catch(() => {})
+    })
 
     return () => {
-      window.clearTimeout(hevcFallbackTimer)
-      player.dispose()
+      hls.destroy()
     }
-  }, [playerElement, streamUrl, useHlsFallback])
+  }, [playerElement, streamUrl])
   /**
    * What has been learned about the stream so far, and what was last sent.
    *
@@ -388,7 +358,6 @@ export function LivePlayer({
         setResolveError("")
         setFallbackSeconds(null)
         setFallbackCancelled(false)
-        setUseHlsFallback(false)
         setStreamUrl(url)
       })
       .catch((error: unknown) => {
@@ -1149,7 +1118,7 @@ export function LivePlayer({
     <MediaPlayer
       key={`${channelKey}-${streamUrl}`}
       autoHide
-      className="group/player aspect-video w-full overflow-hidden rounded-lg bg-black [&_.video-js]:size-full [&_.vjs-tech]:size-full"
+      className="group/player aspect-video w-full overflow-hidden rounded-lg bg-black"
     >
       <MediaPlayerVideo
         ref={(element) => setPlayerElement(element ?? null)}
