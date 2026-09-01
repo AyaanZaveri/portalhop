@@ -168,6 +168,13 @@ function Sortable<T>({
   ...props
 }: SortableRootProps<T>) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
+  // The drag overlay is portalled to document.body, outside the list's width
+  // constraint. Keep the source row's exact box so text truncation, wrapping,
+  // and therefore the row's perceived type scale do not change under a finger.
+  const [activeSize, setActiveSize] = useState<{
+    width: number
+    height: number
+  } | null>(null)
   const mounted = useSyncExternalStore(
     subscribeToNothing,
     getIsMounted,
@@ -183,6 +190,8 @@ function Sortable<T>({
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       setActiveId(event.active.id)
+      const rect = event.active.rect.current.initial
+      setActiveSize(rect ? { width: rect.width, height: rect.height } : null)
       onDragStart?.(event)
     },
     [onDragStart]
@@ -192,6 +201,7 @@ function Sortable<T>({
     (event: DragEndEvent) => {
       const { active, over } = event
       setActiveId(null)
+      setActiveSize(null)
       onDragEnd?.(event)
 
       if (!over) return
@@ -227,6 +237,7 @@ function Sortable<T>({
   const handleDragCancel = useCallback(
     (event: DragCancelEvent) => {
       setActiveId(null)
+      setActiveSize(null)
       onDragCancel?.(event)
     },
     [onDragCancel]
@@ -267,16 +278,27 @@ function Sortable<T>({
     let result: ReactNode = null
     Children.forEach(children, (child) => {
       if (!isValidElement(child)) return
-      const childProps = child.props as { value?: unknown; className?: string }
+      const childProps = child.props as {
+        value?: unknown
+        className?: string
+        style?: CSSProperties
+      }
       if (childProps.value === activeId) {
         result = cloneElement(child as ReactElement<Record<string, unknown>>, {
           ...childProps,
           className: cn(childProps.className, "z-50"),
+          style: activeSize
+            ? {
+                ...childProps.style,
+                width: activeSize.width,
+                height: activeSize.height,
+              }
+            : childProps.style,
         })
       }
     })
     return result
-  }, [activeId, children])
+  }, [activeId, activeSize, children])
 
   return (
     <SortableInternalContext.Provider value={contextValue}>
