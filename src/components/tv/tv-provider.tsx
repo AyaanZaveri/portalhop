@@ -428,8 +428,34 @@ export function TvProvider({
       : (result?.channels ?? [])
 
     if (userChannels.length) {
-      if (!iptvOrgChannels.length) return userChannels
-      return [...userChannels, ...iptvOrgChannels]
+      // A fresh source response can briefly omit a logo that the favourite
+      // projection already knows. Retain that last known artwork until the
+      // source supplies a real replacement, so the row never falls through to
+      // the generic TV icon during the cache-to-catalogue handoff.
+      const favoriteArtwork = new Map(
+        favoriteChannels
+          .filter(
+            (channel) =>
+              typeof channel.savedChannelId === "number" &&
+              (channel.logoUrl || channel.sourceLogoUrl),
+          )
+          .map((channel) => [channel.savedChannelId!, channel] as const),
+      )
+      const channelsWithArtwork = userChannels.map((channel) => {
+        const cached =
+          typeof channel.savedChannelId === "number"
+            ? favoriteArtwork.get(channel.savedChannelId)
+            : undefined
+        if (!cached || (channel.logoUrl && channel.sourceLogoUrl)) return channel
+        return {
+          ...channel,
+          logoUrl: channel.logoUrl || cached.logoUrl,
+          sourceLogoUrl: channel.sourceLogoUrl || cached.sourceLogoUrl,
+        }
+      })
+
+      if (!iptvOrgChannels.length) return channelsWithArtwork
+      return [...channelsWithArtwork, ...iptvOrgChannels]
     }
 
     // A favourite snapshot carries only what a row needs. It is intentionally
