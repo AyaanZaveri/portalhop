@@ -267,12 +267,7 @@ export function formatFrameRateLabel(frameRate: number) {
   if (!frameRate) {
     return ""
   }
-  const roundedFrameRate = Math.round(frameRate)
-  const labelValue =
-    Math.abs(frameRate - roundedFrameRate) < 0.05
-      ? String(roundedFrameRate)
-      : String(Number(frameRate.toFixed(2)))
-  return `${labelValue} fps`
+  return `${Math.round(frameRate)} fps`
 }
 
 export function formatBitrateLabel(bitrate: number) {

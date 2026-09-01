@@ -8,7 +8,7 @@ import {
   RotateCcwIcon,
   RotateCwIcon,
 } from "lucide-react"
-import { Hls, getCoreReference } from "@mux/playback-core"
+import { Hls } from "@mux/playback-core"
 import { useTheme } from "next-themes"
 
 import { Badge } from "@/components/ui/badge"
@@ -140,6 +140,10 @@ export function LivePlayer({
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
+  // The player owns hls.js directly. Metrics attach to this exact instance;
+  // getCoreReference only works for Mux-managed playback and therefore became
+  // empty when the transport moved to the direct HLS.js hookup below.
+  const hlsRef = useRef<Hls | null>(null)
   // Attach hls.js directly to our normal video element. Mux and Video.js both
   // add a layer around this API; their elements/wrappers complicate layout.
   // This keeps PortalHop's controls on one <video> and handles AVC and HEVC
@@ -167,6 +171,7 @@ export function LivePlayer({
       backBufferLength: 90,
     })
 
+    hlsRef.current = hls
     hls.loadSource(streamUrl)
     hls.attachMedia(playerElement)
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -176,6 +181,7 @@ export function LivePlayer({
     })
 
     return () => {
+      if (hlsRef.current === hls) hlsRef.current = null
       hls.destroy()
     }
   }, [playerElement, streamUrl])
@@ -433,7 +439,7 @@ export function LivePlayer({
       // With MSE playback, hls.js provides the useful distinction between a
       // recoverable decoder fault and an exhausted request. Let its handler
       // make that call. Native HLS has no engine, so it fails here.
-      if (getCoreReference(video)?.engine) return
+      if (hlsRef.current) return
       failStream("This source could not be played.")
     }
     video.addEventListener("error", failed)
@@ -826,7 +832,7 @@ export function LivePlayer({
     }
 
     const connectToHls = () => {
-      const hls = getCoreReference(playerElement)?.engine
+      const hls = hlsRef.current
       if (!hls) return false
 
       const getActiveLevel = (levelIndex?: number) => {

@@ -82,17 +82,10 @@ export function resolutionLabel({ width, height }: Partial<StreamInfo>) {
   return `${height}p`
 }
 
-/**
- * Rounded only where rounding is honest. 59.94 and 60 are different things and
- * both are common, so a figure that is nearly whole is shown whole and one that
- * is not keeps its decimals.
- */
+/** Frame-count estimates are presentation data; use the same whole-FPS label everywhere. */
 export function frameRateLabel({ frameRate }: Partial<StreamInfo>) {
   if (!frameRate) return null
-  const rounded = Math.round(frameRate)
-  const value =
-    Math.abs(frameRate - rounded) < 0.05 ? rounded : Number(frameRate.toFixed(2))
-  return `${value} fps`
+  return `${Math.round(frameRate)} fps`
 }
 
 /** Megabits, to one decimal: the difference that matters is 2.5 against 6. */
