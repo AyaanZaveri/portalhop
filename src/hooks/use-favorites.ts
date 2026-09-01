@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { authClient } from "@/lib/auth-client"
 import {
   getFavorites,
+  getFavoriteChannels,
   loadFavoritesForUser,
   loadLocalFavorites,
   migrateFavoriteKeys as migrateFavoriteKeysRemote,
@@ -49,6 +50,11 @@ export function useFavorites() {
     getFavorites,
     () => EMPTY
   )
+  const favoriteChannels = React.useSyncExternalStore(
+    subscribeToFavorites,
+    getFavoriteChannels,
+    () => EMPTY_CHANNELS,
+  )
 
   const isFavorite = React.useCallback(
     (channelKey: string) => favorites.has(channelKey),
@@ -76,7 +82,14 @@ export function useFavorites() {
     []
   )
 
-  return { favorites, isFavorite, toggleFavorite, migrateFavoriteKeys }
+  return {
+    favorites,
+    favoriteChannels,
+    isFavorite,
+    toggleFavorite,
+    migrateFavoriteKeys,
+  }
 }
 
 const EMPTY = new Set<string>()
+const EMPTY_CHANNELS: ReturnType<typeof getFavoriteChannels> = []

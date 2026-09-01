@@ -40,6 +40,7 @@ import {
   type BrowseFilter,
 } from "@portalhop/shared/browse-filter"
 import { useFavorites, useFavoritesSync } from "@/hooks/use-favorites"
+import { cacheFavoriteChannels } from "@/lib/favorites"
 import { useEpgProgrammeSearch } from "@/hooks/use-epg-now"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
@@ -228,8 +229,13 @@ export function TvProvider({
     sourcePriorityIds,
     epgProviderOrder,
   } = settings
-  const { favorites, isFavorite, toggleFavorite, migrateFavoriteKeys } =
-    useFavorites()
+  const {
+    favorites,
+    favoriteChannels,
+    isFavorite,
+    toggleFavorite,
+    migrateFavoriteKeys,
+  } = useFavorites()
 
   const [query, setQuery] = useState("")
   // Programme matches are part of normal channel search. Work starts only
@@ -419,12 +425,32 @@ export function TvProvider({
       ? loadedPortalChannels
       : (result?.channels ?? [])
 
+    if (userChannels.length) {
+      if (!iptvOrgChannels.length) return userChannels
+      return [...userChannels, ...iptvOrgChannels]
+    }
+
+    // A favourite snapshot carries only what a row needs. It is intentionally
+    // used only until the real catalogue arrives; that lets Favorites paint
+    // immediately without turning this small cache into a second catalogue.
+    if (favoriteChannels.length) {
+      return favoriteChannels.map(({ source, favoriteKey, ...channel }) => ({
+        ...channel,
+        favoriteKey,
+        portalSource: {
+          ...source,
+          endpoint: "",
+          request: defaultSourceRequest,
+        },
+      }))
+    }
+
     if (!iptvOrgChannels.length) {
       return userChannels
     }
 
     return [...userChannels, ...iptvOrgChannels]
-  }, [loadedPortalChannels, result, iptvOrgChannels])
+  }, [favoriteChannels, loadedPortalChannels, result, iptvOrgChannels])
 
   const searchableChannels = useMemo(() => {
     return browserChannels.map((channel) => ({
@@ -983,17 +1009,60 @@ export function TvProvider({
    */
   const isChannelFavorited = useCallback(
     (channel: PortalChannelWithSource) =>
+      (channel.favoriteKey ? favorites.has(channel.favoriteKey) : false) ||
       isFavoriteKeyed(channel, identityKeyOf(channel), isFavorite) ||
       isFavorite(getLegacyChannelKey(channel)),
-    [identityKeyOf, isFavorite],
+    [favorites, identityKeyOf, isFavorite],
   )
 
   /** The key a new favourite is written under. */
   const favoriteKeyFor = useCallback(
     (channel: PortalChannelWithSource) =>
-      getFavoriteKey(channel, identityKeyOf(channel)),
+      channel.favoriteKey ?? getFavoriteKey(channel, identityKeyOf(channel)),
     [identityKeyOf],
   )
+
+  // Once the full catalogue is here, refresh the tiny IndexedDB projection
+  // used by a future cold start. This stays client-only: portal credentials and
+  // stream commands never enter the projection.
+  useEffect(() => {
+    if (!userId || !loadedPortalChannels.length) return
+
+    const snapshots = browserChannels.flatMap((channel) => {
+      if (!isChannelFavorited(channel) || !channel.portalSource) return []
+
+      const identity = identityKeyOf(channel)
+      const favoriteKey =
+        (identity && favorites.has(identity) && identity) ||
+        (favorites.has(getChannelKey(channel)) && getChannelKey(channel)) ||
+        (favorites.has(getLegacyChannelKey(channel)) &&
+          getLegacyChannelKey(channel))
+
+      if (!favoriteKey) return []
+
+      const { portalSource, cmd: _cmd, ...snapshot } = channel
+      return [{
+        ...snapshot,
+        cmd: "",
+        favoriteKey,
+        source: {
+          id: portalSource.id,
+          name: portalSource.name,
+          epgMode: portalSource.epgMode,
+          epgSourceId: portalSource.epgSourceId,
+        },
+      }]
+    })
+
+    cacheFavoriteChannels(userId, snapshots)
+  }, [
+    browserChannels,
+    favorites,
+    identityKeyOf,
+    isChannelFavorited,
+    loadedPortalChannels.length,
+    userId,
+  ])
 
   // Migrate legacy favorite keys once channels are loaded. A legacy key can map
   // to multiple current keys (duplicate guide metadata), so values are arrays.

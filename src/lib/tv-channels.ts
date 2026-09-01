@@ -54,6 +54,8 @@ export type PortalSource = {
 
 export type PortalChannelWithSource = PortalChannel & {
   portalSource?: PortalSource
+  /** Present only on the compact IndexedDB favourite projection. */
+  favoriteKey?: string
 }
 
 export type StreamVariant = {

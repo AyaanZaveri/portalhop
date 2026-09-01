@@ -4,12 +4,18 @@
 // migrated into the account once, the first time that user loads them.
 
 import { apiFetch } from "@/lib/api-fetch"
+import {
+  getCachedFavoriteChannels,
+  setCachedFavoriteChannels,
+  type CachedFavoriteChannel,
+} from "@/lib/portal-channels-cache"
 
 const legacyStorageKey = "portalhop-favorite-channels"
 
 type Listener = (favorites: Set<string>) => void
 
 let cache = new Set<string>()
+let channelCache: CachedFavoriteChannel[] = []
 const listeners = new Set<Listener>()
 let loadedUserId: string | null = null
 let inFlight: Promise<void> | null = null
@@ -22,11 +28,19 @@ function notify() {
 
 function setCache(next: Set<string>) {
   cache = next
+  // A server refresh is authoritative for membership. Keep a stale card only
+  // while it still represents one of those memberships.
+  channelCache = channelCache.filter((channel) => next.has(channel.favoriteKey))
   notify()
 }
 
 export function getFavorites(): Set<string> {
   return cache
+}
+
+/** Small renderable subset of the catalogue, available before portals load. */
+export function getFavoriteChannels(): CachedFavoriteChannel[] {
+  return channelCache
 }
 
 export function subscribeToFavorites(listener: Listener): () => void {
@@ -58,6 +72,7 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
 
   // Switching accounts (or first load): don't show the previous user's set.
   if (loadedUserId !== null) {
+    channelCache = []
     setCache(new Set())
   }
 
@@ -68,6 +83,15 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
   inFlight = (async () => {
     try {
       const local = readLegacyLocal()
+
+      // IndexedDB is the fast path. It contains the last known renderable rows
+      // as well as their keys, so the Favorites tab can paint while the network
+      // request below verifies the account's current membership.
+      const persisted = await getCachedFavoriteChannels(userId)
+      if (persisted?.length) {
+        channelCache = persisted
+        setCache(new Set(persisted.map((channel) => channel.favoriteKey)))
+      }
 
       if (local.length) {
         await apiFetch("/api/favorites", {
@@ -104,13 +128,30 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
 /** Clears the in-memory cache, e.g. after sign-out. */
 export function clearFavorites() {
   loadedUserId = null
+  channelCache = []
   setCache(new Set())
 }
 
 /** Loads this device's local (signed-out) favorites from localStorage. */
 export function loadLocalFavorites() {
   loadedUserId = null
+  channelCache = []
   setCache(new Set(readLegacyLocal()))
+}
+
+/**
+ * Replaces the persisted display projection after the real catalogue loads.
+ * This never changes the membership set; it only makes the next cold start
+ * capable of drawing those rows before the catalogue is ready.
+ */
+export function cacheFavoriteChannels(
+  userId: string,
+  channels: CachedFavoriteChannel[],
+) {
+  const membership = new Set(cache)
+  const next = channels.filter((channel) => membership.has(channel.favoriteKey))
+  channelCache = next
+  void setCachedFavoriteChannels(userId, next)
 }
 
 /** Toggles a favorite for signed-out users, persisting to localStorage only. */

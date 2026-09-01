@@ -13,7 +13,7 @@ import {
   savedXtreamSources,
 } from "@/db/schema"
 import { parseXtreamFromM3uUrl } from "@/lib/m3u-client"
-import { getEpgChannelLogos, getEpgChannelNames } from "@/lib/epg-store"
+import { getEpgChannelMetadata } from "@/lib/epg-store"
 import { fetchChannelsForPortal } from "@/lib/portal-fetch"
 import {
   nullableString,
@@ -75,8 +75,7 @@ export async function GET(
   // artwork of whichever stream sorted first. Resolving both here rather than
   // in the browser is also what stops the list painting the portal's version
   // and correcting itself a moment later.
-  const epgNames = await getEpgChannelNames(channelIds)
-  const epgLogos = await getEpgChannelLogos(channelIds)
+  const epgMetadata = await getEpgChannelMetadata(channelIds)
   // Still gated: a custom EPG is a feed this user configured for this portal,
   // so it outranks the shared directory rather than standing in for it.
   const customEpgLogos =
@@ -101,7 +100,7 @@ export async function GET(
        * thing distinguishing one stream from another once several sit behind
        * one row -- "SKY SPORTS F1 UHD" against "4K| SKY SPORTS F1".
        */
-      name: epgNames[normalizeXmltvId(channel.xmltvId)] || channel.name,
+      name: epgMetadata[normalizeXmltvId(channel.xmltvId)]?.name || channel.name,
       sourceName: channel.name,
       // Stream commands can be very large and are only needed after the user
       // chooses a channel. They stay in Postgres until /api/channel-link
@@ -119,7 +118,7 @@ export async function GET(
        */
       logoUrl:
         customEpgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
-        epgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
+        epgMetadata[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
         channel.logoUrl,
       sourceLogoUrl: channel.logoUrl,
     })),

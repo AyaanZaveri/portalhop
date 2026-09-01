@@ -314,7 +314,11 @@ export function TvShell({ children }: { children: ReactNode }) {
   // its first fetch is the only thing that can turn an anonymous first visit
   // into a browseable screen; showing an empty state in that gap is misleading.
   const isLoading =
-    isLoadingPortals || (!hasChannels && iptvOrgEnabled && iptvOrgLoading)
+    // A cached favourite projection is enough to browse Favorites while the
+    // full catalogue refreshes in the background. All other views still keep
+    // the established loading shell until their data is complete.
+    (isLoadingPortals && !(browseFilter.type === "favorites" && hasChannels)) ||
+    (!hasChannels && iptvOrgEnabled && iptvOrgLoading)
 
   let content: ReactNode
   if (isLoading) {

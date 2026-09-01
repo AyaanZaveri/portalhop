@@ -18,15 +18,35 @@ const DB_NAME = "portalhop"
 // its streams'. They carry one logoUrl and no sourceLogoUrl, so a row would
 // wear whichever portal sorted first and the sources drawer would show that one
 // mark on every line. Same trap as version 6 and dropped the same way.
-const DB_VERSION = 7
+// Version 8 adds a tiny, per-user favourite-row projection. It is deliberately
+// separate from the catalogue cache: a person with fifteen favourites should
+// not have to deserialize every enabled portal before seeing a useful list.
+const DB_VERSION = 8
 const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 const EPG_WINDOW_STORE_NAME = "epgWindows"
+const FAVORITE_CHANNELS_STORE_NAME = "favoriteChannels"
 
 export type CachedPortalChannels = {
   sourceId: number
   updatedAt: number
   channels: PortalChannel[]
+}
+
+export type CachedFavoriteChannel = PortalChannel & {
+  /** The stored favourite membership this row represents. */
+  favoriteKey: string
+  source: {
+    id: number
+    name: string
+    epgMode: "portal" | "iptv-org" | "custom" | "none"
+    epgSourceId: number | null
+  }
+}
+
+type CachedFavoriteChannels = {
+  userId: string
+  channels: CachedFavoriteChannel[]
 }
 
 type CachedIptvOrgChannels = {
@@ -39,15 +59,25 @@ function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result
-      if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME)
-      db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
+      // Versions through 6 stored incompatible catalogue shapes. Version 8
+      // only adds the small favourite store, so preserve valid v7 catalogues
+      // instead of making every returning user pay for a cold reload.
+      if (event.oldVersion < 7 && db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME)
+      }
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "sourceId" })
+      }
       if (!db.objectStoreNames.contains(IPTV_ORG_STORE_NAME)) {
         db.createObjectStore(IPTV_ORG_STORE_NAME, { keyPath: "id" })
       }
       if (!db.objectStoreNames.contains(EPG_WINDOW_STORE_NAME)) {
         db.createObjectStore(EPG_WINDOW_STORE_NAME, { keyPath: "key" })
+      }
+      if (!db.objectStoreNames.contains(FAVORITE_CHANNELS_STORE_NAME)) {
+        db.createObjectStore(FAVORITE_CHANNELS_STORE_NAME, { keyPath: "userId" })
       }
     }
 
@@ -185,6 +215,31 @@ export async function setCachedIptvOrgChannels(
 ): Promise<void> {
   await withStore(IPTV_ORG_STORE_NAME, "readwrite", (store) =>
     store.put({ id: "catalogue", expiresAt, channels }),
+  )
+}
+
+/**
+ * The cached rows are a display projection, not a second source of truth for
+ * favourites. Membership still comes from /api/favorites and trims this list
+ * after a background refresh.
+ */
+export async function getCachedFavoriteChannels(
+  userId: string,
+): Promise<CachedFavoriteChannel[] | null> {
+  const cached = await withStore<CachedFavoriteChannels>(
+    FAVORITE_CHANNELS_STORE_NAME,
+    "readonly",
+    (store) => store.get(userId),
+  )
+  return cached?.channels ?? null
+}
+
+export async function setCachedFavoriteChannels(
+  userId: string,
+  channels: CachedFavoriteChannel[],
+): Promise<void> {
+  await withStore(FAVORITE_CHANNELS_STORE_NAME, "readwrite", (store) =>
+    store.put({ userId, channels }),
   )
 }
 

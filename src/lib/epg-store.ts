@@ -180,6 +180,40 @@ export async function getEpgChannelLogos(channelIds: string[]) {
   return result
 }
 
+/**
+ * The catalogue route needs both fields. Looking them up together halves the
+ * number of chunked database round trips for a large source.
+ */
+export async function getEpgChannelMetadata(channelIds: string[]) {
+  const ids = [...new Set(channelIds.map(normalizeXmltvId).filter(Boolean))]
+  const result: Record<
+    string,
+    { name?: string; logoUrl?: string; countryCode: string }
+  > = {}
+
+  for (let index = 0; index < ids.length; index += 2_000) {
+    const rows = await getDb()
+      .select({
+        channelIdLower: epgChannels.channelIdLower,
+        name: epgChannels.name,
+        logoUrl: epgChannels.logoUrl,
+        countryCode: epgChannels.countryCode,
+      })
+      .from(epgChannels)
+      .where(inArray(epgChannels.channelIdLower, ids.slice(index, index + 2_000)))
+
+    for (const row of rows) {
+      result[row.channelIdLower] = {
+        name: stripCountryPrefix(row.name) || undefined,
+        logoUrl: row.logoUrl ?? undefined,
+        countryCode: row.countryCode,
+      }
+    }
+  }
+
+  return result
+}
+
 export async function findEpgSourceForChannel(
   candidates: { id?: string; name?: string }[]
 ) {
