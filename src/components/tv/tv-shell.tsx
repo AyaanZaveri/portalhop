@@ -141,7 +141,13 @@ export function TvShell({ children }: { children: ReactNode }) {
    * times as long.
    */
   const probeSources = useCallback(
-    async (streams: PortalChannelWithSource[], onProgress: () => void) => {
+    async (
+      streams: PortalChannelWithSource[],
+      onProbeState: (
+        stream: PortalChannelWithSource,
+        state: "start" | "complete",
+      ) => void,
+    ) => {
       const queues = new Map<string, PortalChannelWithSource[]>()
       for (const stream of streams) {
         const sourceKey = `source:${stream.portalSource?.id ?? stream.portalSource?.name ?? "manual"}`
@@ -156,6 +162,7 @@ export function TvShell({ children }: { children: ReactNode }) {
         [...queues.values()].map(async (queue) => {
           for (const stream of queue) {
             try {
+              onProbeState(stream, "start")
               const streamUrl = await resolveChannelLink(stream, {
                 endpoint,
                 portalRequest: previewSourceRequest,
@@ -170,7 +177,7 @@ export function TvShell({ children }: { children: ReactNode }) {
             } catch {
               failed += 1
             } finally {
-              onProgress()
+              onProbeState(stream, "complete")
             }
           }
         }),

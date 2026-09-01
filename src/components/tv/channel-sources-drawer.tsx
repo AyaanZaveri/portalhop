@@ -29,6 +29,7 @@ import {
 } from "@/components/reui/sortable"
 import { Badge } from "@/components/ui/badge"
 import { ChannelLogo } from "@/components/tv/channel-logo"
+import { ShimmeringText } from "@/components/ui/shimmering-text"
 import { getChannelKey } from "@portalhop/shared/channel-keys"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
 import type { EpgMode } from "@portalhop/shared/source-types"
@@ -111,7 +112,10 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   /** Drops the channel back to the ranking. */
   onResetGuide?: () => void
   /** Probes all source streams, reporting completion one row at a time. */
-  onProbeAll?: (sources: T[], onProgress: () => void) => Promise<void>
+  onProbeAll?: (
+    sources: T[],
+    onProbeState: (source: T, state: "start" | "complete") => void,
+  ) => Promise<void>
   getLogoUrl: (source: T) => string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -134,6 +138,9 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   const { streamInfo } = useTv()
   const [mode, setMode] = useState<"browse" | "edit" | "reorder">("browse")
   const [probeProgress, setProbeProgress] = useState<number | null>(null)
+  const [probingSourceKeys, setProbingSourceKeys] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [customGuideNames, setCustomGuideNames] = useState<Record<number, string>>({})
   useEffect(() => {
     if (!open) return
@@ -196,12 +203,23 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
   const probeAll = async () => {
     if (!onProbeAll || probeProgress !== null) return
     setProbeProgress(0)
+    setProbingSourceKeys(new Set())
     try {
-      await onProbeAll(sources, () => {
-        setProbeProgress((current) => (current ?? 0) + 1)
+      await onProbeAll(sources, (source, state) => {
+        const key = getChannelKey(source)
+        setProbingSourceKeys((current) => {
+          const next = new Set(current)
+          if (state === "start") next.add(key)
+          else next.delete(key)
+          return next
+        })
+        if (state === "complete") {
+          setProbeProgress((current) => (current ?? 0) + 1)
+        }
       })
     } finally {
       setProbeProgress(null)
+      setProbingSourceKeys(new Set())
     }
   }
 
@@ -331,6 +349,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                     <ChannelLogo url={getLogoUrl(source)} />
                     <SourceLabels
                       source={source}
+                      probing={probingSourceKeys.has(getChannelKey(source))}
                       info={
                         source.savedChannelId == null
                           ? undefined
@@ -357,6 +376,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
               ) : null}
               {sources.map((source) => {
                 const isActive = getChannelKey(source) === activeSourceKey
+                const isProbing = probingSourceKeys.has(getChannelKey(source))
                 return (
                   <div
                     key={getChannelKey(source)}
@@ -371,6 +391,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                       <ChannelLogo url={getLogoUrl(source)} />
                       <SourceLabels
                         source={source}
+                        probing={isProbing}
                         info={
                           source.savedChannelId == null
                             ? undefined
@@ -429,9 +450,11 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
 function SourceLabels({
   source,
   info,
+  probing = false,
 }: {
   source: SourceChannel
   info?: StreamInfo
+  probing?: boolean
 }) {
   const sourceName = source.portalSource?.name ?? "Manual"
   const streamName = source.sourceName || source.name || "Unnamed channel"
@@ -443,7 +466,15 @@ function SourceLabels({
   // is a list of the same channel arriving five ways.
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left leading-tight">
-      <span className="truncate font-medium">{streamName}</span>
+      {probing ? (
+        <ShimmeringText
+          text={streamName}
+          duration={1.25}
+          className="max-w-full truncate font-medium"
+        />
+      ) : (
+        <span className="truncate font-medium">{streamName}</span>
+      )}
       {/* The portal and the figures as one set of badges: they are the same
           kind of thing, a short fact about this stream, and the portal is the
           one every row has. The figures follow, and only for streams somebody

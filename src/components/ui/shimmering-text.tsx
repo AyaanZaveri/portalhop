@@ -30,7 +30,7 @@ export function ShimmeringText({
   return (
     <span
       className={cn(
-        "inline-block animate-shimmer-text bg-[length:250%_100%,auto] bg-clip-text text-transparent",
+        "inline-block animate-shimmer-text bg-[length:250%_100%,auto] bg-clip-text text-transparent motion-reduce:animate-none",
         className
       )}
       style={
