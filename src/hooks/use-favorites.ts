@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client"
 import {
   getFavorites,
   getFavoriteChannels,
+  getFavoritesLoading,
   loadFavoritesForUser,
   loadLocalFavorites,
   migrateFavoriteKeys as migrateFavoriteKeysRemote,
@@ -43,7 +44,8 @@ export function useFavoritesSync() {
 }
 
 export function useFavorites() {
-  const userId = useFavoritesSync()
+  const { data, isPending: sessionPending } = authClient.useSession()
+  const userId = data?.user?.id ?? null
 
   const favorites = React.useSyncExternalStore(
     subscribeToFavorites,
@@ -54,6 +56,11 @@ export function useFavorites() {
     subscribeToFavorites,
     getFavoriteChannels,
     () => EMPTY_CHANNELS,
+  )
+  const isLoading = React.useSyncExternalStore(
+    subscribeToFavorites,
+    getFavoritesLoading,
+    () => true,
   )
 
   const isFavorite = React.useCallback(
@@ -85,6 +92,7 @@ export function useFavorites() {
   return {
     favorites,
     favoriteChannels,
+    isLoading: sessionPending || isLoading,
     isFavorite,
     toggleFavorite,
     migrateFavoriteKeys,

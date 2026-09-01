@@ -182,6 +182,7 @@ export function ChannelList({
     categorySearch,
     setCategorySearch,
     favorites,
+    favoritesLoading,
     isChannelFavorited,
     favoriteKeyFor,
     toggleFavorite,
@@ -1606,6 +1607,10 @@ export function ChannelList({
                 </div>
               )
             })}
+          </div>
+        ) : browseFilter.type === "favorites" && favoritesLoading ? (
+          <div aria-label="Loading favorites">
+            <ChannelRowSkeletons count={14} />
           </div>
         ) : isRestoringFavoriteGroup &&
           browseFilter.type === "favoriteGroup" ? (

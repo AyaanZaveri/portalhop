@@ -16,6 +16,7 @@ type Listener = (favorites: Set<string>) => void
 
 let cache = new Set<string>()
 let channelCache: CachedFavoriteChannel[] = []
+let loading = true
 const listeners = new Set<Listener>()
 let loadedUserId: string | null = null
 let inFlight: Promise<void> | null = null
@@ -29,8 +30,24 @@ function notify() {
 function setCache(next: Set<string>) {
   cache = next
   // A server refresh is authoritative for membership. Keep a stale card only
-  // while it still represents one of those memberships.
-  channelCache = channelCache.filter((channel) => next.has(channel.favoriteKey))
+  // while it still represents one of those memberships, and place the cards
+  // in the same insertion order as the server's manually ordered key list.
+  const cardsByKey = new Map<string, CachedFavoriteChannel>()
+  for (const channel of channelCache) {
+    if (!cardsByKey.has(channel.favoriteKey)) {
+      cardsByKey.set(channel.favoriteKey, channel)
+    }
+  }
+  channelCache = [...next].flatMap((key) => {
+    const channel = cardsByKey.get(key)
+    return channel ? [channel] : []
+  })
+  notify()
+}
+
+function setLoading(next: boolean) {
+  if (loading === next) return
+  loading = next
   notify()
 }
 
@@ -41,6 +58,10 @@ export function getFavorites(): Set<string> {
 /** Small renderable subset of the catalogue, available before portals load. */
 export function getFavoriteChannels(): CachedFavoriteChannel[] {
   return channelCache
+}
+
+export function getFavoritesLoading(): boolean {
+  return loading
 }
 
 export function subscribeToFavorites(listener: Listener): () => void {
@@ -80,6 +101,8 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
     return inFlight
   }
 
+  setLoading(true)
+
   inFlight = (async () => {
     try {
       const local = readLegacyLocal()
@@ -91,6 +114,9 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
       if (persisted?.length) {
         channelCache = persisted
         setCache(new Set(persisted.map((channel) => channel.favoriteKey)))
+        // A usable stale projection is better than a blank state. Membership
+        // still refreshes below and can remove cards that changed elsewhere.
+        setLoading(false)
       }
 
       if (local.length) {
@@ -109,6 +135,10 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
           ? (data.favorites as unknown[]).map(String)
           : []
         setCache(new Set(keys))
+        // Correct snapshots created by the first projection release, which
+        // were accidentally written in catalogue order, as soon as the
+        // authoritative favourite order arrives.
+        void setCachedFavoriteChannels(userId, channelCache)
         loadedUserId = userId
 
         if (local.length && typeof window !== "undefined") {
@@ -118,6 +148,7 @@ export async function loadFavoritesForUser(userId: string): Promise<void> {
         }
       }
     } finally {
+      setLoading(false)
       inFlight = null
     }
   })()
@@ -130,6 +161,7 @@ export function clearFavorites() {
   loadedUserId = null
   channelCache = []
   setCache(new Set())
+  setLoading(true)
 }
 
 /** Loads this device's local (signed-out) favorites from localStorage. */
@@ -137,6 +169,7 @@ export function loadLocalFavorites() {
   loadedUserId = null
   channelCache = []
   setCache(new Set(readLegacyLocal()))
+  setLoading(false)
 }
 
 /**
@@ -148,8 +181,19 @@ export function cacheFavoriteChannels(
   userId: string,
   channels: CachedFavoriteChannel[],
 ) {
-  const membership = new Set(cache)
-  const next = channels.filter((channel) => membership.has(channel.favoriteKey))
+  // `cache` is a Set specifically because insertion order is the user's saved
+  // manual favorite order. The catalogue scan that produced `channels` has a
+  // different, provider-defined order, so never persist it directly.
+  const cardsByKey = new Map<string, CachedFavoriteChannel>()
+  for (const channel of channels) {
+    if (!cardsByKey.has(channel.favoriteKey)) {
+      cardsByKey.set(channel.favoriteKey, channel)
+    }
+  }
+  const next = [...cache].flatMap((key) => {
+    const channel = cardsByKey.get(key)
+    return channel ? [channel] : []
+  })
   channelCache = next
   void setCachedFavoriteChannels(userId, next)
 }

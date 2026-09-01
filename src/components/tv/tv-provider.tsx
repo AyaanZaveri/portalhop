@@ -176,6 +176,7 @@ type TvContextValue = {
 
   // Favorites
   favorites: Set<string>
+  favoritesLoading: boolean
   isChannelFavorited: (channel: PortalChannelWithSource) => boolean
   /** The key a new favourite for this channel should be written under. */
   favoriteKeyFor: (channel: PortalChannelWithSource) => string
@@ -232,6 +233,7 @@ export function TvProvider({
   const {
     favorites,
     favoriteChannels,
+    isLoading: favoritesLoading,
     isFavorite,
     toggleFavorite,
     migrateFavoriteKeys,
@@ -1309,6 +1311,7 @@ export function TvProvider({
       categorySearch,
       setCategorySearch,
       favorites,
+      favoritesLoading,
       isChannelFavorited,
       favoriteKeyFor,
       countResolvedChannels,
@@ -1362,6 +1365,7 @@ export function TvProvider({
       categoryMenuOpen,
       categorySearch,
       favorites,
+      favoritesLoading,
       isChannelFavorited,
       favoriteKeyFor,
       countResolvedChannels,
