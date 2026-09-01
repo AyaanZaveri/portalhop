@@ -13,14 +13,16 @@ export function m3uExtinf({
   logo: string
   genre: string
 }) {
-  return [
-    "#EXTINF:-1",
+  const attributes = [
     `tvg-id="${escapeM3uAttribute(xmltvId)}"`,
     `tvg-name="${escapeM3uAttribute(displayName)}"`,
     `tvg-logo="${escapeM3uAttribute(logo)}"`,
     `group-title="${escapeM3uAttribute(genre)}"`,
-    `,${escapeM3uText(displayName)}`,
   ].join(" ")
+
+  // The comma must immediately follow the final attribute: it separates the
+  // M3U Plus metadata from the user-visible channel name.
+  return `#EXTINF:-1 ${attributes},${escapeM3uText(displayName)}`
 }
 
 export function escapeM3uAttribute(value: string) {

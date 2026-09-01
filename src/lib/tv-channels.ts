@@ -1,5 +1,11 @@
-import type { PortalChannel, PortalResponse } from "@portalhop/shared/stalker-types"
-import type { SavedSourceRecord, SourceRequest } from "@portalhop/shared/source-types"
+import type {
+  PortalChannel,
+  PortalResponse,
+} from "@portalhop/shared/stalker-types"
+import type {
+  SavedSourceRecord,
+  SourceRequest,
+} from "@portalhop/shared/source-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import {
   buildChannelIndex,
@@ -132,6 +138,11 @@ export function getExternalPlayerUrl(
 }
 
 const proxyBaseUrl = process.env.NEXT_PUBLIC_PROXY_URL?.replace(/\/$/, "")
+// MediaFlow validates each manifest and segment request independently. This is
+// intentionally public: proxy URLs are fetched directly by hls.js, not by our
+// server, so a server-only value could never reach MediaFlow without relaying
+// the entire video stream through Vercel.
+const mediaflowApiPassword = process.env.NEXT_PUBLIC_MEDIAFLOW_API_PASSWORD
 
 export const defaultSourceRequest: SourceRequest = {
   sourceType: "stalker",
@@ -170,7 +181,9 @@ export async function resolveChannelLink(
   // credentials and its stream command remain private. The browser only ever
   // receives the compact catalogue fields until playback is requested.
   const savedChannelRequest =
-    typeof sourceId === "number" && sourceId > 0 && typeof savedChannelId === "number"
+    typeof sourceId === "number" &&
+    sourceId > 0 &&
+    typeof savedChannelId === "number"
       ? { sourceId, savedChannelId }
       : null
 
@@ -208,6 +221,9 @@ export function proxyStreamUrl(streamUrl: string) {
 
   const url = new URL(`${proxyBaseUrl}/proxy/hls/manifest.m3u8`)
   url.searchParams.set("d", streamUrl)
+  if (mediaflowApiPassword) {
+    url.searchParams.set("api_password", mediaflowApiPassword)
+  }
   return url.href
 }
 
@@ -280,8 +296,6 @@ export function snapToCommonFrameRate(frameRate: number) {
 
   return smallestDiff / closest < 0.04 ? closest : frameRate
 }
-
-
 
 export function getPortalSource(portal: SavedPortalRecord): PortalSource {
   if (portal.sourceType === "xtream") {
@@ -365,11 +379,12 @@ export async function loadPortalChannels(
   cachedEntry?: CachedPortalChannels | null,
 ): Promise<PortalResponse> {
   const updatedAt = new Date(portal.updatedAt).getTime()
-  const cached = cachedEntry === undefined
-    ? (Number.isFinite(updatedAt)
-      ? await getCachedPortalChannels(portal.id)
-      : null)
-    : cachedEntry
+  const cached =
+    cachedEntry === undefined
+      ? Number.isFinite(updatedAt)
+        ? await getCachedPortalChannels(portal.id)
+        : null
+      : cachedEntry
 
   if (cached && cached.updatedAt === updatedAt) {
     return {
@@ -477,7 +492,3 @@ export function uniqueGenres(channels: PortalChannel[]) {
 }
 
 // --- URL identity -----------------------------------------------------------
-
-
-
-

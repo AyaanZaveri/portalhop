@@ -1,10 +1,11 @@
-import { and, eq, inArray, or } from "drizzle-orm"
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 import { getDb } from "@/db/client"
+import { listChannelSourceOrder } from "@/db/channel-source-order"
 import { getUserIdByFavoritesToken } from "@/db/favorites-token"
 import { selectSavedSource } from "@/db/saved-sources"
-import { favorites, savedChannels } from "@/db/schema"
+import { favorites, savedChannels, savedSources } from "@/db/schema"
 import { selectUserEpgSources } from "@/db/user-epg-sources"
 import { getUserSettings } from "@/db/user-settings"
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
@@ -15,6 +16,7 @@ import { filenameSafe, m3uExtinf } from "@portalhop/shared/m3u-export"
 import { getUserEpgChannelMaps } from "@/lib/user-epg-store"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 import type { SavedSourceRecord } from "@portalhop/shared/source-types"
+import { logoTileKey } from "@/lib/logo-tile"
 
 export const runtime = "nodejs"
 
@@ -23,6 +25,8 @@ type ParsedFavorite = {
   savedChannelId: number | null
   channelId: string
 }
+
+type FavoriteRow = ParsedFavorite & { position: number }
 
 /**
  * Public (token-gated, not session-gated) M3U Plus export of every channel
@@ -46,13 +50,79 @@ export async function GET(
   const settings = await getUserSettings(db, userId)
 
   const favoriteRows = await db
-    .select({ channelKey: favorites.channelKey })
+    .select({ channelKey: favorites.channelKey, position: favorites.position })
     .from(favorites)
     .where(eq(favorites.userId, userId))
+    .orderBy(asc(favorites.position))
 
   const parsed = favoriteRows
-    .map((row) => parseChannelKey(row.channelKey))
-    .filter((value): value is ParsedFavorite => value !== null)
+    .map((row) => {
+      const favorite = parseChannelKey(row.channelKey)
+      return favorite ? { ...favorite, position: row.position } : null
+    })
+    .filter((value): value is FavoriteRow => value !== null)
+
+  // Current favourites are channel-level (`id:<xmltv-id>`), while the older
+  // JSON keys identify one source copy. Resolve the current form first so the
+  // export has one playable stream per channel rather than every duplicate.
+  const favoriteIdentityIds = [
+    ...new Set(
+      favoriteRows
+        .map((row) => parseFavoriteIdentity(row.channelKey))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]
+  const sourceOrder = await listChannelSourceOrder(db, userId)
+  const identityCandidates = favoriteIdentityIds.length
+    ? await db
+        .select({ channel: savedChannels })
+        .from(savedChannels)
+        .innerJoin(savedSources, eq(savedChannels.sourceId, savedSources.id))
+        .where(
+          and(
+            eq(savedSources.userId, userId),
+            inArray(
+              sql<string>`lower(${savedChannels.xmltvId})`,
+              favoriteIdentityIds,
+            ),
+          ),
+        )
+    : []
+  const identityRowsBySource = new Map<
+    number,
+    (typeof savedChannels.$inferSelect)[]
+  >()
+  const resolvedIdentityIds = new Set<string>()
+  for (const identityId of favoriteIdentityIds) {
+    const candidates = identityCandidates
+      .map((row) => row.channel)
+      .filter((channel) => normalizeXmltvId(channel.xmltvId) === identityId)
+    if (!candidates.length) continue
+
+    const manuallyOrdered = sourceOrder[`id:${identityId}`] ?? []
+    const priorityRank = (sourceId: number) => {
+      const index = settings.sourcePriorityIds.indexOf(sourceId)
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index
+    }
+    candidates.sort((left, right) => {
+      const leftManual = manuallyOrdered.indexOf(left.id)
+      const rightManual = manuallyOrdered.indexOf(right.id)
+      const leftRank = leftManual === -1 ? Number.MAX_SAFE_INTEGER : leftManual
+      const rightRank =
+        rightManual === -1 ? Number.MAX_SAFE_INTEGER : rightManual
+      return (
+        leftRank - rightRank ||
+        priorityRank(left.sourceId) - priorityRank(right.sourceId) ||
+        left.sourceId - right.sourceId ||
+        left.id - right.id
+      )
+    })
+    const chosen = candidates[0]
+    const selectedForSource = identityRowsBySource.get(chosen.sourceId) ?? []
+    selectedForSource.push(chosen)
+    identityRowsBySource.set(chosen.sourceId, selectedForSource)
+    resolvedIdentityIds.add(identityId)
+  }
 
   const groups = new Map<number, ParsedFavorite[]>()
   for (const fav of parsed) {
@@ -69,12 +139,13 @@ export async function GET(
   // don't fetch program data live (most of them) can still show a guide.
   const epgUrls = new Set<string>()
 
-  const portalGroups = [...groups.entries()].filter(
-    ([sourceId]) => sourceId !== IPTV_ORG_SOURCE_ID,
-  )
+  const portalSourceIds = new Set([
+    ...[...groups.keys()].filter((sourceId) => sourceId !== IPTV_ORG_SOURCE_ID),
+    ...identityRowsBySource.keys(),
+  ])
 
   const sources = new Map<number, SavedSourceRecord>()
-  for (const [sourceId] of portalGroups) {
+  for (const sourceId of portalSourceIds) {
     const source = await selectSavedSource(db, sourceId)
     // Ownership check: a channelKey only ever encodes the source id, so this
     // also guards against a source having been deleted, transferred, or (if
@@ -162,30 +233,39 @@ export async function GET(
     }
   }
 
-  for (const [sourceId, favs] of portalGroups) {
+  for (const sourceId of portalSourceIds) {
     const source = sources.get(sourceId)
     if (!source) {
       continue
     }
 
+    const favs = groups.get(sourceId) ?? []
     const rows = await selectFavoritedChannels(db, sourceId, favs)
     const byRowId = new Map(rows.map((row) => [row.id, row]))
     const byChannelId = new Map(rows.map((row) => [row.channelId, row]))
     const seenRowIds = new Set<number>()
 
+    const selectedRows: (typeof savedChannels.$inferSelect)[] = []
     for (const fav of favs) {
       const row =
         (fav.savedChannelId !== null
           ? byRowId.get(fav.savedChannelId)
           : undefined) ?? byChannelId.get(fav.channelId)
 
-      if (!row) {
-        continue
-      }
+      if (!row) continue
 
-      // Legacy channelKeys (no savedChannelId) and stale savedChannelIds
-      // pointing at a channel that's since been re-synced can both resolve
-      // to the same current row; only emit each saved-channel row once.
+      // A channel-level favourite already chose this channel's best source.
+      // Do not add a stale per-source favourite as a duplicate beneath it.
+      if (resolvedIdentityIds.has(normalizeXmltvId(row.xmltvId))) continue
+      selectedRows.push(row)
+    }
+    for (const row of identityRowsBySource.get(sourceId) ?? []) {
+      selectedRows.push(row)
+    }
+
+    for (const row of selectedRows) {
+      // Legacy channelKeys (no savedChannelId) and a current channel-level
+      // favourite can both resolve to the same current row; emit it once.
       if (seenRowIds.has(row.id)) {
         continue
       }
@@ -241,7 +321,13 @@ export async function GET(
         m3uExtinf({
           xmltvId: row.xmltvId,
           displayName: row.name || row.number || `Channel ${row.channelId}`,
-          logo: proxyImageUrl(logo, settings.useImageProxy),
+          logo:
+            favoriteLogoTileUrl(
+              request.url,
+              token,
+              row.id,
+              row.logoUrl || row.logo,
+            ) || proxyImageUrl(logo, settings.useImageProxy),
           genre: row.genre,
         }),
         streamUrl,
@@ -249,8 +335,12 @@ export async function GET(
     }
   }
 
-  const header = epgUrls.size
-    ? `#EXTM3U playlist="Favorites" url-tvg="${[...epgUrls].join(",")}"`
+  const epgUrlList = [...epgUrls].join(",")
+  const header = epgUrlList
+    ? // `url-tvg` and `x-tvg-url` are aliases in M3U Plus. Including both lets
+      // players with either convention fetch the XMLTV guides that carry Now,
+      // Next, and future programme data for the tvg-id values below.
+      `#EXTM3U playlist="Favorites" url-tvg="${epgUrlList}" x-tvg-url="${epgUrlList}"`
     : '#EXTM3U playlist="Favorites"'
 
   return new NextResponse(`${[header, ...bodyLines].join("\n")}\n`, {
@@ -262,6 +352,20 @@ export async function GET(
   })
 }
 
+function favoriteLogoTileUrl(
+  requestUrl: string,
+  token: string,
+  channelId: number,
+  logoUrl: string,
+) {
+  if (!logoUrl) return ""
+  const url = new URL(
+    `/api/favorites/${encodeURIComponent(token)}/logos/${channelId}/${logoTileKey(logoUrl)}.png`,
+    requestUrl,
+  )
+  return url.href
+}
+
 function proxyStreamUrl(streamUrl: string, enabled: boolean) {
   const proxyBaseUrl = process.env.NEXT_PUBLIC_PROXY_URL
   if (!enabled || !proxyBaseUrl) {
@@ -269,6 +373,12 @@ function proxyStreamUrl(streamUrl: string, enabled: boolean) {
   }
   const url = new URL(`${proxyBaseUrl}/proxy/hls/manifest.m3u8`)
   url.searchParams.set("d", streamUrl)
+  // Favorites M3U consumers fetch MediaFlow directly, so this is the same
+  // public, per-request credential the web player's hls.js requests use.
+  const mediaflowApiPassword = process.env.NEXT_PUBLIC_MEDIAFLOW_API_PASSWORD
+  if (mediaflowApiPassword) {
+    url.searchParams.set("api_password", mediaflowApiPassword)
+  }
   return url.href
 }
 
@@ -295,6 +405,12 @@ function parseChannelKey(channelKey: string): ParsedFavorite | null {
   } catch {
     return null
   }
+}
+
+function parseFavoriteIdentity(channelKey: string): string | null {
+  if (!channelKey.startsWith("id:")) return null
+  const id = normalizeXmltvId(channelKey.slice(3))
+  return id || null
 }
 
 async function selectFavoritedChannels(
