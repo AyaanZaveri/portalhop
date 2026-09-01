@@ -75,6 +75,7 @@ import {
   groupChannels,
   orderByChosenSource,
 } from "@portalhop/shared/channel-grouping"
+import { featuredChannelRank } from "@portalhop/shared/featured-channels"
 import { isFavoriteKeyed } from "@portalhop/shared/channel-keys"
 import { ChannelLogo } from "@/components/tv/channel-logo"
 import { CategoryVisual } from "@/components/category-visual"
@@ -579,14 +580,58 @@ export function ChannelList({
    * the representative's own channel key, so nothing stored changes shape and
    * this can be turned off without a migration.
    */
-  const groupedChannels = useMemo(
-    () =>
-      groupChannels(visibleChannels).map(
-        (group) =>
-          orderByChosenSource(group.members, sourceOrder, trustedIds)[0],
-      ),
-    [sourceOrder, trustedIds, visibleChannels],
-  )
+  const groupedChannels = useMemo(() => {
+    const grouped = groupChannels(visibleChannels).map(
+      (group) => orderByChosenSource(group.members, sourceOrder, trustedIds)[0],
+    )
+
+    // Search already has a relevance order, and categories should retain their
+    // own catalogue order. The unsearched All view is the one that needs a
+    // useful front door: selected, guide-backed channels first, then every
+    // other guide-backed row alphabetically, then the rows with no guide.
+    if (browseFilter.type !== "all" || query.trim()) return grouped
+
+    // Resolve each guide once. Calling channelEpg from inside the comparison
+    // would repeat the same work O(n log n) times for a large catalogue.
+    return grouped
+      .map((channel) => {
+        const epgId = channelEpg(channel)?.stream.xmltvId
+        return {
+          channel,
+          hasEpg: Boolean(epgId),
+          featuredRank: featuredChannelRank(epgId),
+        }
+      })
+      .toSorted((left, right) => {
+        const leftFeaturedRank = left.featuredRank
+        const rightFeaturedRank = right.featuredRank
+
+        if (leftFeaturedRank != null || rightFeaturedRank != null) {
+          if (leftFeaturedRank == null) return 1
+          if (rightFeaturedRank == null) return -1
+          return leftFeaturedRank - rightFeaturedRank
+        }
+
+        if (left.hasEpg !== right.hasEpg) return left.hasEpg ? -1 : 1
+
+        return (left.channel.name || "").localeCompare(
+          right.channel.name || "",
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base",
+          },
+        )
+      })
+      .map(({ channel }) => channel)
+  }, [
+    browseFilter.type,
+    channelEpg,
+    query,
+    sourceOrder,
+    trustedIds,
+    visibleChannels,
+  ])
 
   /**
    * While reordering, the dragged order wins until the saved order catches up.
