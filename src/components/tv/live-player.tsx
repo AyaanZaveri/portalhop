@@ -141,6 +141,7 @@ export function LivePlayer({
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
+  const [useHlsFallback, setUseHlsFallback] = useState(false)
 
   // VHS keeps the HLS stream in MediaSource rather than using Chrome's native
   // HLS path. Native playback works for some of these feeds, but Chrome does
@@ -149,10 +150,33 @@ export function LivePlayer({
   useEffect(() => {
     if (!playerElement || !streamUrl) return
 
+    if (useHlsFallback) {
+      const hls = new Hls({
+        enableCEA708Captions: true,
+        renderTextTracksNatively: false,
+        liveSyncMode: "buffered",
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 600,
+        maxLiveSyncPlaybackRate: 1,
+        backBufferLength: 90,
+      })
+
+      hls.loadSource(streamUrl)
+      hls.attachMedia(playerElement)
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        void playerElement.play().catch(() => {})
+      })
+
+      return () => hls.destroy()
+    }
+
     const player = videojs(playerElement, {
-      autoplay: "any",
+      // Never silently change the viewer's audio state to make autoplay work.
+      // A stream opened from a channel tap usually plays here; if the browser
+      // blocks that asynchronous play request, the visible play control stays
+      // available instead of starting a muted stream.
+      autoplay: "play",
       controls: false,
-      muted: true,
       preload: "auto",
       liveui: false,
       html5: {
@@ -165,10 +189,26 @@ export function LivePlayer({
 
     player.src({ src: streamUrl, type: "application/x-mpegURL" })
 
+    // VHS can remux AAC from MPEG-TS, but not HEVC video. On one of those
+    // streams audio advances while zero video frames decode. Switch only then
+    // to hls.js, which can pass HEVC through to a browser MSE implementation
+    // that advertises support for it.
+    const hevcFallbackTimer = window.setTimeout(() => {
+      const frames = playerElement.getVideoPlaybackQuality?.().totalVideoFrames
+      if (
+        !playerElement.paused &&
+        playerElement.currentTime > 0 &&
+        frames === 0
+      ) {
+        setUseHlsFallback(true)
+      }
+    }, 8_000)
+
     return () => {
+      window.clearTimeout(hevcFallbackTimer)
       player.dispose()
     }
-  }, [playerElement, streamUrl])
+  }, [playerElement, streamUrl, useHlsFallback])
   /**
    * What has been learned about the stream so far, and what was last sent.
    *
@@ -348,6 +388,7 @@ export function LivePlayer({
         setResolveError("")
         setFallbackSeconds(null)
         setFallbackCancelled(false)
+        setUseHlsFallback(false)
         setStreamUrl(url)
       })
       .catch((error: unknown) => {
@@ -1108,7 +1149,7 @@ export function LivePlayer({
     <MediaPlayer
       key={`${channelKey}-${streamUrl}`}
       autoHide
-      className="group/player aspect-video w-full overflow-hidden rounded-lg bg-black"
+      className="group/player aspect-video w-full overflow-hidden rounded-lg bg-black [&_.video-js]:size-full [&_.vjs-tech]:size-full"
     >
       <MediaPlayerVideo
         ref={(element) => setPlayerElement(element ?? null)}
