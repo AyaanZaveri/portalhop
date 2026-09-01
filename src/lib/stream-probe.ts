@@ -1,10 +1,13 @@
 import { Hls } from "@mux/playback-core"
 
 import type { StreamInfo } from "@portalhop/shared/stream-info"
+import { snapToCommonFrameRate } from "@/lib/tv-channels"
 
 const PROBE_TIMEOUT_MS = 25_000
 const PROBE_BUFFER_SECONDS = 10
-const FRAME_RATE_GRACE_MS = 6_000
+// Match the visible player: it needs a baseline plus seven one-second samples
+// before it has discarded startup noise and kept five stable observations.
+const FRAME_RATE_GRACE_MS = 9_000
 
 type ProbeReading = Omit<StreamInfo, "seenAt">
 
@@ -114,12 +117,19 @@ export function probeHlsStream(
         if (elapsed > 0 && frames > 0) frameRateSamples.push(frames / elapsed)
       }
       lastFrameSample = { frames: quality.totalVideoFrames, time }
-      if (frameRateSamples.length < 4) return
+      // The decoder commonly starts a little fast while it catches up to the
+      // live edge. The player throws away those two samples and only trusts the
+      // median of the next five; probes must use the exact same rule or they
+      // can incorrectly turn a 25 fps stream into 26–27 fps.
+      const stableSamples = frameRateSamples.slice(2)
+      if (stableSamples.length < 5) return
 
-      const sorted = [...frameRateSamples].sort((a, b) => a - b)
-      const frameRate = sorted[Math.floor(sorted.length / 2)]
+      const sorted = [...stableSamples].sort((a, b) => a - b)
+      const frameRate = snapToCommonFrameRate(
+        sorted[Math.floor(sorted.length / 2)],
+      )
       publish({
-        frameRate: Number(frameRate.toFixed(2)),
+        frameRate,
         frameRateMeasured: true,
       })
       // Bitrate has already had enough media by this point. Do not make the
