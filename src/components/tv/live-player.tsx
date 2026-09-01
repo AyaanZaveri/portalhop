@@ -8,9 +8,9 @@ import {
   RotateCcwIcon,
   RotateCwIcon,
 } from "lucide-react"
-import MuxVideo from "@mux/mux-video-react"
 import { Hls, getCoreReference } from "@mux/playback-core"
 import { useTheme } from "next-themes"
+import videojs from "video.js"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -141,6 +141,34 @@ export function LivePlayer({
   const [playerElement, setPlayerElement] = useState<HTMLVideoElement | null>(
     null,
   )
+
+  // VHS keeps the HLS stream in MediaSource rather than using Chrome's native
+  // HLS path. Native playback works for some of these feeds, but Chrome does
+  // not expose their live seekable range there, which leaves our DVR controls
+  // at 0:00. Video.js is also the engine used by the working HLS tester.
+  useEffect(() => {
+    if (!playerElement || !streamUrl) return
+
+    const player = videojs(playerElement, {
+      autoplay: "any",
+      controls: false,
+      muted: true,
+      preload: "auto",
+      liveui: false,
+      html5: {
+        vhs: {
+          overrideNative: true,
+          allowSeeksWithinUnsafeLiveWindow: true,
+        },
+      },
+    })
+
+    player.src({ src: streamUrl, type: "application/x-mpegURL" })
+
+    return () => {
+      player.dispose()
+    }
+  }, [playerElement, streamUrl])
   /**
    * What has been learned about the stream so far, and what was last sent.
    *
@@ -981,14 +1009,9 @@ export function LivePlayer({
       return true
     }
 
-    if (!connectToHls()) {
-      intervalId = window.setInterval(() => {
-        if (connectToHls() && intervalId) {
-          window.clearInterval(intervalId)
-          intervalId = undefined
-        }
-      }, 100)
-    }
+    // Video.js/VHS owns HLS for the ordinary <video> element. Do not keep
+    // polling for the previous Mux hls.js instance after the transport changes.
+    connectToHls()
 
     playerElement.addEventListener("loadedmetadata", updateFromNativeVideo)
     // And whenever the frame changes size, which is what a rendition switch
@@ -1088,52 +1111,9 @@ export function LivePlayer({
       className="group/player aspect-video w-full overflow-hidden rounded-lg bg-black"
     >
       <MediaPlayerVideo
-        render={
-          <MuxVideo
-            ref={(element) => setPlayerElement(element ?? null)}
-            src={streamUrl}
-            type="hls"
-            streamType="live"
-            // MediaFlow's HLS output is natively playable in modern Chrome.
-            // Prefer that path whenever a browser advertises it: it avoids an
-            // unnecessary TS → MSE SourceBuffer hop, while Mux still falls
-            // back to hls.js on browsers without native HLS support.
-            preferPlayback="native"
-            _hlsConfig={{
-              enableCEA708Captions: true,
-              renderTextTracksNatively: false,
-              liveSyncMode: "buffered",
-              liveSyncDurationCount: 3,
-              liveMaxLatencyDurationCount: 600,
-              maxLiveSyncPlaybackRate: 1,
-              backBufferLength: 90,
-            }}
-            preload="auto"
-            // A 1x1 transparent GIF. With no poster and no decoded frame yet,
-            // Chromium on Android paints its own placeholder — a black play
-            // glyph in a circle on a light panel, scaled to fill the element —
-            // which sits over the player for as long as the stream takes to
-            // start. Hiding the control pseudo-elements doesn't reach it,
-            // because it is the poster frame rather than a control. Any poster
-            // replaces it, and a transparent one leaves the black container
-            // showing until the first frame arrives.
-            poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-            targetLiveWindow={30}
-            // "any" rather than a bare autoPlay: a plain boolean calls play()
-            // and swallows the rejection, so a reload — which has no user
-            // gesture behind it — silently does nothing under the browser's
-            // autoplay policy. "any" retries muted, so the stream still starts.
-            autoPlay="any"
-            playsInline
-            envKey={process.env.NEXT_PUBLIC_MUX_ENV_KEY}
-            metadata={{
-              video_id: channelKey,
-              video_title: channel.name || "Live stream",
-              video_stream_type: "live",
-            }}
-            className="h-full w-full bg-black object-contain"
-          />
-        }
+        ref={(element) => setPlayerElement(element ?? null)}
+        playsInline
+        className="h-full w-full bg-black object-contain"
       />
       {activeCaption ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-[5%] z-20 flex justify-center px-8">
