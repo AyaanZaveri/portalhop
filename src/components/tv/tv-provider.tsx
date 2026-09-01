@@ -428,34 +428,8 @@ export function TvProvider({
       : (result?.channels ?? [])
 
     if (userChannels.length) {
-      // A fresh source response can briefly omit a logo that the favourite
-      // projection already knows. Retain that last known artwork until the
-      // source supplies a real replacement, so the row never falls through to
-      // the generic TV icon during the cache-to-catalogue handoff.
-      const favoriteArtwork = new Map(
-        favoriteChannels
-          .filter(
-            (channel) =>
-              typeof channel.savedChannelId === "number" &&
-              (channel.logoUrl || channel.sourceLogoUrl),
-          )
-          .map((channel) => [channel.savedChannelId!, channel] as const),
-      )
-      const channelsWithArtwork = userChannels.map((channel) => {
-        const cached =
-          typeof channel.savedChannelId === "number"
-            ? favoriteArtwork.get(channel.savedChannelId)
-            : undefined
-        if (!cached || (channel.logoUrl && channel.sourceLogoUrl)) return channel
-        return {
-          ...channel,
-          logoUrl: channel.logoUrl || cached.logoUrl,
-          sourceLogoUrl: channel.sourceLogoUrl || cached.sourceLogoUrl,
-        }
-      })
-
-      if (!iptvOrgChannels.length) return channelsWithArtwork
-      return [...channelsWithArtwork, ...iptvOrgChannels]
+      if (!iptvOrgChannels.length) return userChannels
+      return [...userChannels, ...iptvOrgChannels]
     }
 
     // A favourite snapshot carries only what a row needs. It is intentionally
@@ -1056,33 +1030,56 @@ export function TvProvider({
   useEffect(() => {
     if (!userId || !loadedPortalChannels.length) return
 
-    const snapshots = browserChannels.flatMap((channel) => {
-      if (!isChannelFavorited(channel) || !channel.portalSource) return []
+    // A catalogue can hold hundreds of thousands of streams. This only needs
+    // to produce a handful of favourite snapshots, so yield every small batch
+    // instead of monopolising the main thread immediately after first paint.
+    let cancelled = false
+    let index = 0
+    let timer: number | undefined
+    const snapshots: Parameters<typeof cacheFavoriteChannels>[1] = []
 
-      const identity = identityKeyOf(channel)
-      const favoriteKey =
-        (identity && favorites.has(identity) && identity) ||
-        (favorites.has(getChannelKey(channel)) && getChannelKey(channel)) ||
-        (favorites.has(getLegacyChannelKey(channel)) &&
-          getLegacyChannelKey(channel))
+    const scan = () => {
+      const end = Math.min(index + 500, browserChannels.length)
+      for (; index < end; index += 1) {
+        const channel = browserChannels[index]
+        if (!isChannelFavorited(channel) || !channel.portalSource) continue
 
-      if (!favoriteKey) return []
+        const identity = identityKeyOf(channel)
+        const favoriteKey =
+          (identity && favorites.has(identity) && identity) ||
+          (favorites.has(getChannelKey(channel)) && getChannelKey(channel)) ||
+          (favorites.has(getLegacyChannelKey(channel)) &&
+            getLegacyChannelKey(channel))
 
-      const { portalSource, cmd: _cmd, ...snapshot } = channel
-      return [{
-        ...snapshot,
-        cmd: "",
-        favoriteKey,
-        source: {
-          id: portalSource.id,
-          name: portalSource.name,
-          epgMode: portalSource.epgMode,
-          epgSourceId: portalSource.epgSourceId,
-        },
-      }]
-    })
+        if (!favoriteKey) continue
 
-    cacheFavoriteChannels(userId, snapshots)
+        const { portalSource, cmd: _cmd, ...snapshot } = channel
+        snapshots.push({
+          ...snapshot,
+          cmd: "",
+          favoriteKey,
+          source: {
+            id: portalSource.id,
+            name: portalSource.name,
+            epgMode: portalSource.epgMode,
+            epgSourceId: portalSource.epgSourceId,
+          },
+        })
+      }
+
+      if (cancelled) return
+      if (index < browserChannels.length) {
+        timer = window.setTimeout(scan, 0)
+      } else {
+        cacheFavoriteChannels(userId, snapshots)
+      }
+    }
+
+    timer = window.setTimeout(scan, 0)
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
   }, [
     browserChannels,
     favorites,

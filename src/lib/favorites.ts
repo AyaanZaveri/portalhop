@@ -186,18 +186,9 @@ export function cacheFavoriteChannels(
   // different, provider-defined order, so never persist it directly.
   const cardsByKey = new Map<string, CachedFavoriteChannel>()
   for (const channel of channels) {
-    if (cardsByKey.has(channel.favoriteKey)) continue
-    const previous = channelCache.find(
-      (cached) => cached.favoriteKey === channel.favoriteKey,
-    )
-    // Catalogue refreshes occasionally return a blank logo while a source or
-    // guide directory catches up. A blank is not a better answer than the
-    // cached artwork, and replacing it causes the row to flash its TV icon.
-    cardsByKey.set(channel.favoriteKey, {
-      ...channel,
-      logoUrl: channel.logoUrl || previous?.logoUrl || "",
-      sourceLogoUrl: channel.sourceLogoUrl || previous?.sourceLogoUrl,
-    })
+    if (!cardsByKey.has(channel.favoriteKey)) {
+      cardsByKey.set(channel.favoriteKey, channel)
+    }
   }
   const next = [...cache].flatMap((key) => {
     const channel = cardsByKey.get(key)
