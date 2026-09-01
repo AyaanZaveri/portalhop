@@ -1094,6 +1094,11 @@ export function LivePlayer({
             src={streamUrl}
             type="hls"
             streamType="live"
+            // MediaFlow's HLS output is natively playable in modern Chrome.
+            // Prefer that path whenever a browser advertises it: it avoids an
+            // unnecessary TS → MSE SourceBuffer hop, while Mux still falls
+            // back to hls.js on browsers without native HLS support.
+            preferPlayback="native"
             _hlsConfig={{
               enableCEA708Captions: true,
               renderTextTracksNatively: false,
