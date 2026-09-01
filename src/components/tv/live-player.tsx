@@ -909,8 +909,9 @@ export function LivePlayer({
          * Open in player menu remains available for VLC/mpv.
          */
         if (
-          data.details === "bufferAddCodecError" ||
-          data.details === "bufferIncompatibleCodecsError"
+          data.fatal &&
+          (data.details === "bufferAddCodecError" ||
+            data.details === "bufferIncompatibleCodecsError")
         ) {
           failStream(
             "This stream's audio codec is not supported by this browser. Try another source or open it in VLC.",
