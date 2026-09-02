@@ -8,7 +8,10 @@ import { selectSavedSource } from "@/db/saved-sources"
 import { favorites, savedChannels, savedSources } from "@/db/schema"
 import { selectUserEpgSources } from "@/db/user-epg-sources"
 import { getUserSettings } from "@/db/user-settings"
-import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
+import {
+  EPG_SOURCES,
+  HOSTED_EPG_COUNTRY_CODES,
+} from "@portalhop/shared/epg-sources"
 import { getEpgChannelMetadata, getEpgChannels } from "@/lib/epg-store"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { IPTV_ORG_SOURCE_ID, getIptvOrgChannels } from "@/lib/iptv-org"
@@ -204,6 +207,8 @@ export async function GET(
   const iptvOrgSourceUrlByCountry = new Map(
     EPG_SOURCES.map((source) => [source.code.toUpperCase(), source.url]),
   )
+  const hostedEpgCountries = new Set(HOSTED_EPG_COUNTRY_CODES)
+  const redisEpgCountries = new Set<string>()
 
   if (iptvOrgFavs?.length) {
     const iptvChannels = await getIptvOrgChannels()
@@ -227,12 +232,13 @@ export async function GET(
         ? iptvOrgEpgChannels[lookupId.toLowerCase()]
         : undefined
       if (epgMatch) {
-        const epgUrl = iptvOrgSourceUrlByCountry.get(
-          epgMatch.countryCode.toUpperCase(),
+        addEpgSource(
+          epgMatch.countryCode,
+          iptvOrgSourceUrlByCountry,
+          hostedEpgCountries,
+          redisEpgCountries,
+          epgUrls,
         )
-        if (epgUrl) {
-          epgUrls.add(epgUrl)
-        }
       }
 
       addPlaylistEntry(fav.position, [
@@ -318,12 +324,13 @@ export async function GET(
           : undefined
 
       if (iptvOrgMatch) {
-        const epgUrl = iptvOrgSourceUrlByCountry.get(
-          iptvOrgMatch.countryCode.toUpperCase(),
+        addEpgSource(
+          iptvOrgMatch.countryCode,
+          iptvOrgSourceUrlByCountry,
+          hostedEpgCountries,
+          redisEpgCountries,
+          epgUrls,
         )
-        if (epgUrl) {
-          epgUrls.add(epgUrl)
-        }
       }
       if (source.epgMode === "custom" && source.epgSourceId) {
         const epgUrl = customEpgUrlById.get(source.epgSourceId)
@@ -372,7 +379,12 @@ export async function GET(
     }
   }
 
-  const epgUrlList = [...epgUrls].join(",")
+  const epgUrlList = [
+    ...[...redisEpgCountries]
+      .sort()
+      .map((country) => favoriteEpgWindowUrl(request.url, token, country)),
+    ...epgUrls,
+  ].join(",")
   const header = epgUrlList
     ? // `url-tvg` and `x-tvg-url` are aliases in M3U Plus. Including both lets
       // players with either convention fetch the XMLTV guides that carry Now,
@@ -409,6 +421,34 @@ function favoriteLogoTileUrl(
     requestUrl,
   )
   return url.href
+}
+
+function favoriteEpgWindowUrl(
+  requestUrl: string,
+  token: string,
+  country: string,
+) {
+  return new URL(
+    `/api/favorites/${encodeURIComponent(token)}/epg/${encodeURIComponent(country)}`,
+    requestUrl,
+  ).href
+}
+
+function addEpgSource(
+  country: string,
+  sourceUrls: ReadonlyMap<string, string>,
+  hostedCountries: ReadonlySet<string>,
+  redisCountries: Set<string>,
+  directUrls: Set<string>,
+) {
+  const normalizedCountry =
+    country.toUpperCase() === "UK" ? "GB" : country.toUpperCase()
+  if (hostedCountries.has(normalizedCountry)) {
+    redisCountries.add(normalizedCountry)
+    return
+  }
+  const url = sourceUrls.get(normalizedCountry)
+  if (url) directUrls.add(url)
 }
 
 function proxyStreamUrl(streamUrl: string, enabled: boolean) {
