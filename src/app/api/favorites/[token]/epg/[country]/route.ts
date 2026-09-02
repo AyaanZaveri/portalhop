@@ -36,7 +36,10 @@ export async function GET(
     return new NextResponse(null, { status: 404 })
   }
 
-  const window = await getCachedIptvEpgWindow(country, { hours: 6 })
+  const window = await getCachedIptvEpgWindow(country, {
+    hours: 6,
+    includeDescriptions: true,
+  })
   if (!window) {
     if (await requestIptvEpgRefresh(country)) {
       void refreshIptvEpgCountryTask.trigger({ country }).catch(() => {})
@@ -62,8 +65,8 @@ function toXmltv(
   const channelLines = ids.map((id) => `<channel id="${escapeXml(id)}"/>`)
   const programmeLines = ids.flatMap((id) =>
     channels[id]!.map(
-      ([start, stop, title]) =>
-        `<programme start="${xmltvTime(start)}" stop="${xmltvTime(stop)}" channel="${escapeXml(id)}"><title>${escapeXml(title)}</title></programme>`,
+      ([start, stop, title, description]) =>
+        `<programme start="${xmltvTime(start)}" stop="${xmltvTime(stop)}" channel="${escapeXml(id)}"><title>${escapeXml(title)}</title>${description ? `<desc>${escapeXml(description)}</desc>` : ""}</programme>`,
     ),
   )
 
