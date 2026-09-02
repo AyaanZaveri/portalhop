@@ -8,7 +8,7 @@ import {
   RotateCcwIcon,
   RotateCwIcon,
 } from "lucide-react"
-import { Hls } from "@mux/playback-core"
+import { Hls, setupTextTracks } from "@mux/playback-core"
 import { useTheme } from "next-themes"
 
 import { Badge } from "@/components/ui/badge"
@@ -182,6 +182,10 @@ export function LivePlayer({
     })
 
     hlsRef.current = hls
+    // This is the text-track bridge Mux Video installed for us. It creates
+    // hidden DOM tracks for hls.js's non-native CEA/WebVTT events, preserving
+    // track discovery without letting browser-styled captions render.
+    setupTextTracks(playerElement, hls)
     hls.loadSource(streamUrl)
     hls.attachMedia(playerElement)
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -214,6 +218,7 @@ export function LivePlayer({
   const captionDebugStateRef = useRef("")
   const selectedCaptionTrackRef = useRef<HlsCaptionTrack | null>(null)
   const [captionTracks, setCaptionTracks] = useState<HlsCaptionTrack[]>([])
+  const [captionTracksLoading, setCaptionTracksLoading] = useState(true)
   const [selectedCaptionTrack, setSelectedCaptionTrack] =
     useState<HlsCaptionTrack | null>(null)
   const [activeCaption, setActiveCaption] = useState<string | null>(null)
@@ -596,6 +601,7 @@ export function LivePlayer({
     captionDebugStateRef.current = ""
     selectedCaptionTrackRef.current = null
     setCaptionTracks([])
+    setCaptionTracksLoading(true)
     setSelectedCaptionTrack(null)
     setActiveCaption(null)
 
@@ -998,6 +1004,7 @@ export function LivePlayer({
           })
 
         if (!found.length) return
+        setCaptionTracksLoading(false)
         setCaptionTracks((current) => {
           const next = new Map(current.map((track) => [track.id, track]))
           for (const track of found) next.set(track.id, track)
@@ -1005,6 +1012,7 @@ export function LivePlayer({
         })
       }
       let recoveredMediaError = false
+      let bufferedMainFragments = 0
       const handleHlsError = (
         _event: typeof Hls.Events.ERROR,
         data: { fatal: boolean; details?: string; type?: string },
@@ -1057,7 +1065,7 @@ export function LivePlayer({
       const handleFragBuffered = (
         _event: typeof Hls.Events.FRAG_BUFFERED,
         data: {
-          frag: { duration: number; level: number }
+          frag: { duration: number; level: number; type: string }
           stats: { loaded: number }
         },
       ) => {
@@ -1068,6 +1076,12 @@ export function LivePlayer({
         updateBitrate(calculatedBitrate)
         measureBandwidth(data.frag.level, data.stats.loaded, data.frag.duration)
         updateFromLevel(data.frag.level)
+        // hls.js discovers embedded CEA tracks only once it reads caption
+        // packets. Three 10-second fragments is enough to stop presenting an
+        // endless loading state for streams that do not expose any tracks.
+        if (data.frag.type === "main" && ++bufferedMainFragments >= 3) {
+          setCaptionTracksLoading(false)
+        }
       }
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
@@ -1272,6 +1286,7 @@ export function LivePlayer({
             <MediaPlayerVolume expandable />
             <MediaPlayerSettings
               captionTracks={captionTracks}
+              captionTracksLoading={captionTracksLoading}
               selectedCaptionTrackId={selectedCaptionTrack?.id}
               onCaptionTrackSelect={(trackId) =>
                 selectCaptionTrack(

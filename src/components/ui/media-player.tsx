@@ -3170,6 +3170,7 @@ interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps {
    * can still use the standard Settings menu.
    */
   captionTracks?: ReadonlyArray<{ id: string; label: string }>;
+  captionTracksLoading?: boolean;
   selectedCaptionTrackId?: string | null;
   onCaptionTrackSelect?: (id: string | null) => void;
 }
@@ -3185,6 +3186,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
     className,
     disabled,
     captionTracks,
+    captionTracksLoading = false,
     selectedCaptionTrackId,
     onCaptionTrackSelect,
     ...settingsProps
@@ -3427,7 +3429,11 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
                   </DropdownMenuItem>
                 ))}
                 {!captionTracks.length && (
-                  <DropdownMenuItem disabled>Loading captions…</DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    {captionTracksLoading
+                      ? "Loading captions…"
+                      : "No captions detected"}
+                  </DropdownMenuItem>
                 )}
               </>
             ) : (
