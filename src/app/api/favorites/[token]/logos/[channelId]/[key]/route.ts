@@ -41,7 +41,11 @@ export async function GET(
     .limit(1)
 
   const logoUrl = row?.logoUrl || row?.logo
-  if (!logoUrl || key !== logoTileKey(logoUrl)) {
+  // The playlist names the generated PNG (`<hash>.png`) so media players can
+  // identify it as an image. Dynamic route params include that extension; the
+  // tile key itself deliberately does not.
+  const tileKey = key.replace(/\.png$/i, "")
+  if (!logoUrl || tileKey !== logoTileKey(logoUrl)) {
     return new NextResponse(null, { status: 404 })
   }
 

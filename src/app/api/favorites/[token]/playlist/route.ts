@@ -9,7 +9,7 @@ import { favorites, savedChannels, savedSources } from "@/db/schema"
 import { selectUserEpgSources } from "@/db/user-epg-sources"
 import { getUserSettings } from "@/db/user-settings"
 import { EPG_SOURCES } from "@portalhop/shared/epg-sources"
-import { getEpgChannels } from "@/lib/epg-store"
+import { getEpgChannelMetadata, getEpgChannels } from "@/lib/epg-store"
 import { proxyImageUrl } from "@portalhop/shared/image-proxy"
 import { IPTV_ORG_SOURCE_ID, getIptvOrgChannels } from "@/lib/iptv-org"
 import { filenameSafe, m3uExtinf } from "@portalhop/shared/m3u-export"
@@ -164,21 +164,31 @@ export async function GET(
     [...sources.values()].some((source) => source.epgMode === "iptv-org") ||
     Boolean(iptvOrgFavs?.length)
 
-  const [customEpgMaps, iptvOrgEpgChannels, userEpgSourceRows] =
-    await Promise.all([
-      getUserEpgChannelMaps(userId, customEpgSourceIds),
-      needsIptvOrgEpg
-        ? getEpgChannels()
-        : Promise.resolve(
-            {} as Record<
-              string,
-              { name: string; logoUrl?: string; countryCode: string }
-            >,
-          ),
-      customEpgSourceIds.length
-        ? selectUserEpgSources(db, userId)
-        : Promise.resolve([]),
-    ])
+  const [
+    customEpgMaps,
+    iptvOrgEpgChannels,
+    directoryEpgChannels,
+    userEpgSourceRows,
+  ] = await Promise.all([
+    getUserEpgChannelMaps(userId, customEpgSourceIds),
+    needsIptvOrgEpg
+      ? getEpgChannels()
+      : Promise.resolve(
+          {} as Record<
+            string,
+            { name: string; logoUrl?: string; countryCode: string }
+          >,
+        ),
+    // A favourites export is channel-level, just like the app. Its guide
+    // must therefore come from PortalHop's directory whenever the channel
+    // has a canonical XMLTV id, rather than from only the stream selected
+    // for playback. This is deliberately a small indexed lookup, not the
+    // full EPG catalogue on every M3U download.
+    getEpgChannelMetadata(favoriteIdentityIds),
+    customEpgSourceIds.length
+      ? selectUserEpgSources(db, userId)
+      : Promise.resolve([]),
+  ])
 
   const customEpgUrlById = new Map(
     userEpgSourceRows.map((source) => [source.id, source.url]),
@@ -286,10 +296,14 @@ export async function GET(
           : proxyStreamUrl(rawStreamUrl, settings.useProxy)
 
       const lookupId = normalizeXmltvId(row.xmltvId) || row.channelId
-      const iptvOrgMatch =
-        source.epgMode === "iptv-org" && lookupId
-          ? iptvOrgEpgChannels[lookupId.toLowerCase()]
-          : undefined
+      // A channel-level favourite may play from a source whose own guide is
+      // weak or absent while PortalHop has already matched the same XMLTV id in
+      // its directory. Use that canonical directory record for both `url-tvg`
+      // and artwork, exactly as the channel list does.
+      const iptvOrgMatch = lookupId
+        ? (directoryEpgChannels[lookupId.toLowerCase()] ??
+          iptvOrgEpgChannels[lookupId.toLowerCase()])
+        : undefined
       const customMatch =
         source.epgMode === "custom" && source.epgSourceId && lookupId
           ? customEpgMaps[source.epgSourceId]?.[lookupId.toLowerCase()]
@@ -319,7 +333,7 @@ export async function GET(
 
       bodyLines.push(
         m3uExtinf({
-          xmltvId: row.xmltvId,
+          xmltvId: lookupId,
           displayName: row.name || row.number || `Channel ${row.channelId}`,
           logo:
             favoriteLogoTileUrl(
