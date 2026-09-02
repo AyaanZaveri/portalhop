@@ -8,7 +8,7 @@ import {
   RotateCcwIcon,
   RotateCwIcon,
 } from "lucide-react"
-import { Hls, setupTextTracks } from "@mux/playback-core"
+import { Hls } from "@mux/playback-core"
 import { useTheme } from "next-themes"
 
 import { Badge } from "@/components/ui/badge"
@@ -91,6 +91,15 @@ type HlsCaptionTrack = {
   subtitleTrackId?: number
 }
 
+type NonNativeHlsTextTrack = {
+  _id?: string
+  label: string
+  kind: string
+  default: boolean
+  subtitleTrack?: { id: number; lang?: string }
+  closedCaptions?: { lang?: string }
+}
+
 export function LivePlayer({
   channel,
   logoUrl: channelLogoUrl,
@@ -152,12 +161,59 @@ export function LivePlayer({
   // getCoreReference only works for Mux-managed playback and therefore became
   // empty when the transport moved to the direct HLS.js hookup below.
   const hlsRef = useRef<Hls | null>(null)
+  const selectedCaptionTrackRef = useRef<HlsCaptionTrack | null>(null)
+  const [captionTracks, setCaptionTracks] = useState<HlsCaptionTrack[]>([])
+  const [captionTracksLoading, setCaptionTracksLoading] = useState(true)
+  const [selectedCaptionTrack, setSelectedCaptionTrack] =
+    useState<HlsCaptionTrack | null>(null)
+
+  const registerCaptionTracks = useCallback(
+    (tracks: NonNativeHlsTextTrack[]) => {
+      const found = tracks
+        .filter(
+          (track) => track.kind === "captions" || track.kind === "subtitles",
+        )
+        .map((track): HlsCaptionTrack => {
+          const subtitleTrackId = track.subtitleTrack?.id
+          const id = track._id ?? `subtitle:${subtitleTrackId}`
+          return {
+            id,
+            cueTrackId:
+              subtitleTrackId == null
+                ? id
+                : track.default
+                  ? "default"
+                  : `subtitles${subtitleTrackId}`,
+            label: track.label || "Captions",
+            kind: track.kind as "captions" | "subtitles",
+            subtitleTrackId,
+          }
+        })
+
+      if (!found.length) return
+      setCaptionTracksLoading(false)
+      setCaptionTracks((current) => {
+        const next = new Map(current.map((track) => [track.id, track]))
+        for (const track of found) next.set(track.id, track)
+        return [...next.values()]
+      })
+    },
+    [],
+  )
   // Attach hls.js directly to our normal video element. Mux and Video.js both
   // add a layer around this API; their elements/wrappers complicate layout.
   // This keeps PortalHop's controls on one <video> and handles AVC and HEVC
   // transport streams through Chrome's MediaSource implementation.
   useEffect(() => {
     if (!playerElement || !streamUrl) return
+
+    // This belongs to the HLS session, not the later metrics effect. Caption
+    // discovery can occur before that effect runs, so clearing it there was
+    // erasing tracks which the bridge had just registered.
+    selectedCaptionTrackRef.current = null
+    setCaptionTracks([])
+    setCaptionTracksLoading(true)
+    setSelectedCaptionTrack(null)
 
     if (!Hls.isSupported()) {
       // eslint-disable-next-line react-hooks/immutability
@@ -182,10 +238,39 @@ export function LivePlayer({
     })
 
     hlsRef.current = hls
-    // This is the text-track bridge Mux Video installed for us. It creates
-    // hidden DOM tracks for hls.js's non-native CEA/WebVTT events, preserving
-    // track discovery without letting browser-styled captions render.
-    setupTextTracks(playerElement, hls)
+    // Mux Video installed this bridge internally. Direct hls.js does not, so
+    // recreate only that behavior: record the source track and keep its DOM
+    // TextTrack disabled. PortalHop renders its cues in the custom overlay.
+    const bridgeTextTracks = (
+      _event: typeof Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
+      data: { tracks: NonNativeHlsTextTrack[] },
+    ) => {
+      registerCaptionTracks(data.tracks)
+      for (const track of data.tracks) {
+        if (track.kind !== "captions" && track.kind !== "subtitles") continue
+        const subtitleTrackId = track.subtitleTrack?.id
+        const id =
+          track._id ??
+          (subtitleTrackId == null
+            ? undefined
+            : track.default
+              ? "default"
+              : `subtitles${subtitleTrackId}`)
+        if (!id || playerElement.textTracks.getTrackById(id)) continue
+
+        const element = document.createElement("track")
+        element.id = id
+        element.kind = track.kind as TextTrackKind
+        element.label = track.label || "Captions"
+        const language = track.subtitleTrack?.lang ?? track.closedCaptions?.lang
+        if (language) element.srclang = language
+        element.track.mode = "disabled"
+        element.setAttribute("data-removeondestroy", "")
+        playerElement.append(element)
+      }
+    }
+
+    hls.on(Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND, bridgeTextTracks)
     hls.loadSource(streamUrl)
     hls.attachMedia(playerElement)
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -196,9 +281,10 @@ export function LivePlayer({
 
     return () => {
       if (hlsRef.current === hls) hlsRef.current = null
+      hls.off(Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND, bridgeTextTracks)
       hls.destroy()
     }
-  }, [playerElement, streamUrl])
+  }, [playerElement, registerCaptionTracks, streamUrl])
   /**
    * What has been learned about the stream so far, and what was last sent.
    *
@@ -216,11 +302,6 @@ export function LivePlayer({
   const reportedRef = useRef("")
   const captionCuesRef = useRef<Map<string, CaptionCue[]>>(new Map())
   const captionDebugStateRef = useRef("")
-  const selectedCaptionTrackRef = useRef<HlsCaptionTrack | null>(null)
-  const [captionTracks, setCaptionTracks] = useState<HlsCaptionTrack[]>([])
-  const [captionTracksLoading, setCaptionTracksLoading] = useState(true)
-  const [selectedCaptionTrack, setSelectedCaptionTrack] =
-    useState<HlsCaptionTrack | null>(null)
   const [activeCaption, setActiveCaption] = useState<string | null>(null)
   const [streamVariant, setStreamVariant] = useState<StreamVariant>({
     resolutionLabel: "",
@@ -599,10 +680,6 @@ export function LivePlayer({
     reportedRef.current = ""
     captionCuesRef.current.clear()
     captionDebugStateRef.current = ""
-    selectedCaptionTrackRef.current = null
-    setCaptionTracks([])
-    setCaptionTracksLoading(true)
-    setSelectedCaptionTrack(null)
     setActiveCaption(null)
 
     if (!streamUrl || !playerElement) return
@@ -970,47 +1047,6 @@ export function LivePlayer({
         )
         updateActiveCaption()
       }
-      const handleNonNativeTextTracksFound = (
-        _event: typeof Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
-        data: {
-          tracks: Array<{
-            _id?: string
-            label: string
-            kind: string
-            default: boolean
-            subtitleTrack?: { id: number }
-          }>
-        },
-      ) => {
-        const found = data.tracks
-          .filter(
-            (track) => track.kind === "captions" || track.kind === "subtitles",
-          )
-          .map((track): HlsCaptionTrack => {
-            const subtitleTrackId = track.subtitleTrack?.id
-            const id = track._id ?? `subtitle:${subtitleTrackId}`
-            return {
-              id,
-              cueTrackId:
-                subtitleTrackId == null
-                  ? id
-                  : track.default
-                    ? "default"
-                    : `subtitles${subtitleTrackId}`,
-              label: track.label || "Captions",
-              kind: track.kind as "captions" | "subtitles",
-              subtitleTrackId,
-            }
-          })
-
-        if (!found.length) return
-        setCaptionTracksLoading(false)
-        setCaptionTracks((current) => {
-          const next = new Map(current.map((track) => [track.id, track]))
-          for (const track of found) next.set(track.id, track)
-          return [...next.values()]
-        })
-      }
       let recoveredMediaError = false
       let bufferedMainFragments = 0
       const handleHlsError = (
@@ -1086,10 +1122,6 @@ export function LivePlayer({
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
       hls.on(Hls.Events.CUES_PARSED, handleCuesParsed)
-      hls.on(
-        Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
-        handleNonNativeTextTracksFound,
-      )
       hls.on(Hls.Events.ERROR, handleHlsError)
       hls.on(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
       hls.on(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
@@ -1100,10 +1132,6 @@ export function LivePlayer({
       removeHlsListeners = () => {
         hls.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
         hls.off(Hls.Events.CUES_PARSED, handleCuesParsed)
-        hls.off(
-          Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
-          handleNonNativeTextTracksFound,
-        )
         hls.off(Hls.Events.ERROR, handleHlsError)
         hls.off(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
         hls.off(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
