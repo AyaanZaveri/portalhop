@@ -6,6 +6,7 @@ import { getUserIdByFavoritesToken } from "@/db/favorites-token"
 import { savedChannels, savedSources } from "@/db/schema"
 import { getEpgChannelMetadata } from "@/lib/epg-store"
 import { logoTileKey, renderLogoTile } from "@/lib/logo-tile"
+import { getUserEpgChannelMaps } from "@/lib/user-epg-store"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 export const runtime = "nodejs"
@@ -38,6 +39,8 @@ export async function GET(
       xmltvId: savedChannels.xmltvId,
       logoUrl: savedChannels.logoUrl,
       logo: savedChannels.logo,
+      epgMode: savedSources.epgMode,
+      epgSourceId: savedSources.epgSourceId,
     })
     .from(savedChannels)
     .innerJoin(savedSources, eq(savedChannels.sourceId, savedSources.id))
@@ -46,16 +49,41 @@ export async function GET(
     )
     .limit(1)
 
-  // Match the catalogue route: the canonical IPTV-EPG logo belongs to the
-  // channel, while a portal's artwork only describes one of its streams.
+  // Use exactly the artwork precedence of the M3U route. A custom guide may
+  // supply its own logo, whose tile key is different from the portal artwork.
+  // Looking only at the canonical/source variants made those valid playlist
+  // URLs fail their hash validation with a 404.
   const lookupId = normalizeXmltvId(row?.xmltvId)
-  const epgMetadata = lookupId ? await getEpgChannelMetadata([lookupId]) : {}
-  const logoUrl = epgMetadata[lookupId]?.logoUrl || row?.logoUrl || row?.logo
   // The playlist names the generated PNG (`<hash>.png`) so media players can
   // identify it as an image. Dynamic route params include that extension; the
   // tile key itself deliberately does not.
   const tileKey = key.replace(/\.png$/i, "")
-  if (!logoUrl || tileKey !== logoTileKey(logoUrl)) {
+  const [epgMetadata, customEpgMaps] = await Promise.all([
+    lookupId
+      ? getEpgChannelMetadata([lookupId])
+      : Promise.resolve(
+          {} as Record<
+            string,
+            { name?: string; logoUrl?: string; countryCode: string }
+          >,
+        ),
+    row?.epgMode === "custom" && row.epgSourceId
+      ? getUserEpgChannelMaps(userId, [row.epgSourceId])
+      : Promise.resolve(
+          {} as Record<number, Record<string, { logoUrl?: string }>>,
+        ),
+  ])
+  const customLogoUrl =
+    row?.epgMode === "custom" && row.epgSourceId && lookupId
+      ? customEpgMaps[row.epgSourceId]?.[lookupId]?.logoUrl
+      : undefined
+  const logoUrl = [
+    epgMetadata[lookupId]?.logoUrl,
+    customLogoUrl,
+    row?.logoUrl,
+    row?.logo,
+  ].find((url) => url && logoTileKey(url) === tileKey)
+  if (!logoUrl) {
     return new NextResponse(null, { status: 404 })
   }
 
