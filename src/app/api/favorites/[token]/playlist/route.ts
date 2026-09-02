@@ -334,7 +334,11 @@ export async function GET(
       bodyLines.push(
         m3uExtinf({
           xmltvId: lookupId,
-          displayName: row.name || row.number || `Channel ${row.channelId}`,
+          displayName:
+            iptvOrgMatch?.name ||
+            row.name ||
+            row.number ||
+            `Channel ${row.channelId}`,
           logo:
             favoriteLogoTileUrl(request.url, token, row.id, logo) ||
             proxyImageUrl(logo, settings.useImageProxy),
