@@ -3164,7 +3164,15 @@ function MediaPlayerDownload(props: React.ComponentProps<typeof Button>) {
   );
 }
 
-interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps { }
+interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps {
+  /**
+   * Captions parsed outside browser TextTracks (such as hls.js CEA captions)
+   * can still use the standard Settings menu.
+   */
+  captionTracks?: ReadonlyArray<{ id: string; label: string }>;
+  selectedCaptionTrackId?: string | null;
+  onCaptionTrackSelect?: (id: string | null) => void;
+}
 
 function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const {
@@ -3176,6 +3184,9 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
     modal = false,
     className,
     disabled,
+    captionTracks,
+    selectedCaptionTrackId,
+    onCaptionTrackSelect,
     ...settingsProps
   } = props;
 
@@ -3244,12 +3255,23 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   );
 
   const selectedSubtitleLabel = React.useMemo(() => {
+    if (captionTracks) {
+      return (
+        captionTracks.find((track) => track.id === selectedCaptionTrackId)
+          ?.label ?? "Off"
+      );
+    }
     if (!isSubtitlesActive) return "Off";
     if (mediaSubtitlesShowing.length > 0) {
       return mediaSubtitlesShowing[0]?.label ?? "On";
     }
     return "Off";
-  }, [isSubtitlesActive, mediaSubtitlesShowing]);
+  }, [
+    captionTracks,
+    selectedCaptionTrackId,
+    isSubtitlesActive,
+    mediaSubtitlesShowing,
+  ]);
 
   const selectedRenditionLabel = React.useMemo(() => {
     if (!selectedRenditionId) return "Auto";
@@ -3385,6 +3407,31 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
             </Badge>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
+            {captionTracks ? (
+              <>
+                <DropdownMenuItem
+                  className="justify-between"
+                  onClick={() => onCaptionTrackSelect?.(null)}
+                >
+                  Off
+                  {!selectedCaptionTrackId && <CheckIcon />}
+                </DropdownMenuItem>
+                {captionTracks.map((track) => (
+                  <DropdownMenuItem
+                    key={track.id}
+                    className="justify-between"
+                    onClick={() => onCaptionTrackSelect?.(track.id)}
+                  >
+                    {track.label}
+                    {selectedCaptionTrackId === track.id && <CheckIcon />}
+                  </DropdownMenuItem>
+                ))}
+                {!captionTracks.length && (
+                  <DropdownMenuItem disabled>Loading captions…</DropdownMenuItem>
+                )}
+              </>
+            ) : (
+              <>
             <DropdownMenuItem
               className="justify-between"
               onClick={onSubtitlesToggle}
@@ -3412,6 +3459,8 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
               <DropdownMenuItem disabled>
                 No captions available
               </DropdownMenuItem>
+            )}
+              </>
             )}
           </DropdownMenuSubContent>
         </DropdownMenuSub>

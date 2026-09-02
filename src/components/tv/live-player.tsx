@@ -83,6 +83,14 @@ const isBuffered = (video: HTMLVideoElement, time: number) => {
 const START_DEADLINE_MS = 8000
 const FAILOVER_DELAY_SECONDS = 3
 
+type HlsCaptionTrack = {
+  id: string
+  cueTrackId: string
+  label: string
+  kind: "captions" | "subtitles"
+  subtitleTrackId?: number
+}
+
 export function LivePlayer({
   channel,
   logoUrl: channelLogoUrl,
@@ -163,6 +171,8 @@ export function LivePlayer({
 
     const hls = new Hls({
       enableCEA708Captions: true,
+      // PortalHop renders caption cues in its own overlay rather than using
+      // browser text-track styling.
       renderTextTracksNatively: false,
       liveSyncMode: "buffered",
       liveSyncDurationCount: 3,
@@ -202,12 +212,30 @@ export function LivePlayer({
   const reportedRef = useRef("")
   const captionCuesRef = useRef<Map<string, CaptionCue[]>>(new Map())
   const captionDebugStateRef = useRef("")
+  const selectedCaptionTrackRef = useRef<HlsCaptionTrack | null>(null)
+  const [captionTracks, setCaptionTracks] = useState<HlsCaptionTrack[]>([])
+  const [selectedCaptionTrack, setSelectedCaptionTrack] =
+    useState<HlsCaptionTrack | null>(null)
   const [activeCaption, setActiveCaption] = useState<string | null>(null)
   const [streamVariant, setStreamVariant] = useState<StreamVariant>({
     resolutionLabel: "",
     frameRateLabel: "",
     bitrateLabel: "",
   })
+
+  const selectCaptionTrack = useCallback((track: HlsCaptionTrack | null) => {
+    selectedCaptionTrackRef.current = track
+    setSelectedCaptionTrack(track)
+    setActiveCaption(null)
+
+    const hls = hlsRef.current
+    if (!hls) return
+
+    // External WebVTT subtitles must be selected at hls.js as well as in our
+    // overlay. CEA tracks are decoded together, so their selection only needs
+    // to choose which parsed cue stream PortalHop draws.
+    hls.subtitleTrack = track?.subtitleTrackId ?? -1
+  }, [])
 
   const failStream = useCallback((reason: string) => {
     setResolveError(reason)
@@ -566,6 +594,9 @@ export function LivePlayer({
     reportedRef.current = ""
     captionCuesRef.current.clear()
     captionDebugStateRef.current = ""
+    selectedCaptionTrackRef.current = null
+    setCaptionTracks([])
+    setSelectedCaptionTrack(null)
     setActiveCaption(null)
 
     if (!streamUrl || !playerElement) return
@@ -579,28 +610,15 @@ export function LivePlayer({
     const frameRateSamples: number[] = []
 
     const updateActiveCaption = () => {
-      const selectedTrack = Array.from(
-        playerElement.querySelectorAll("track"),
-      ).find(
-        (track) =>
-          (track.track.kind === "captions" ||
-            track.track.kind === "subtitles") &&
-          track.track.mode === "showing",
-      )
-
+      const selectedTrack = selectedCaptionTrackRef.current
       if (!selectedTrack) {
         setActiveCaption(null)
         return
       }
 
-      const cueTrackId = captionCuesRef.current.has(selectedTrack.id)
-        ? selectedTrack.id
-        : selectedTrack.id === "default" && captionCuesRef.current.size === 1
-          ? [...captionCuesRef.current.keys()][0]
-          : undefined
       const now = playerElement.currentTime
       const activeCues = (
-        cueTrackId ? (captionCuesRef.current.get(cueTrackId) ?? []) : []
+        captionCuesRef.current.get(selectedTrack.cueTrackId) ?? []
       ).filter((cue) => cue.startTime <= now && cue.endTime >= now)
 
       if (!activeCues.length) {
@@ -905,9 +923,17 @@ export function LivePlayer({
         _event: typeof Hls.Events.CUES_PARSED,
         data: { type: string; track: string; cues: VTTCue[] },
       ) => {
-        if (data.type !== "captions") return
+        if (data.type !== "captions" && data.type !== "subtitles") return
 
-        const existing = captionCuesRef.current.get(data.track) ?? []
+        // hls.js names a default WebVTT rendition "default". Keep it tied to
+        // the PortalHop selection rather than letting it overwrite another
+        // default-looking caption track.
+        const cueTrackId =
+          data.track === "default"
+            ? (selectedCaptionTrackRef.current?.cueTrackId ?? data.track)
+            : data.track
+
+        const existing = captionCuesRef.current.get(cueTrackId) ?? []
         const next = [...existing]
 
         for (const cue of data.cues) {
@@ -931,12 +957,52 @@ export function LivePlayer({
         }
 
         captionCuesRef.current.set(
-          data.track,
+          cueTrackId,
           next
             .filter((cue) => cue.endTime >= playerElement.currentTime - 5)
             .slice(-300),
         )
         updateActiveCaption()
+      }
+      const handleNonNativeTextTracksFound = (
+        _event: typeof Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
+        data: {
+          tracks: Array<{
+            _id?: string
+            label: string
+            kind: string
+            default: boolean
+            subtitleTrack?: { id: number }
+          }>
+        },
+      ) => {
+        const found = data.tracks
+          .filter(
+            (track) => track.kind === "captions" || track.kind === "subtitles",
+          )
+          .map((track): HlsCaptionTrack => {
+            const subtitleTrackId = track.subtitleTrack?.id
+            const id = track._id ?? `subtitle:${subtitleTrackId}`
+            return {
+              id,
+              cueTrackId:
+                subtitleTrackId == null
+                  ? id
+                  : track.default
+                    ? "default"
+                    : `subtitles${subtitleTrackId}`,
+              label: track.label || "Captions",
+              kind: track.kind as "captions" | "subtitles",
+              subtitleTrackId,
+            }
+          })
+
+        if (!found.length) return
+        setCaptionTracks((current) => {
+          const next = new Map(current.map((track) => [track.id, track]))
+          for (const track of found) next.set(track.id, track)
+          return [...next.values()]
+        })
       }
       let recoveredMediaError = false
       const handleHlsError = (
@@ -1006,6 +1072,10 @@ export function LivePlayer({
 
       hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
       hls.on(Hls.Events.CUES_PARSED, handleCuesParsed)
+      hls.on(
+        Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
+        handleNonNativeTextTracksFound,
+      )
       hls.on(Hls.Events.ERROR, handleHlsError)
       hls.on(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
       hls.on(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
@@ -1016,6 +1086,10 @@ export function LivePlayer({
       removeHlsListeners = () => {
         hls.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
         hls.off(Hls.Events.CUES_PARSED, handleCuesParsed)
+        hls.off(
+          Hls.Events.NON_NATIVE_TEXT_TRACKS_FOUND,
+          handleNonNativeTextTracksFound,
+        )
         hls.off(Hls.Events.ERROR, handleHlsError)
         hls.off(Hls.Events.LEVEL_SWITCHING, handleLevelSwitching)
         hls.off(Hls.Events.LEVEL_SWITCHED, handleLevelSwitched)
@@ -1196,7 +1270,15 @@ export function LivePlayer({
           </div>
           <div className="flex items-center gap-2">
             <MediaPlayerVolume expandable />
-            <MediaPlayerSettings />
+            <MediaPlayerSettings
+              captionTracks={captionTracks}
+              selectedCaptionTrackId={selectedCaptionTrack?.id}
+              onCaptionTrackSelect={(trackId) =>
+                selectCaptionTrack(
+                  captionTracks.find((track) => track.id === trackId) ?? null,
+                )
+              }
+            />
             {/* No narrow-width hiding, unlike picture-in-picture: casting is
                 most of the point of holding a phone, and the button already
                 takes itself away wherever no receiver can be reached. */}
