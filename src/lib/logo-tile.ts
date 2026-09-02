@@ -8,15 +8,18 @@ import {
   type LogoStyle,
 } from "@/lib/logo-analysis/algorithm"
 
-// M3U clients tend to present channel art in a widescreen slot. Make the
-// exported PNG itself fill that slot so it never inherits the app's compact,
-// rounded row-tile shape.
-const WIDTH = 320
-const HEIGHT = 180
-const PAD_X = 0
-const PAD_Y = 0
-const BOX_WIDTH = WIDTH
-const BOX_HEIGHT = HEIGHT
+// M3U clients tend to present channel art in a widescreen slot. Keep the
+// existing artwork box exactly the same size as PortalHop's row tile, while
+// making only its outer canvas almost 16:9. A modest radius helps the clients
+// which show artwork without applying their own rounded treatment.
+const SCALE = 4
+const WIDTH = 66 * SCALE
+const HEIGHT = 148
+const PAD_X = 11 * SCALE
+const PAD_Y = 10
+const BOX_WIDTH = WIDTH - PAD_X * 2
+const BOX_HEIGHT = HEIGHT - PAD_Y * 2
+const RADIUS = 4 * SCALE
 const MAX_SCALE = 1.8
 const ANALYSIS_TARGET = 512
 
@@ -78,6 +81,10 @@ export async function renderLogoTile(input: Buffer, logoUrl: string) {
   const artworkSvg = Buffer.from(
     `<svg width="${BOX_WIDTH}" height="${BOX_HEIGHT}" viewBox="0 0 ${BOX_WIDTH} ${BOX_HEIGHT}" xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,${mark}" x="${placement.left}" y="${placement.top}" width="${placement.width}" height="${placement.height}" preserveAspectRatio="none"/></svg>`,
   )
+  const roundedMask = Buffer.from(
+    `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}" fill="white"/></svg>`,
+  )
+
   return sharp({
     create: {
       width: WIDTH,
@@ -86,7 +93,10 @@ export async function renderLogoTile(input: Buffer, logoUrl: string) {
       background: verdict.style.color ?? TILE_BASE,
     },
   })
-    .composite([{ input: artworkSvg, left: PAD_X, top: PAD_Y }])
+    .composite([
+      { input: artworkSvg, left: PAD_X, top: PAD_Y },
+      { input: roundedMask, blend: "dest-in" },
+    ])
     .png()
     .toBuffer()
 }
