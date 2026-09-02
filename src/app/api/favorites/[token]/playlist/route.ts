@@ -124,7 +124,7 @@ export async function GET(
     resolvedIdentityIds.add(identityId)
   }
 
-  const groups = new Map<number, ParsedFavorite[]>()
+  const groups = new Map<number, FavoriteRow[]>()
   for (const fav of parsed) {
     if (fav.portalSourceId === null) {
       continue
@@ -134,7 +134,15 @@ export async function GET(
     groups.set(fav.portalSourceId, list)
   }
 
-  const bodyLines: string[] = []
+  const playlistEntries: Array<{
+    position: number
+    insertionOrder: number
+    lines: [string, string]
+  }> = []
+  let insertionOrder = 0
+  const addPlaylistEntry = (position: number, lines: [string, string]) => {
+    playlistEntries.push({ position, insertionOrder: insertionOrder++, lines })
+  }
   // Distinct XMLTV documents that cover the channels below, so players that
   // don't fetch program data live (most of them) can still show a guide.
   const epgUrls = new Set<string>()
@@ -227,7 +235,7 @@ export async function GET(
         }
       }
 
-      bodyLines.push(
+      addPlaylistEntry(fav.position, [
         m3uExtinf({
           xmltvId: channel.xmltvId ?? "",
           displayName:
@@ -239,7 +247,7 @@ export async function GET(
           genre: channel.genre,
         }),
         proxyStreamUrl(channel.cmd, settings.useProxy),
-      )
+      ])
     }
   }
 
@@ -331,7 +339,22 @@ export async function GET(
         row.logo ||
         ""
 
-      bodyLines.push(
+      const directPosition = favs
+        .filter(
+          (fav) =>
+            fav.savedChannelId === row.id ||
+            (fav.savedChannelId === null && fav.channelId === row.channelId),
+        )
+        .map((fav) => fav.position)
+      const identityPosition = favoriteRows.find(
+        (fav) => fav.channelKey === `id:${normalizeXmltvId(row.xmltvId)}`,
+      )?.position
+      const position = Math.min(
+        ...directPosition,
+        identityPosition ?? Number.MAX_SAFE_INTEGER,
+      )
+
+      addPlaylistEntry(position, [
         m3uExtinf({
           xmltvId: lookupId,
           displayName:
@@ -345,7 +368,7 @@ export async function GET(
           genre: row.genre,
         }),
         streamUrl,
-      )
+      ])
     }
   }
 
@@ -356,6 +379,14 @@ export async function GET(
       // Next, and future programme data for the tvg-id values below.
       `#EXTM3U playlist="Favorites" url-tvg="${epgUrlList}" x-tvg-url="${epgUrlList}"`
     : '#EXTM3U playlist="Favorites"'
+
+  const bodyLines = playlistEntries
+    .toSorted(
+      (left, right) =>
+        left.position - right.position ||
+        left.insertionOrder - right.insertionOrder,
+    )
+    .flatMap((entry) => entry.lines)
 
   return new NextResponse(`${[header, ...bodyLines].join("\n")}\n`, {
     headers: {
