@@ -4,7 +4,9 @@ import { NextResponse } from "next/server"
 import { getDb } from "@/db/client"
 import { getUserIdByFavoritesToken } from "@/db/favorites-token"
 import { savedChannels, savedSources } from "@/db/schema"
+import { getEpgChannelMetadata } from "@/lib/epg-store"
 import { logoTileKey, renderLogoTile } from "@/lib/logo-tile"
+import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
 
 export const runtime = "nodejs"
 
@@ -32,7 +34,11 @@ export async function GET(
   }
 
   const [row] = await db
-    .select({ logoUrl: savedChannels.logoUrl, logo: savedChannels.logo })
+    .select({
+      xmltvId: savedChannels.xmltvId,
+      logoUrl: savedChannels.logoUrl,
+      logo: savedChannels.logo,
+    })
     .from(savedChannels)
     .innerJoin(savedSources, eq(savedChannels.sourceId, savedSources.id))
     .where(
@@ -40,7 +46,11 @@ export async function GET(
     )
     .limit(1)
 
-  const logoUrl = row?.logoUrl || row?.logo
+  // Match the catalogue route: the canonical IPTV-EPG logo belongs to the
+  // channel, while a portal's artwork only describes one of its streams.
+  const lookupId = normalizeXmltvId(row?.xmltvId)
+  const epgMetadata = lookupId ? await getEpgChannelMetadata([lookupId]) : {}
+  const logoUrl = epgMetadata[lookupId]?.logoUrl || row?.logoUrl || row?.logo
   // The playlist names the generated PNG (`<hash>.png`) so media players can
   // identify it as an image. Dynamic route params include that extension; the
   // tile key itself deliberately does not.

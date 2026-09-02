@@ -336,12 +336,8 @@ export async function GET(
           xmltvId: lookupId,
           displayName: row.name || row.number || `Channel ${row.channelId}`,
           logo:
-            favoriteLogoTileUrl(
-              request.url,
-              token,
-              row.id,
-              row.logoUrl || row.logo,
-            ) || proxyImageUrl(logo, settings.useImageProxy),
+            favoriteLogoTileUrl(request.url, token, row.id, logo) ||
+            proxyImageUrl(logo, settings.useImageProxy),
           genre: row.genre,
         }),
         streamUrl,
