@@ -376,8 +376,9 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
     [autoHide, rootImplProps.onMouseMove, onControlsShow],
   );
 
-  // Touch has no hover, so a tap is the only way back to the controls. It also
-  // restarts the auto-hide timer, the way a mouse move does.
+  // Touch has no hover, so tapping the video surface toggles the controls.
+  // Taps inside the controls themselves keep them visible so their buttons and
+  // sliders stay reliable to operate.
   const onPointerDown = React.useCallback(
     (event: React.PointerEvent<RootElement>) => {
       rootImplProps.onPointerDown?.(event);
@@ -385,10 +386,30 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
       if (event.defaultPrevented) return;
 
       if (autoHide && event.pointerType !== "mouse") {
+        const target = event.target as Element;
+        if (target.closest('[data-slot="media-player-controls"]')) {
+          onControlsShow();
+          return;
+        }
+
+        if (controlsVisible) {
+          if (hideControlsTimeoutRef.current) {
+            clearTimeout(hideControlsTimeoutRef.current);
+          }
+          store.setState("controlsVisible", false);
+          return;
+        }
+
         onControlsShow();
       }
     },
-    [autoHide, rootImplProps.onPointerDown, onControlsShow],
+    [
+      autoHide,
+      controlsVisible,
+      rootImplProps.onPointerDown,
+      onControlsShow,
+      store.setState,
+    ],
   );
 
   React.useEffect(() => {
