@@ -94,6 +94,10 @@ import { chipButtonProps, chipLabelCollapse } from "@/components/tv/chip-button"
 import { toast } from "sonner"
 
 import { reorderFavoritesLocal } from "@/lib/favorites"
+import {
+  getCachedFavoriteGroupChannels,
+  setCachedFavoriteGroupChannels,
+} from "@/lib/portal-channels-cache"
 import { cn } from "@/lib/utils"
 import { TV_MOBILE_LAYOUT_QUERY, useMediaQuery } from "@/hooks/use-media-query"
 import {
@@ -193,6 +197,7 @@ export function ChannelList({
     channelLogoUrl,
     channelEpg,
     identityKeyOf,
+    isLoadingPortals,
     trustedIds,
     userId,
     sourceOrder,
@@ -254,6 +259,17 @@ export function ChannelList({
     if (selectedFavoriteGroup?.id === browseFilter.groupId) return
 
     let cancelled = false
+    if (userId) {
+      getCachedFavoriteGroupChannels(userId, browseFilter.groupId).then(
+        (channels) => {
+          if (cancelled || !channels?.length) return
+          setSelectedFavoriteGroupKeys(
+            new Set(channels.map((channel) => channel.favoriteKey)),
+          )
+          setIsRestoringFavoriteGroup(false)
+        },
+      )
+    }
     loadFavoriteGroups()
       .then((groups) => {
         const group = groups.find((entry) => entry.id === browseFilter.groupId)
@@ -269,7 +285,7 @@ export function ChannelList({
     return () => {
       cancelled = true
     }
-  }, [browseFilter, selectedFavoriteGroup])
+  }, [browseFilter, selectedFavoriteGroup, userId])
 
   // Every channel that belongs to at least one group, so the group action can
   // say whether it will start a membership or change existing ones.
@@ -566,6 +582,50 @@ export function ChannelList({
     selectedFavoriteGroup,
     selectedFavoriteGroupKeys,
     selectedPortalIds,
+  ])
+
+  // Match Favorites' IndexedDB fast path for a visited group. The snapshot is
+  // written only from the full catalogue, never from a prior snapshot, so a
+  // stale or partial startup view cannot overwrite the known-good projection.
+  useEffect(() => {
+    if (
+      !userId ||
+      isLoadingPortals ||
+      browseFilter.type !== "favoriteGroup" ||
+      !selectedFavoriteGroup
+    ) {
+      return
+    }
+
+    const snapshots = visibleChannels.flatMap((channel) => {
+      if (!channel.portalSource) return []
+      const { portalSource, cmd, ...snapshot } = channel
+      void cmd
+      return [
+        {
+          ...snapshot,
+          favoriteKey: favoriteKeyFor(channel),
+          source: {
+            id: portalSource.id,
+            name: portalSource.name,
+            epgMode: portalSource.epgMode,
+            epgSourceId: portalSource.epgSourceId,
+          },
+        },
+      ]
+    })
+    void setCachedFavoriteGroupChannels(
+      userId,
+      selectedFavoriteGroup.id,
+      snapshots,
+    )
+  }, [
+    browseFilter,
+    favoriteKeyFor,
+    isLoadingPortals,
+    selectedFavoriteGroup,
+    userId,
+    visibleChannels,
   ])
 
   /**

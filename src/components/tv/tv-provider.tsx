@@ -45,10 +45,12 @@ import { useEpgProgrammeSearch } from "@/hooks/use-epg-now"
 import { useUserSettings } from "@/hooks/use-user-settings"
 import { IPTV_ORG_SOURCE_ID, IPTV_ORG_SOURCE_NAME } from "@/lib/iptv-org"
 import {
+  getCachedFavoriteGroupChannels,
   getCachedPortalChannelsBatch,
   getCachedIptvOrgChannels,
   prunePortalChannelsCache,
   setCachedIptvOrgChannels,
+  type CachedFavoriteGroupChannel,
 } from "@/lib/portal-channels-cache"
 import {
   buildChannelIndex,
@@ -246,6 +248,12 @@ export function TvProvider({
   const [result, setResult] = useState<PortalResponse | null>(null)
   const [previewSourceRequest, setPreviewSourceRequest] =
     useState<SourceRequest>(defaultSourceRequest)
+  const [cachedFavoriteGroupChannels, setCachedFavoriteGroupChannels] =
+    useState<{
+      userId: string
+      groupId: number
+      channels: CachedFavoriteGroupChannel[]
+    } | null>(null)
   const [loadedPortals, setLoadedPortals] = useState<
     Record<number, LoadedPortal>
   >({})
@@ -355,6 +363,19 @@ export function TvProvider({
   const [selectedPortalIds, setSelectedPortalIds] = useState<Set<number>>(
     () => new Set(),
   )
+  // A favorite group is the only view worth restoring as a launch state. The
+  // all-channel view is expensive for large catalogues, while Favorites gives
+  // people a focused, cached first paint. Categories are similarly transient:
+  // they remain usable within a session but refreshing returns home.
+  const initialFavoriteGroup =
+    initialBrowseFilter?.type === "favoriteGroup" ? initialBrowseFilter : null
+  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(
+    initialFavoriteGroup ?? { type: "favorites" },
+  )
+  const userChoseFilter = useRef(initialFavoriteGroup !== null)
+  const [browseFilterRestored, setBrowseFilterRestored] = useState(
+    initialFavoriteGroup !== null,
+  )
 
   const deferredQuery = useDeferredValue(query)
 
@@ -422,6 +443,25 @@ export function TvProvider({
     })
   }, [loadedPortals])
 
+  useEffect(() => {
+    if (!userId || browseFilter.type !== "favoriteGroup") return
+
+    let cancelled = false
+    const groupId = browseFilter.groupId
+    getCachedFavoriteGroupChannels(userId, groupId).then((channels) => {
+      if (!cancelled) {
+        setCachedFavoriteGroupChannels({
+          userId,
+          groupId,
+          channels: channels ?? [],
+        })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [browseFilter, userId])
+
   const browserChannels = useMemo<PortalChannelWithSource[]>(() => {
     const userChannels = loadedPortalChannels.length
       ? loadedPortalChannels
@@ -435,6 +475,28 @@ export function TvProvider({
     // A favourite snapshot carries only what a row needs. It is intentionally
     // used only until the real catalogue arrives; that lets Favorites paint
     // immediately without turning this small cache into a second catalogue.
+    const startupGroupChannels =
+      browseFilter.type === "favoriteGroup" &&
+      cachedFavoriteGroupChannels?.userId === userId &&
+      cachedFavoriteGroupChannels.groupId === browseFilter.groupId
+        ? cachedFavoriteGroupChannels.channels
+        : []
+    if (startupGroupChannels.length) {
+      return startupGroupChannels.map((cachedChannel) => {
+        const { source, favoriteKey, ...channel } = cachedChannel
+        void favoriteKey
+        return {
+          ...channel,
+          cmd: "",
+          portalSource: {
+            ...source,
+            endpoint: "",
+            request: defaultSourceRequest,
+          },
+        }
+      })
+    }
+
     if (favoriteChannels.length) {
       return favoriteChannels.map(({ source, favoriteKey, ...channel }) => ({
         ...channel,
@@ -452,7 +514,15 @@ export function TvProvider({
     }
 
     return [...userChannels, ...iptvOrgChannels]
-  }, [favoriteChannels, loadedPortalChannels, result, iptvOrgChannels])
+  }, [
+    cachedFavoriteGroupChannels,
+    browseFilter,
+    favoriteChannels,
+    iptvOrgChannels,
+    loadedPortalChannels,
+    result,
+    userId,
+  ])
 
   const searchableChannels = useMemo(() => {
     return browserChannels.map((channel) => ({
@@ -1198,20 +1268,6 @@ export function TvProvider({
       return rows.size
     },
     [channelKeyRows],
-  )
-
-  // A favorite group is the only view worth restoring as a launch state. The
-  // all-channel view is expensive for large catalogues, while Favorites gives
-  // people a focused, cached first paint. Categories are similarly transient:
-  // they remain usable within a session but refreshing returns home.
-  const initialFavoriteGroup =
-    initialBrowseFilter?.type === "favoriteGroup" ? initialBrowseFilter : null
-  const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(
-    initialFavoriteGroup ?? { type: "favorites" },
-  )
-  const userChoseFilter = useRef(initialFavoriteGroup !== null)
-  const [browseFilterRestored, setBrowseFilterRestored] = useState(
-    initialFavoriteGroup !== null,
   )
 
   useEffect(() => {

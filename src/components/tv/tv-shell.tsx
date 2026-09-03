@@ -321,10 +321,15 @@ export function TvShell({ children }: { children: ReactNode }) {
   // its first fetch is the only thing that can turn an anonymous first visit
   // into a browseable screen; showing an empty state in that gap is misleading.
   const isLoading =
-    // A cached favourite projection is enough to browse Favorites while the
-    // full catalogue refreshes in the background. All other views still keep
-    // the established loading shell until their data is complete.
-    (isLoadingPortals && !(browseFilter.type === "favorites" && hasChannels)) ||
+    // Cached favorite and favorite-group projections are enough to paint their
+    // small lists while the full catalogue refreshes in the background. Other
+    // views still keep the established loading shell until data is complete.
+    (isLoadingPortals &&
+      !(
+        (browseFilter.type === "favorites" ||
+          browseFilter.type === "favoriteGroup") &&
+        hasChannels
+      )) ||
     (!hasChannels && iptvOrgEnabled && iptvOrgLoading)
 
   let content: ReactNode
@@ -408,9 +413,7 @@ export function TvShell({ children }: { children: ReactNode }) {
           onView={onSheetView}
         />
 
-        <div
-          className="absolute top-3.5 right-4 z-20 flex items-center gap-2 min-[940px]:top-6 min-[940px]:right-6"
-        >
+        <div className="absolute top-3.5 right-4 z-20 flex items-center gap-2 min-[940px]:top-6 min-[940px]:right-6">
           {currentChannel ? (
             <div className="flex items-center gap-2">
               {canOpenSources ? (

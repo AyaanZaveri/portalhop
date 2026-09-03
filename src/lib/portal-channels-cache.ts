@@ -21,11 +21,13 @@ const DB_NAME = "portalhop"
 // Version 8 adds a tiny, per-user favourite-row projection. It is deliberately
 // separate from the catalogue cache: a person with fifteen favourites should
 // not have to deserialize every enabled portal before seeing a useful list.
-const DB_VERSION = 8
+// Version 9 gives each visited favorite group the same fast-start projection.
+const DB_VERSION = 9
 const STORE_NAME = "portalChannels"
 const IPTV_ORG_STORE_NAME = "iptvOrgChannels"
 const EPG_WINDOW_STORE_NAME = "epgWindows"
 const FAVORITE_CHANNELS_STORE_NAME = "favoriteChannels"
+const FAVORITE_GROUP_CHANNELS_STORE_NAME = "favoriteGroupChannels"
 
 export type CachedPortalChannels = {
   sourceId: number
@@ -44,9 +46,26 @@ export type CachedFavoriteChannel = PortalChannel & {
   }
 }
 
+/**
+ * A renderable row for a favorite group. Stream commands never enter this
+ * cache: a fast-start row is not trusted to play until the full catalogue has
+ * refreshed. Membership lives on the group.
+ */
+export type CachedFavoriteGroupChannel = Omit<PortalChannel, "cmd"> & {
+  /** The resolved membership key used to restore this group's filter. */
+  favoriteKey: string
+  source: CachedFavoriteChannel["source"]
+}
+
 type CachedFavoriteChannels = {
   userId: string
   channels: CachedFavoriteChannel[]
+}
+
+type CachedFavoriteGroupChannels = {
+  userId: string
+  groupId: number
+  channels: CachedFavoriteGroupChannel[]
 }
 
 type CachedIptvOrgChannels = {
@@ -77,7 +96,14 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore(EPG_WINDOW_STORE_NAME, { keyPath: "key" })
       }
       if (!db.objectStoreNames.contains(FAVORITE_CHANNELS_STORE_NAME)) {
-        db.createObjectStore(FAVORITE_CHANNELS_STORE_NAME, { keyPath: "userId" })
+        db.createObjectStore(FAVORITE_CHANNELS_STORE_NAME, {
+          keyPath: "userId",
+        })
+      }
+      if (!db.objectStoreNames.contains(FAVORITE_GROUP_CHANNELS_STORE_NAME)) {
+        db.createObjectStore(FAVORITE_GROUP_CHANNELS_STORE_NAME, {
+          keyPath: ["userId", "groupId"],
+        })
       }
     }
 
@@ -93,7 +119,7 @@ function openDb(): Promise<IDBDatabase> {
 async function withStore<T>(
   storeName: string,
   mode: IDBTransactionMode,
-  run: (store: IDBObjectStore) => IDBRequest<T>
+  run: (store: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T | null> {
   if (typeof indexedDB === "undefined") {
     return null
@@ -116,7 +142,7 @@ async function withStore<T>(
 }
 
 export async function getCachedPortalChannels(
-  sourceId: number
+  sourceId: number,
 ): Promise<CachedPortalChannels | null> {
   return withStore(STORE_NAME, "readonly", (store) => store.get(sourceId))
 }
@@ -166,7 +192,7 @@ export async function getCachedPortalChannelsBatch(
 }
 
 export async function setCachedPortalChannels(
-  entry: CachedPortalChannels
+  entry: CachedPortalChannels,
 ): Promise<void> {
   await withStore(STORE_NAME, "readwrite", (store) => store.put(entry))
 }
@@ -174,18 +200,20 @@ export async function setCachedPortalChannels(
 // Drops any cached entries for sources that no longer exist (deleted
 // portals), so the cache doesn't grow unbounded over time.
 export async function prunePortalChannelsCache(
-  keepSourceIds: number[]
+  keepSourceIds: number[],
 ): Promise<void> {
   const keep = new Set(keepSourceIds)
 
-  const allKeys = await withStore(STORE_NAME, "readonly", (store) => store.getAllKeys())
+  const allKeys = await withStore(STORE_NAME, "readonly", (store) =>
+    store.getAllKeys(),
+  )
 
   if (!allKeys) {
     return
   }
 
   const staleKeys = allKeys.filter(
-    (key): key is number => typeof key === "number" && !keep.has(key)
+    (key): key is number => typeof key === "number" && !keep.has(key),
   )
 
   if (!staleKeys.length) {
@@ -200,7 +228,9 @@ export async function prunePortalChannelsCache(
   })
 }
 
-export async function getCachedIptvOrgChannels(): Promise<PortalChannel[] | null> {
+export async function getCachedIptvOrgChannels(): Promise<
+  PortalChannel[] | null
+> {
   const cached = await withStore<CachedIptvOrgChannels>(
     IPTV_ORG_STORE_NAME,
     "readonly",
@@ -243,6 +273,32 @@ export async function setCachedFavoriteChannels(
   )
 }
 
+/**
+ * Reads a saved group's display projection without deserializing the full
+ * catalogue. The server still refreshes group membership after first paint.
+ */
+export async function getCachedFavoriteGroupChannels(
+  userId: string,
+  groupId: number,
+): Promise<CachedFavoriteGroupChannel[] | null> {
+  const cached = await withStore<CachedFavoriteGroupChannels>(
+    FAVORITE_GROUP_CHANNELS_STORE_NAME,
+    "readonly",
+    (store) => store.get([userId, groupId]),
+  )
+  return cached?.channels ?? null
+}
+
+export async function setCachedFavoriteGroupChannels(
+  userId: string,
+  groupId: number,
+  channels: CachedFavoriteGroupChannel[],
+): Promise<void> {
+  await withStore(FAVORITE_GROUP_CHANNELS_STORE_NAME, "readwrite", (store) =>
+    store.put({ userId, groupId, channels }),
+  )
+}
+
 type CachedEpgWindow = {
   key: string
   to: number
@@ -262,7 +318,9 @@ export async function getCachedEpgWindow(
   return entry && entry.to > Date.now() ? entry : null
 }
 
-export async function setCachedEpgWindow(entry: CachedEpgWindow): Promise<void> {
+export async function setCachedEpgWindow(
+  entry: CachedEpgWindow,
+): Promise<void> {
   await withStore(EPG_WINDOW_STORE_NAME, "readwrite", (store) =>
     store.put(entry),
   )
