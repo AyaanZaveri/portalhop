@@ -794,7 +794,7 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
             onKeyDown,
             onKeyUp,
             className: cn(
-              "dark relative isolate flex size-full flex-col overflow-hidden rounded-lg bg-background outline-none after:pointer-events-none after:absolute after:inset-0 after:z-50 after:rounded-[inherit] focus-visible:after:ring-[3px] focus-visible:after:ring-inset focus-visible:after:ring-ring/50 focus-visible:after:content-[''] data-disabled:pointer-events-none data-disabled:opacity-50 [&_video]:relative [&_video]:object-contain",
+              "dark relative isolate flex size-full flex-col overflow-hidden rounded-lg bg-background outline-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_video]:relative [&_video]:object-contain",
               "in-[:fullscreen]:flex in-[:fullscreen]:h-full in-[:fullscreen]:max-h-screen in-[:fullscreen]:flex-col in-[:fullscreen]:justify-between data-[state=fullscreen]:[&_video]:size-full",
               "**:data-slider:relative [&_[data-slider]::before]:absolute [&_[data-slider]::before]:inset-x-0 [&_[data-slider]::before]:-top-4 [&_[data-slider]::before]:-bottom-2 [&_[data-slider]::before]:z-10 [&_[data-slider]::before]:h-8 [&_[data-slider]::before]:cursor-pointer [&_[data-slider]::before]:content-[''] [&_[data-slot='media-player-seek']:not([data-hovering])::before]:cursor-default",
               "[&_video::-webkit-media-text-track-display]:top-auto! [&_video::-webkit-media-text-track-display]:bottom-[4%]! [&_video::-webkit-media-text-track-display]:mb-0! data-[state=fullscreen]:data-controls-visible:[&_video::-webkit-media-text-track-display]:bottom-[9%]! data-[state=fullscreen]:[&_video::-webkit-media-text-track-display]:bottom-[7%]! data-controls-visible:[&_video::-webkit-media-text-track-display]:bottom-[13%]!",
@@ -3430,9 +3430,17 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
                 ))}
                 {!captionTracks.length && (
                   <DropdownMenuItem disabled>
-                    {captionTracksLoading
-                      ? "Loading captions…"
-                      : "No captions detected"}
+                    {captionTracksLoading ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2Icon
+                          aria-hidden="true"
+                          className="size-3.5 animate-spin"
+                        />
+                        Loading captions
+                      </span>
+                    ) : (
+                      "No captions detected"
+                    )}
                   </DropdownMenuItem>
                 )}
               </>
