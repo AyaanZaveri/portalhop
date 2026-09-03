@@ -817,10 +817,7 @@ export function TvProvider({
       [...programmeMatchesById.keys()].map((id, index) => [id, index]),
     )
     const programmeMatches = epgSearchEntries
-      .filter(
-        (entry) =>
-          programmeRanks.has(normalizeXmltvId(entry.xmltvId)),
-      )
+      .filter((entry) => programmeRanks.has(normalizeXmltvId(entry.xmltvId)))
       .sort(
         (left, right) =>
           programmeRanks.get(normalizeXmltvId(left.xmltvId))! -
@@ -833,7 +830,9 @@ export function TvProvider({
     const liveProgrammeMatches: PortalChannelWithSource[] = []
     const upcomingProgrammeMatches: PortalChannelWithSource[] = []
     for (const channel of programmeMatches) {
-      const programme = programmeMatchesById.get(normalizeXmltvId(channel.xmltvId))
+      const programme = programmeMatchesById.get(
+        normalizeXmltvId(channel.xmltvId),
+      )
       if (programme?.isLive) {
         liveProgrammeMatches.push(channel)
       } else {
@@ -1201,20 +1200,25 @@ export function TvProvider({
     [channelKeyRows],
   )
 
-  // Auto-default the filter to favorites/all until the user picks one.
+  // A favorite group is the only view worth restoring as a launch state. The
+  // all-channel view is expensive for large catalogues, while Favorites gives
+  // people a focused, cached first paint. Categories are similarly transient:
+  // they remain usable within a session but refreshing returns home.
+  const initialFavoriteGroup =
+    initialBrowseFilter?.type === "favoriteGroup" ? initialBrowseFilter : null
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter>(
-    initialBrowseFilter ?? { type: "all" },
+    initialFavoriteGroup ?? { type: "favorites" },
   )
-  const userChoseFilter = useRef(initialBrowseFilter !== null)
+  const userChoseFilter = useRef(initialFavoriteGroup !== null)
   const [browseFilterRestored, setBrowseFilterRestored] = useState(
-    initialBrowseFilter !== null,
+    initialFavoriteGroup !== null,
   )
 
   useEffect(() => {
     if (!settingsLoaded) return
     const saved = readSavedBrowseFilter(userId)
     const restore = window.setTimeout(() => {
-      if (saved) {
+      if (saved?.type === "favoriteGroup") {
         userChoseFilter.current = true
         setBrowseFilter(saved)
       } else {
@@ -1226,9 +1230,11 @@ export function TvProvider({
   }, [settingsLoaded, userId])
 
   useEffect(() => {
-    if (!browseFilterRestored || userChoseFilter.current) return
+    if (!browseFilterRestored || userChoseFilter.current || favoritesLoading) {
+      return
+    }
     setBrowseFilter(favoriteCount > 0 ? { type: "favorites" } : { type: "all" })
-  }, [browseFilterRestored, favoriteCount])
+  }, [browseFilterRestored, favoriteCount, favoritesLoading])
 
   useEffect(() => {
     if (!browseFilterRestored || typeof window === "undefined") return
