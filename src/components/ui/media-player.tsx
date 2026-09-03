@@ -368,6 +368,9 @@ function MediaPlayerImpl(props: MediaPlayerProps) {
       rootImplProps.onMouseMove?.(event);
 
       if (event.defaultPrevented) return;
+      // Android follows a touch with compatibility mouse events. Those must
+      // not undo the touch toggle that just hid the controls.
+      if (!isMouseClick(event)) return;
 
       if (autoHide) {
         onControlsShow();
