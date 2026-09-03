@@ -1286,19 +1286,21 @@ export function ChannelList({
             onDragOver={(event) => {
               const overId = event.over?.id ? String(event.over.id) : null
 
-              // The dragged row counts as being over itself, which is not a
-              // pass, and dnd-kit reports the same row repeatedly while the
-              // pointer stays within it.
-              if (
-                !overId ||
-                overId === String(event.active.id) ||
-                overId === lastDragOverIdRef.current
-              ) {
+              // dnd-kit reports the dragged row at the start of a drag, then
+              // again whenever it crosses back over an adjacent row. Ignore
+              // only that initial report: subsequent transitions to the
+              // dragged row are real crossings and need feedback too.
+              if (!overId || overId === lastDragOverIdRef.current) {
                 return
               }
 
+              const isInitialPosition =
+                lastDragOverIdRef.current === null &&
+                overId === String(event.active.id)
               lastDragOverIdRef.current = overId
-              triggerHaptic("light")
+              if (!isInitialPosition) {
+                triggerHaptic("light")
+              }
             }}
             className="flex flex-col gap-1.5 py-[3px]"
           >
