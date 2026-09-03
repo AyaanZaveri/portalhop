@@ -448,12 +448,12 @@ export function TvProvider({
 
     let cancelled = false
     const groupId = browseFilter.groupId
-    getCachedFavoriteGroupChannels(userId, groupId).then((channels) => {
+    getCachedFavoriteGroupChannels(userId, groupId).then((projection) => {
       if (!cancelled) {
         setCachedFavoriteGroupChannels({
           userId,
           groupId,
-          channels: channels ?? [],
+          channels: projection?.channels ?? [],
         })
       }
     })

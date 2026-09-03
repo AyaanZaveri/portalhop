@@ -57,6 +57,12 @@ export type CachedFavoriteGroupChannel = Omit<PortalChannel, "cmd"> & {
   source: CachedFavoriteChannel["source"]
 }
 
+export type CachedFavoriteGroupProjection = {
+  name: string
+  icon: string
+  channels: CachedFavoriteGroupChannel[]
+}
+
 type CachedFavoriteChannels = {
   userId: string
   channels: CachedFavoriteChannel[]
@@ -65,8 +71,7 @@ type CachedFavoriteChannels = {
 type CachedFavoriteGroupChannels = {
   userId: string
   groupId: number
-  channels: CachedFavoriteGroupChannel[]
-}
+} & CachedFavoriteGroupProjection
 
 type CachedIptvOrgChannels = {
   id: "catalogue"
@@ -280,22 +285,29 @@ export async function setCachedFavoriteChannels(
 export async function getCachedFavoriteGroupChannels(
   userId: string,
   groupId: number,
-): Promise<CachedFavoriteGroupChannel[] | null> {
+): Promise<CachedFavoriteGroupProjection | null> {
   const cached = await withStore<CachedFavoriteGroupChannels>(
     FAVORITE_GROUP_CHANNELS_STORE_NAME,
     "readonly",
     (store) => store.get([userId, groupId]),
   )
-  return cached?.channels ?? null
+  if (
+    !cached ||
+    typeof cached.name !== "string" ||
+    typeof cached.icon !== "string"
+  ) {
+    return null
+  }
+  return { name: cached.name, icon: cached.icon, channels: cached.channels }
 }
 
 export async function setCachedFavoriteGroupChannels(
   userId: string,
   groupId: number,
-  channels: CachedFavoriteGroupChannel[],
+  projection: CachedFavoriteGroupProjection,
 ): Promise<void> {
   await withStore(FAVORITE_GROUP_CHANNELS_STORE_NAME, "readwrite", (store) =>
-    store.put({ userId, groupId, channels }),
+    store.put({ userId, groupId, ...projection }),
   )
 }
 

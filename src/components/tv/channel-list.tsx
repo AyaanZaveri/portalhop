@@ -262,10 +262,19 @@ export function ChannelList({
     let cancelled = false
     if (userId) {
       getCachedFavoriteGroupChannels(userId, browseFilter.groupId).then(
-        (channels) => {
-          if (cancelled || !channels?.length) return
+        (projection) => {
+          if (cancelled || !projection?.channels.length) return
+          const channelKeys = projection.channels.map(
+            (channel) => channel.favoriteKey,
+          )
+          setSelectedFavoriteGroup({
+            id: browseFilter.groupId,
+            name: projection.name,
+            icon: projection.icon,
+            channelKeys,
+          })
           setSelectedFavoriteGroupKeys(
-            new Set(channels.map((channel) => channel.favoriteKey)),
+            new Set(channelKeys),
           )
           setIsRestoringFavoriteGroup(false)
         },
@@ -618,7 +627,11 @@ export function ChannelList({
     void setCachedFavoriteGroupChannels(
       userId,
       selectedFavoriteGroup.id,
-      snapshots,
+      {
+        name: selectedFavoriteGroup.name,
+        icon: selectedFavoriteGroup.icon,
+        channels: snapshots,
+      },
     )
   }, [
     browseFilter,
