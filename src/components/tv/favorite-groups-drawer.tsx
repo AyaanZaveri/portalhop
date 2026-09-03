@@ -529,6 +529,9 @@ export function FavoriteGroupsDrawer({
   }, [])
 
   const isLoading = loadedUserId !== userId
+  const triggerChipProps = chipButtonProps(activeGroupId !== null, {
+    iconOnly: true,
+  })
 
   const closeCreateDrawer = (nextOpen: boolean) => {
     setCreateOpen(nextOpen)
@@ -641,7 +644,8 @@ export function FavoriteGroupsDrawer({
         render={
           <Button
             type="button"
-            {...chipButtonProps(activeGroupId !== null, { iconOnly: true })}
+            {...triggerChipProps}
+            className={cn(triggerChipProps.className, "disabled:opacity-100")}
             aria-label="Favorite groups"
             disabled={!userId}
           >
