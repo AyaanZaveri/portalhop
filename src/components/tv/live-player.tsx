@@ -100,6 +100,52 @@ type NonNativeHlsTextTrack = {
   closedCaptions?: { lang?: string }
 }
 
+type HdrLevel = {
+  videoRange: "SDR" | "PQ" | "HLG"
+  videoCodec?: string
+  width: number
+  height: number
+  bitrate: number
+  frameRate: number
+}
+
+/**
+ * A browser cannot tell us that its compositor has switched into HDR mode, but
+ * it can confirm an HDR rendition is selected, the output supports HDR, and
+ * the exact decoder configuration is supported. Only show the badge when all
+ * three are true rather than labelling a tone-mapped stream as HDR.
+ */
+async function isConfirmedHdrPlayback(level: HdrLevel | undefined) {
+  if (
+    !level ||
+    level.videoRange === "SDR" ||
+    !level.videoCodec ||
+    !window.matchMedia("(dynamic-range: high)").matches
+  ) {
+    return false
+  }
+
+  const mediaCapabilities = navigator.mediaCapabilities
+  if (!mediaCapabilities?.decodingInfo) return false
+
+  try {
+    const result = await mediaCapabilities.decodingInfo({
+      type: "media-source",
+      video: {
+        contentType: `video/mp4; codecs="${level.videoCodec.split(",")[0]}"`,
+        width: level.width || 640,
+        height: level.height || 480,
+        bitrate: level.bitrate,
+        framerate: level.frameRate || 30,
+        transferFunction: level.videoRange.toLowerCase() as TransferFunction,
+      },
+    })
+    return result.supported
+  } catch {
+    return false
+  }
+}
+
 export function LivePlayer({
   channel,
   logoUrl: channelLogoUrl,
@@ -308,6 +354,7 @@ export function LivePlayer({
     frameRateLabel: "",
     bitrateLabel: "",
   })
+  const [isHdrPlaying, setIsHdrPlaying] = useState(false)
 
   const selectCaptionTrack = useCallback((track: HlsCaptionTrack | null) => {
     selectedCaptionTrackRef.current = track
@@ -676,6 +723,8 @@ export function LivePlayer({
       frameRateLabel: "",
       bitrateLabel: "",
     })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsHdrPlaying(false)
     learnedRef.current = {}
     reportedRef.current = ""
     captionCuesRef.current.clear()
@@ -689,6 +738,8 @@ export function LivePlayer({
     let frameRateSampleIntervalId: number | undefined
     let hasManifestFrameRate = false
     let frameRateEstimated = false
+    let lastHdrLevel: HdrLevel | undefined
+    let hdrCheckId = 0
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
 
@@ -963,6 +1014,13 @@ export function LivePlayer({
       const updateFromLevel = (levelIndex?: number) => {
         const level = getActiveLevel(levelIndex)
         if (level) {
+          if (level !== lastHdrLevel) {
+            lastHdrLevel = level
+            const checkId = ++hdrCheckId
+            void isConfirmedHdrPlayback(level).then((confirmed) => {
+              if (checkId === hdrCheckId) setIsHdrPlaying(confirmed)
+            })
+          }
           reportStream({
             width: level.width || null,
             height: level.height || null,
@@ -1159,6 +1217,7 @@ export function LivePlayer({
     updateActiveCaption()
 
     return () => {
+      hdrCheckId += 1
       if (intervalId) window.clearInterval(intervalId)
       if (frameRateSampleIntervalId) {
         window.clearInterval(frameRateSampleIntervalId)
@@ -1293,6 +1352,7 @@ export function LivePlayer({
               ) : null}
               <StreamInfoBadges
                 variant={streamVariant}
+                isHdrPlaying={isHdrPlaying}
                 className="bg-white/10 text-white backdrop-blur"
               />
             </div>
@@ -1343,9 +1403,11 @@ export function LivePlayer({
 
 function StreamInfoBadges({
   variant,
+  isHdrPlaying,
   className,
 }: {
   variant: StreamVariant
+  isHdrPlaying: boolean
   className?: string
 }) {
   const label = [variant.resolutionLabel, variant.frameRateLabel]
@@ -1355,17 +1417,32 @@ function StreamInfoBadges({
     ? [label, variant.bitrateLabel].filter(Boolean).join(" @ ")
     : label
 
-  if (!labelWithBitrate) return null
+  if (!labelWithBitrate && !isHdrPlaying) return null
 
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "animate-in fade-in-0 slide-in-from-bottom-1 h-5 duration-300 ease-out",
-        className,
-      )}
-    >
-      {labelWithBitrate}
-    </Badge>
+    <>
+      {labelWithBitrate ? (
+        <Badge
+          variant="outline"
+          className={cn(
+            "animate-in fade-in-0 slide-in-from-bottom-1 h-5 duration-300 ease-out",
+            className,
+          )}
+        >
+          {labelWithBitrate}
+        </Badge>
+      ) : null}
+      {isHdrPlaying ? (
+        <Badge
+          variant="outline"
+          className={cn(
+            "animate-in fade-in-0 slide-in-from-bottom-1 h-5 font-semibold duration-300 ease-out",
+            className,
+          )}
+        >
+          HDR
+        </Badge>
+      ) : null}
+    </>
   )
 }
