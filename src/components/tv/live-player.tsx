@@ -110,20 +110,54 @@ type HdrLevel = {
 }
 
 /**
- * A browser cannot tell us that its compositor has switched into HDR mode, but
- * it can confirm an HDR rendition is selected, the output supports HDR, and
- * the exact decoder configuration is supported. Only show the badge when all
- * three are true rather than labelling a tone-mapped stream as HDR.
+ * The HLS manifest is the normal source for this, but many IPTV playlists
+ * omit VIDEO-RANGE while retaining HDR metadata in the decoded HEVC frame.
+ * VideoFrame exposes that frame metadata when supported, making it the more
+ * authoritative signal for those streams.
  */
-async function isConfirmedHdrPlayback(level: HdrLevel | undefined) {
+function getDecodedHdrTransfer(video: HTMLVideoElement) {
   if (
-    !level ||
-    level.videoRange === "SDR" ||
-    !level.videoCodec ||
-    !window.matchMedia("(dynamic-range: high)").matches
+    typeof VideoFrame === "undefined" ||
+    video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
   ) {
+    return null
+  }
+
+  let frame: VideoFrame | undefined
+  try {
+    frame = new VideoFrame(video)
+    // TypeScript's DOM declarations have not yet caught up with the WebCodecs
+    // `pq` and `hlg` transfer values that current Chromium exposes.
+    const transfer = frame.colorSpace.transfer as string | null
+    return transfer === "pq" || transfer === "hlg" ? transfer : null
+  } catch {
+    return null
+  } finally {
+    frame?.close()
+  }
+}
+
+async function isConfirmedHdrPlayback(
+  level: HdrLevel | undefined,
+  video: HTMLVideoElement,
+) {
+  const decodedTransfer = getDecodedHdrTransfer(video)
+  const transfer =
+    decodedTransfer ??
+    (level?.videoRange === "PQ" || level?.videoRange === "HLG"
+      ? level.videoRange.toLowerCase()
+      : null)
+
+  if (!transfer || !window.matchMedia("(dynamic-range: high)").matches) {
     return false
   }
+
+  // A presented frame already proves this browser can decode the exact stream.
+  // This also handles single media playlists, whose hls.js level has no codec
+  // or VIDEO-RANGE metadata to send through Media Capabilities.
+  if (decodedTransfer) return true
+
+  if (!level?.videoCodec) return false
 
   const mediaCapabilities = navigator.mediaCapabilities
   if (!mediaCapabilities?.decodingInfo) return false
@@ -137,7 +171,7 @@ async function isConfirmedHdrPlayback(level: HdrLevel | undefined) {
         height: level.height || 480,
         bitrate: level.bitrate,
         framerate: level.frameRate || 30,
-        transferFunction: level.videoRange.toLowerCase() as TransferFunction,
+        transferFunction: transfer as TransferFunction,
       },
     })
     return result.supported
@@ -740,6 +774,7 @@ export function LivePlayer({
     let frameRateEstimated = false
     let lastHdrLevel: HdrLevel | undefined
     let hdrCheckId = 0
+    let hdrFrameCallbackId: number | undefined
     let lastFrameSample: { frames: number; time: number } | null = null
     const frameRateSamples: number[] = []
 
@@ -1001,6 +1036,30 @@ export function LivePlayer({
         }
       }
 
+      const checkHdrPlayback = (level: HdrLevel, force = false) => {
+        if (!force && level === lastHdrLevel) return
+        lastHdrLevel = level
+        const checkId = ++hdrCheckId
+        void isConfirmedHdrPlayback(level, playerElement).then((confirmed) => {
+          if (checkId === hdrCheckId) setIsHdrPlaying(confirmed)
+        })
+      }
+
+      const scheduleHdrFrameCheck = () => {
+        if (
+          hdrFrameCallbackId !== undefined ||
+          typeof playerElement.requestVideoFrameCallback !== "function"
+        ) {
+          return
+        }
+
+        hdrFrameCallbackId = playerElement.requestVideoFrameCallback(() => {
+          hdrFrameCallbackId = undefined
+          const level = getActiveLevel()
+          if (level) checkHdrPlayback(level, true)
+        })
+      }
+
       const updateBitrate = (bitrate?: number) => {
         if (!bitrate) return
         const bitrateLabel = formatBitrateLabel(bitrate)
@@ -1014,13 +1073,8 @@ export function LivePlayer({
       const updateFromLevel = (levelIndex?: number) => {
         const level = getActiveLevel(levelIndex)
         if (level) {
-          if (level !== lastHdrLevel) {
-            lastHdrLevel = level
-            const checkId = ++hdrCheckId
-            void isConfirmedHdrPlayback(level).then((confirmed) => {
-              if (checkId === hdrCheckId) setIsHdrPlaying(confirmed)
-            })
-          }
+          checkHdrPlayback(level)
+          scheduleHdrFrameCheck()
           reportStream({
             width: level.width || null,
             height: level.height || null,
@@ -1218,6 +1272,9 @@ export function LivePlayer({
 
     return () => {
       hdrCheckId += 1
+      if (hdrFrameCallbackId !== undefined) {
+        playerElement.cancelVideoFrameCallback?.(hdrFrameCallbackId)
+      }
       if (intervalId) window.clearInterval(intervalId)
       if (frameRateSampleIntervalId) {
         window.clearInterval(frameRateSampleIntervalId)
