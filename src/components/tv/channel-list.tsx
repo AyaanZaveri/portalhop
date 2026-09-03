@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api-fetch"
 import { useHaptics } from "@/hooks/use-haptics"
 import { channelHref, useActiveChannelSlug } from "@/hooks/use-active-channel"
@@ -204,7 +203,6 @@ export function ChannelList({
     sourceOrder,
   } = useTv()
 
-  const router = useRouter()
   const activeSlug = useActiveChannelSlug()
   const isMobileLayout = useMediaQuery(TV_MOBILE_LAYOUT_QUERY, true)
   const triggerHaptic = useHaptics()
@@ -1561,7 +1559,17 @@ export function ChannelList({
                               suppressChannelClickRef.current = false
                               return
                             }
-                            router.push(channelHref(slug))
+                            // A mobile row is a button rather than the
+                            // desktop Link so it can support long press. The
+                            // native History API updates Next's search-param
+                            // hooks without restarting the TV route, which
+                            // avoids flashing the catalogue loading shell
+                            // before the channel detail renders.
+                            window.history.pushState(
+                              null,
+                              "",
+                              channelHref(slug),
+                            )
                           }}
                           className={cn(
                             "focus-visible:ring-ring/50 pointer-events-auto absolute inset-0 z-0 rounded-xl border-0 bg-transparent p-0 focus-visible:ring-[3px] focus-visible:outline-none focus-visible:ring-inset",

@@ -20,7 +20,6 @@ import {
   MediaPlayerControlsOverlay,
   MediaPlayerError,
   MediaPlayerFullscreen,
-  MediaPlayerLoading,
   MediaPlayerPiP,
   MediaPlayerPlay,
   MediaPlayerSeek,
@@ -1377,7 +1376,6 @@ export function LivePlayer({
           </p>
         </div>
       ) : null}
-      <MediaPlayerLoading />
       <MediaPlayerError />
       <MediaPlayerVolumeIndicator />
       <MediaPlayerControls className="flex-col items-start gap-2.5 px-4 pb-3">
