@@ -469,12 +469,15 @@ function suggestGroupIcon(name: string) {
 
 export function FavoriteGroupsDrawer({
   activeGroupId,
+  isSessionLoading,
   isMobileLayout,
   onDeleteGroup,
   onSelectGroup,
   userId,
 }: {
   activeGroupId: number | null
+  /** Keep the trigger mounted while a signed-in session hydrates. */
+  isSessionLoading: boolean
   isMobileLayout: boolean
   onDeleteGroup: (groupId: number) => void
   onSelectGroup: (group: FavoriteGroup) => void
@@ -619,7 +622,10 @@ export function FavoriteGroupsDrawer({
     window.setTimeout(() => setGroupPendingDelete(null), 100)
   }
 
-  if (!userId) return null
+  // `userId` is temporarily null while the session hydrates. Leaving the chip
+  // mounted avoids the row shifting from three controls to four on refresh;
+  // once hydration confirms a signed-out visitor, it disappears as before.
+  if (!userId && !isSessionLoading) return null
 
   return (
     <Drawer
@@ -637,6 +643,7 @@ export function FavoriteGroupsDrawer({
             type="button"
             {...chipButtonProps(activeGroupId !== null, { iconOnly: true })}
             aria-label="Favorite groups"
+            disabled={!userId}
           >
             <FolderHeartIcon className="size-3.5" />
             <span className="sr-only">Groups</span>

@@ -198,6 +198,7 @@ export function ChannelList({
     channelEpg,
     identityKeyOf,
     isLoadingPortals,
+    settingsLoaded,
     trustedIds,
     userId,
     sourceOrder,
@@ -1192,6 +1193,7 @@ export function ChannelList({
                 ? browseFilter.groupId
                 : null
             }
+            isSessionLoading={!settingsLoaded}
             isMobileLayout={isMobileLayout}
             onDeleteGroup={(groupId) => {
               if (
