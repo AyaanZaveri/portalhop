@@ -226,13 +226,16 @@ export function useEpgProgrammeSearch(
       event: MessageEvent<{
         id: number
         matches: Array<ProgrammeMatch & { id: string }>
+        pending?: boolean
       }>,
     ) => {
       if (event.data.id !== requestIdRef.current) return
       setMatches(
         new Map(event.data.matches.map(({ id, ...match }) => [id, match])),
       )
-      setIsLoading(false)
+      setIsLoading(
+        Boolean(event.data.pending && event.data.matches.length === 0),
+      )
     }
     worker.onerror = () => setIsLoading(false)
     return () => worker.terminate()
