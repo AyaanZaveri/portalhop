@@ -41,6 +41,8 @@ export type PortalChannel = {
    */
   sourceLogoUrl?: string
   xmltvId?: string
+  /** ISO 3166-1 alpha-2 code for the guide's channel region, when known. */
+  countryCode?: string
 }
 
 export type EpgProgramme = {

@@ -30,7 +30,7 @@ export const runtime = "nodejs"
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const user = await requireUser()
   if (user instanceof NextResponse) {
@@ -100,7 +100,9 @@ export async function GET(
        * thing distinguishing one stream from another once several sit behind
        * one row -- "SKY SPORTS F1 UHD" against "4K| SKY SPORTS F1".
        */
-      name: epgMetadata[normalizeXmltvId(channel.xmltvId)]?.name || channel.name,
+      name:
+        epgMetadata[normalizeXmltvId(channel.xmltvId)]?.name || channel.name,
+      countryCode: epgMetadata[normalizeXmltvId(channel.xmltvId)]?.countryCode,
       sourceName: channel.name,
       // Stream commands can be very large and are only needed after the user
       // chooses a channel. They stay in Postgres until /api/channel-link
@@ -117,8 +119,12 @@ export async function GET(
        * shows it -- there the whole point is telling one stream from another.
        */
       logoUrl:
-        customEpgLogos[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
-        epgMetadata[normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()]?.logoUrl ||
+        customEpgLogos[
+          normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()
+        ]?.logoUrl ||
+        epgMetadata[
+          normalizeXmltvId(channel.xmltvId) || channel.channelId.toLowerCase()
+        ]?.logoUrl ||
         channel.logoUrl,
       sourceLogoUrl: channel.logoUrl,
     })),
@@ -133,7 +139,7 @@ export async function GET(
  */
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const user = await requireUser()
   if (user instanceof NextResponse) {
@@ -166,7 +172,7 @@ export async function PATCH(
     if (!name) {
       return NextResponse.json(
         { error: "Nickname is required." },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -194,32 +200,36 @@ export async function PATCH(
   const stbType = stringValue(body.stbType).trim() || "MAG254"
   const epgMode = readEpgMode(body.epgMode)
   const requestedEpgSourceId = readEpgSourceId(body.epgSourceId)
-  const customEpg = epgMode === "custom" && requestedEpgSourceId
-    ? await selectUserEpgSource(db, requestedEpgSourceId)
-    : null
+  const customEpg =
+    epgMode === "custom" && requestedEpgSourceId
+      ? await selectUserEpgSource(db, requestedEpgSourceId)
+      : null
   if (epgMode === "custom" && (!customEpg || customEpg.userId !== user.id)) {
-    return NextResponse.json({ error: "Custom EPG source not found." }, { status: 400 })
+    return NextResponse.json(
+      { error: "Custom EPG source not found." },
+      { status: 400 },
+    )
   }
   const epgSourceId = epgMode === "custom" ? requestedEpgSourceId : null
 
   if (sourceType === "stalker" && (!portalUrl || !mac)) {
     return NextResponse.json(
       { error: "Portal URL and MAC address are required." },
-      { status: 400 }
+      { status: 400 },
     )
   }
 
   if (sourceType === "xtream" && (!serverUrl || !username || !password)) {
     return NextResponse.json(
       { error: "Server URL, username, and password are required." },
-      { status: 400 }
+      { status: 400 },
     )
   }
 
   if (sourceType === "m3u" && !playlistUrl) {
     return NextResponse.json(
       { error: "M3U playlist URL is required." },
-      { status: 400 }
+      { status: 400 },
     )
   }
 
@@ -361,15 +371,23 @@ export async function PATCH(
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Could not fetch channels for this source.",
+          error instanceof Error
+            ? error.message
+            : "Could not fetch channels for this source.",
       },
-      { status: 502 }
+      { status: 502 },
     )
   }
 
   const updatedAt = new Date()
   await db.transaction(async (tx) => {
-    await syncSavedChannels(tx, sourceId, sourceType, result.channels, updatedAt)
+    await syncSavedChannels(
+      tx,
+      sourceId,
+      sourceType,
+      result.channels,
+      updatedAt,
+    )
 
     await tx
       .update(savedSources)
@@ -408,14 +426,14 @@ export async function PATCH(
     password,
     outputFormat,
     playlistUrl,
-  };
+  }
 
   return NextResponse.json({ portal })
 }
 
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const user = await requireUser()
   if (user instanceof NextResponse) {

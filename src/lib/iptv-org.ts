@@ -1,6 +1,7 @@
 import { fetchM3uChannels } from "@/lib/m3u-client"
 import type { PortalChannel } from "@portalhop/shared/stalker-types"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import { resolveCategoryVisual } from "@portalhop/shared/category-flags"
 
 // A built-in, free playlist from the iptv-org project. It's the same public data
 // for everyone, so it lives outside the per-user portals model: fetched once and
@@ -17,7 +18,12 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
 // visitors. Surface the largest English-language markets first, interleaved
 // by channel name rather than grouped by country; everything else keeps its
 // original alphabetical (by country, then name) order after them.
-const PRIORITY_COUNTRIES = new Set(["United States", "Canada", "United Kingdom", "Australia"])
+const PRIORITY_COUNTRIES = new Set([
+  "United States",
+  "Canada",
+  "United Kingdom",
+  "Australia",
+])
 
 let cache: { channels: PortalChannel[]; fetchedAt: number } | null = null
 let inFlight: Promise<PortalChannel[]> | null = null
@@ -43,11 +49,14 @@ export async function getIptvOrgChannels(): Promise<PortalChannel[]> {
       const result = await fetchM3uChannels(IPTV_ORG_PLAYLIST_URL)
       const mapped = result.channels.map((channel) => {
         const category = normalizeCategory(channel.genre)
+        const countryVisual = resolveCategoryVisual(channel.genre)
         return {
           ...channel,
           // IPTV-org's playlist may add a stream-quality suffix (for example
           // `TSN1.ca@SD`) which is not part of IPTV-EPG's XMLTV channel ID.
           xmltvId: normalizeXmltvId(channel.xmltvId),
+          countryCode:
+            countryVisual?.kind === "flag" ? countryVisual.code : undefined,
           genre: category,
           genreId: category,
         }
@@ -59,7 +68,7 @@ export async function getIptvOrgChannels(): Promise<PortalChannel[]> {
         ;(PRIORITY_COUNTRIES.has(channel.genre) ? priority : rest).push(channel)
       }
       priority.sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
       )
 
       const channels = [...priority, ...rest]

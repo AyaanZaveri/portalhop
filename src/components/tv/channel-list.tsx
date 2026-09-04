@@ -107,6 +107,10 @@ import {
   type PortalSource,
 } from "@/lib/tv-channels"
 import { normalizeXmltvId } from "@portalhop/shared/xmltv-id"
+import {
+  circleFlagUrl,
+  resolveCategoryVisual,
+} from "@portalhop/shared/category-flags"
 import { useEpgNow } from "@/hooks/use-epg-now"
 import { useTv } from "@/components/tv/tv-provider"
 
@@ -271,9 +275,7 @@ export function ChannelList({
             icon: projection.icon,
             channelKeys,
           })
-          setSelectedFavoriteGroupKeys(
-            new Set(channelKeys),
-          )
+          setSelectedFavoriteGroupKeys(new Set(channelKeys))
           setIsRestoringFavoriteGroup(false)
         },
       )
@@ -622,15 +624,11 @@ export function ChannelList({
         },
       ]
     })
-    void setCachedFavoriteGroupChannels(
-      userId,
-      selectedFavoriteGroup.id,
-      {
-        name: selectedFavoriteGroup.name,
-        icon: selectedFavoriteGroup.icon,
-        channels: snapshots,
-      },
-    )
+    void setCachedFavoriteGroupChannels(userId, selectedFavoriteGroup.id, {
+      name: selectedFavoriteGroup.name,
+      icon: selectedFavoriteGroup.icon,
+      channels: snapshots,
+    })
   }, [
     browseFilter,
     favoriteKeyFor,
@@ -1487,6 +1485,10 @@ export function ChannelList({
               // Nothing to resolve here, which is the point — a name worked
               // out after the row is drawn is a name the row has to correct.
               const displayName = channel.name
+              const categoryVisual = resolveCategoryVisual(channel.genre || "")
+              const countryCode =
+                channel.countryCode?.toLowerCase() ??
+                (categoryVisual?.kind === "flag" ? categoryVisual.code : null)
               const channelBadgeId = channel.xmltvId ?? ""
               // The guide id of whichever stream supplies this channel's guide,
               // which is not always this row's own: the strip is looked up
@@ -1578,6 +1580,7 @@ export function ChannelList({
                         />
                         <Link
                           href={channelHref(slug)}
+                          draggable={false}
                           data-row-target
                           aria-label={channelLabel}
                           className={cn(
@@ -1599,9 +1602,23 @@ export function ChannelList({
                         </div>
                       )}
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate font-[550]">
-                          {displayName ||
-                            `Channel ${channel.number || virtualRow.index + 1}`}
+                        <span className="flex min-w-0 items-center gap-1.5 font-[550]">
+                          <span className="truncate">
+                            {displayName ||
+                              `Channel ${channel.number || virtualRow.index + 1}`}
+                          </span>
+                          {countryCode ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- Circle flags load from the hatscripts CDN.
+                            <img
+                              src={circleFlagUrl(countryCode)}
+                              alt=""
+                              title={`Channel region: ${countryCode.toUpperCase()}`}
+                              aria-label={`Channel region: ${countryCode.toUpperCase()}`}
+                              className="size-3 shrink-0 rounded-full object-cover"
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : null}
                         </span>
                         {/* What is on now beats what genre the portal filed the
                             channel under, so it takes the two lines rather than

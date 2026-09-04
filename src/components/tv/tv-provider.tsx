@@ -872,11 +872,34 @@ export function TvProvider({
     const q = deferredQuery.trim().toLowerCase()
     if (!q) return browserChannels
 
-    // Programme hits are the strongest intent for an event/team search. Keep
-    // the worker's live-first order, then show direct channel-name hits that
-    // did not already earn a programme result, followed by upcoming events.
+    // Programme hits are the strongest intent for an event/team search. For
+    // direct hits, rank the channel name before the broader searchable fields:
+    // an exact guide-backed "ESPN" should beat the many "ESPN+" rows that
+    // happen to occur earlier in a portal's catalogue.
     const direct = searchableChannels
       .filter((entry) => entry.searchText.includes(q))
+      .map((entry, index) => {
+        const channelName = entry.channel.name.trim().toLowerCase()
+        const nameScore =
+          channelName === q
+            ? 900
+            : channelName.startsWith(q)
+              ? 650
+              : channelName.includes(q)
+                ? 300
+                : 100
+
+        return {
+          channel: entry.channel,
+          index,
+          // An assigned XMLTV id is the catalogue's strongest local signal
+          // that this is a useful, guide-backed channel.
+          score: nameScore + (entry.channel.xmltvId ? 350 : 0),
+        }
+      })
+      .sort(
+        (left, right) => right.score - left.score || left.index - right.index,
+      )
       .map((entry) => entry.channel)
 
     if (!programmeSearchEnabled || q.length < 2 || !programmeMatchesById.size) {

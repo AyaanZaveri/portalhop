@@ -8,7 +8,6 @@ import { motion, useReducedMotion } from "motion/react"
 import { ChevronLeftIcon } from "lucide-react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Spinner } from "@/components/ui/spinner"
 import { getChannelKey } from "@/lib/tv-channels"
 import { ChannelLogo } from "@/components/tv/channel-logo"
 import { PrimaryMeshGradientBackdrop } from "@/components/mesh-gradient-backdrop"
@@ -62,9 +61,7 @@ export function ChannelDetail() {
 
   if (!channel) {
     return (
-      <div className="bg-background flex h-full items-center justify-center min-[940px]:rounded-2xl">
-        <Spinner />
-      </div>
+      <div className="bg-background h-full min-[940px]:rounded-2xl" />
     )
   }
 
