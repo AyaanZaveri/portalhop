@@ -125,6 +125,13 @@ function categoryPreferenceKey(sourceId: number, genre: string) {
   return `${sourceId}\u0000${genre}`
 }
 
+function countryCodeFromXmltvId(xmltvId: string | undefined) {
+  const suffix = normalizeXmltvId(xmltvId).match(/\.([a-z]{2})$/)?.[1]
+  if (!suffix) return null
+  // XMLTV commonly uses `.uk`, while the circle-flags asset uses ISO `gb`.
+  return suffix === "uk" ? "gb" : suffix
+}
+
 /**
  * Orders channels by a saved sequence of channel keys. Anything not in the
  * sequence keeps its catalogue position at the end, so a channel added since
@@ -1488,6 +1495,7 @@ export function ChannelList({
               const categoryVisual = resolveCategoryVisual(channel.genre || "")
               const countryCode =
                 channel.countryCode?.toLowerCase() ??
+                countryCodeFromXmltvId(channel.xmltvId) ??
                 (categoryVisual?.kind === "flag" ? categoryVisual.code : null)
               const channelBadgeId = channel.xmltvId ?? ""
               // The guide id of whichever stream supplies this channel's guide,
