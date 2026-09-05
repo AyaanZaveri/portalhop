@@ -829,7 +829,7 @@ export default function SourcesSettingsPage() {
           <img
             src={IPTV_ORG_LOGO_DARK}
             alt=""
-            className="hidden size-8 shrink-0 rounded-md dark:block"
+            className="hidden size-8 shrink-0 rounded-md dark:block dark:brightness-0 dark:invert"
           />
           <div className="flex min-w-0 flex-col gap-1.5">
             <a

@@ -345,7 +345,7 @@ export function ChannelSourcesDrawer<T extends SourceChannel>({
                 >
                   {/* The same box as the plain row below, so pressing Edit
                       changes what a row does and not how tall it is. */}
-                  <SortableItemHandle className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors">
+                  <SortableItemHandle className="hover:bg-accent flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm transition-colors">
                     <ChannelLogo url={getLogoUrl(source)} />
                     <SourceLabels
                       source={source}
